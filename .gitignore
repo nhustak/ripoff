@@ -1,0 +1,6 @@
+# Original ROM is a reference only and is never committed (see NOTES.md)
+*.rom
+*.bin
+*.zip
+rom/
+roms/

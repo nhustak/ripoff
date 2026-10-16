@@ -1,2 +1,8 @@
 __pycache__/
 *.pyc
+# .NET build output
+bin/
+obj/
+*.user
+.vs/
+TestResults/

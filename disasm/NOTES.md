@@ -746,3 +746,49 @@ Runs: tp_idle, tp_pvp1, tp_pvp2, tp_shoot2, tp_wander (6,000-12,000 frames each;
 3. The pitch mapping of background command bits 7-5.
 4. Completeness of the observed indirect-target sets (19.5).
 5. Other uses of RAM[$A8], beyond bits 0-1 (19.6).
+
+## 20. Pass 7 / Milestone 1: the C# simulation checked against the trace
+
+Pass 7 ported GAME_RULES into `src/RipOff.Core` and replayed the scripted MAME runs through it frame by frame (`tools/remake/Replay`; checkpoints in `tests/RipOff.Core.Tests/Data/*.chk`). Every disagreement was traced back to the listing. Evidence: `trace:excerpts/p7_checks.txt` (`scripts/p7/p7_checks.py`).
+
+### 20.1 Corrections to GAME_RULES
+
+- **(a) At-canister turn target.** An enemy at its canister (`$014`) turns toward the bearing of (own − canister/2), i.e. away from the canister, not toward the exit point (lst:1587-1609). The code negates the stored ×2 word and halves it with ASR before adding the own position, so the taken bit rounds x down by one more. 12,162 of 12,162 at-canister frames turn toward this target (p7_checks (b)). The tow (`$01E`) starts on the pass **after** the heading snaps, through the "heading = bearing" path (lst:3858-3877, lst:3910-3921).
+- **(b) Player thrust and turn cadence.** Thrust changes speed by ±1 only in passes where RAM[$A8] bits 0-1 are clear, i.e. every 4th pass (lst:2219-2255). All 1,663 traced player speed changes have frame-end A8 & 3 = 1 (the counter is incremented after the player pass) (p7_checks (c)). The turn step rises by 1 on even passes up to 8 (lst:2141-2218).
+- **(c) Hop point clamp.** C is clamped to 0..`$400` and D to 0..`$300` (lst:2037-2068). The earlier "C ≥ 4, D ≥ 3" misread `LDAI n`, which loads n·`$100`.
+- **(d) Enemy fire reach.** The kill test is strict: |dx| < 150 and |dy| < 150 (`$112C-$1152`, lst:3980-4013), not inclusive. The on-field test that follows (`$1158-$1168`, lst:4023-4036) is on the enemy's own position, not on C/D.
+- **(e) Separation.** The record walk at lst:1611-1667 steps by `$10`, but the self-skip at `$06EA` jumps past the "+1" at `$06F2`. After the enemy's own record the walk runs one word off (`$0F`, `$1F`, `$2F`). In effect an enemy compares itself properly only with **lower-index** enemies (free ones skipped, exploding ones counted), then with pseudo-records whose x is word F of record m, whose y is word 0 of record m+1, and whose "free" bit is bit 0 of word 9 of record m+1 (a tread-frame pointer: its parity is fixed per sprite set, P1 odd, P2 even, enemy types 3 and 5 odd, the others even; `disasm/shapes/objects.txt`). The first hit steers along (own − other) and skips the C/D update. The literal walk is what makes the replays match (20.5).
+- **(f) Kills write word C.** A shot kill stores C := 0 (lst:3526-3549), a ram stores C := 1 in both records (lst:2393-2421), an enemy-fire kill stores C := 2 in the victim (lst:4065-4073). The replays diverged at the first kill until this was modelled.
+- **(g) Game-over test position.** The "every canister gone" test (`$0631-$0653`, lst:1446-1481) runs right after the frame wait, before the sound routine and the wave check of the next pass. In the game-over pass RAM[$EC] therefore does not get the wave check's +2 (ram1 f3434, wander1 f4462, tp_shoot2 f4784).
+- **(h) BONUS flag.** It is cleared when the next wave spawns: FC := (FC & `$F2`) + 8 (lst:575-581). While it is set, RAM[$EC] −1 per pass (lst:317-338).
+- **(i) Game start.** Word 3 of the player records is `$19` before the start (set on the game-over/attract path, lst:86-90), so P1 (and P2) respawn in the start pass: P1 word A becomes `$01C` at f202 in all 9 runs, and the first wave spawns 50 frames later at f252 (p7_checks (f)).
+
+### 20.2 Canister start table
+
+The 16 byte pairs at `$0F9A` (lst:3685-3690), ×4 = field position (×8 in RAM `$B0`, which stores position ×2), in table order: (512,360), (512,408), (536,384), (488,384), (544,352), (480,352), (544,416), (480,416), (568,384), (512,328), (456,384), (512,440), (456,328), (456,440), (568,328), (568,440). A game uses the first N (DIP: 12/16/4/8). Unused slots hold 1 in both words (gone).
+
+### 20.3 Player walls, canister contact, tow offset
+
+- **Wall clamp and bounce** (lst:2288-2334). When a move takes a player off the field, x is clamped to 0/`$3FF` (y to 0/`$2FF`) and the heading is set from a 4-entry table indexed by the quarter count q that `$1204` returns for (heading − 90): x walls 186, 174, 6, 354; y walls 84, 276, 264, 96 (bytes at `$0FBA`/`$0FBE` ×2, lst:3689-3690). Of 142 traced frames arriving at a wall, 123 have a table heading, 18 are plain moves that land exactly on the edge without leaving, and 1 (tp_wander f4532) is reproduced exactly by the replay (p7_checks (d)).
+- **Canister contact jitter** (`$0BDD-$0C0A`, lst:2804-2843). A towing enemy, or a player (whose word A has bit 1 set during its call, lst:2335-2349), within 20 of a free canister does not pick it up. Its word B steps once, draw scale (word 4) += B & `$F`, heading += (B & `$F`) − 8.
+- **Tow offset** (lst:3182-3228). The towed canister is drawn at own + R(heading)·(0, `$20`)·word4/128, i.e. 20 behind the enemy at scale `$50`. Word 4 includes this pass's jitter. 28,491 of 28,493 on-field towing frames match. The other 2 differ only in the taken bit: in the same frame another record with the same canister pointer ended its explosion, which clears x bit 0 (lst:3117-3121) (p7_checks (e)).
+
+### 20.4 atan2 at `$1000`, decoded
+
+- Table at `$17EB` (rows from `$17AB`), indexed [max][min] for 0 ≤ min ≤ max ≤ 31: floor(90 − atan(min/max)° + 0.5), with [0][0] = 45. Seven entries differ from that formula: [10][1] = 85, [22][6] = 76, [24][21] = 50, [27][8] = 74, [30][23] = 54, [31][19] = 59, [31][23] = 55.
+- Quadrant code from the signs (lst:3707-3740): dx > 0 and dy > 0 → 1; dx > 0, dy ≤ 0 → 4; dx ≤ 0, dy > 0 → 2; otherwise 3. Both magnitudes are halved while either is ≥ 32 (lst:3741-3766). v = T[max][min]; e = v if |dx| < |dy| else 90 − v; for an even quadrant code e = 90 − e; result = e + 90·(0 for code 4, else the code) (lst:3809-3846).
+- So (0, 0) gives 315, and the result can be 360. At the spawn pass C/D equal the own position, so record `$00` turns from the table heading toward 315: 154 of 154 traced spawn passes (p7_checks (g)).
+- **$1204 rounding** is round-half-up, (t·scale + 128) >> 8. It fits all 32,057 moving enemy frames without a heading change; floor fits 24,798 (p7_checks (a)).
+
+### 20.5 Replay result
+
+`tools/remake/Replay` compares, every frame from f202, enemy words A, X, Y, heading, speed, B, C, D, F and the canister pointer; P1/P2 A, X, Y, heading and speed; all 16 canister slots; RAM[$EC]; and both scores. idle1, tp_idle, tp_pvp1 and tp_pvp2 match in every frame to the end of the log (f12000 / f6000). shoot1, ram1, wander1, tp_wander and tp_shoot2 match through game over and diverge only 123-127 frames later, when the attract demo starts (not simulated) (p7_checks "replay"). The unit tests replay seven of these runs against 100-frame checkpoints.
+
+### 20.6 Still UNCHECKED after pass 7
+
+1. The chase C/D refresh gate (19.7 item 1). The simulation follows the literal code: C/D are refreshed every chase pass unless separation steers. The replays compare C/D in every frame and match, so in these 9 runs that reading accounts for every frame. Whether the 401 frames of 19.4 all come from these runs was not checked.
+2. P1's chase distance |dx| vs max(|dx|, −dy) (19.7 item 2).
+3. The background drone pitch mapping, the BONUS beep phase.
+4. The jitter heading when h ≥ 360: the literal reading of `$0BFB-$0C00` stores 360.
+5. The fire-line frame index (taken as A8 & 3).
+6. Coinage (one coin = one credit assumed), the credit limit, the attract demo, high-score handling, tread and explosion animation, and the exact score/BONUS glyph layout.

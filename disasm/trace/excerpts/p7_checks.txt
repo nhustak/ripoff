@@ -1,0 +1,49 @@
+# p7_checks.py over idle1, shoot1, ram1, wander1, tp_idle, tp_wander, tp_shoot2, tp_pvp1, tp_pvp2
+(a) $1204 rounding
+  floor fits: 24798
+  moving frames: 32057
+  round-half-up fits: 32057
+(b) at-canister turn target
+  at-canister frames: 12162
+  heading == target or closer: 12162
+(c) player thrust cadence
+  speed change at frame-end A8&3=1: 1663
+(d) player wall bounce
+  frames arriving at a wall: 142
+  heading in $0FBA/$0FBE tables: 123
+  other: plain move landing exactly on the edge (no clamp): 18
+  (the one other case, tp_wander f4532 P2, is reproduced exactly by the C# replay below)
+(e) tow offset
+  match with scale = word 4: 28491
+  towing frames on field: 28493
+  (the 2 others, shoot1 f4730 and ram1 f3415, differ only in x bit 0 (taken) of the slot. In the same
+   frame another record with the same canister pointer ended its explosion (shoot1 record $20, ram1 record $10:
+   word 4 $20 -> 0, word A -> $001), which clears that bit; the position matches and the C# replay reproduces both)
+(f) game-start timing
+  idle1: P1 word A first $01C at f202; first enemy spawn at f252 (50 frames later)
+  shoot1: P1 word A first $01C at f202; first enemy spawn at f252 (50 frames later)
+  ram1: P1 word A first $01C at f202; first enemy spawn at f252 (50 frames later)
+  wander1: P1 word A first $01C at f202; first enemy spawn at f252 (50 frames later)
+  tp_idle: P1 word A first $01C at f202; first enemy spawn at f252 (50 frames later)
+  tp_wander: P1 word A first $01C at f202; first enemy spawn at f252 (50 frames later)
+  tp_shoot2: P1 word A first $01C at f202; first enemy spawn at f252 (50 frames later)
+  tp_pvp1: P1 word A first $01C at f202; first enemy spawn at f252 (50 frames later)
+  tp_pvp2: P1 word A first $01C at f202; first enemy spawn at f252 (50 frames later)
+(g) spawn-pass turn (atan2(0,0) = 315)
+  heading = spawn heading turned toward 315: 154
+  spawn passes: 154
+
+replay (tools/remake/Replay): first frame where any compared field differs (-1 = none); frames f202..end of log
+  idle1 (idle, log ends f12000): first diff -1
+  shoot1 (shoot, log ends f12000): first diff 4913
+  ram1 (ram, log ends f12000): first diff 3557
+  wander1 (wander, log ends f12000): first diff 4585
+  tp_idle (2p:idle:idle, log ends f12000): first diff -1
+  tp_wander (2p:wander:wander, log ends f12000): first diff 5130
+  tp_shoot2 (2p:idle:shoot, log ends f12000): first diff 4907
+  tp_pvp1 (2p:pvp:idle, log ends f6000): first diff -1
+  tp_pvp2 (2p:idle:pvp, log ends f6000): first diff -1
+  game over (RAM[$F0] bit 1 set): shoot1 f4790, ram1 f3434, wander1 f4462, tp_wander f5007, tp_shoot2 f4784.
+  Every listed first diff is 123-127 frames after game over, when the attract demo starts (not simulated).
+  Compared each frame: enemies A, X, Y, H, Sp, C, D, F, B, canister pointer; P1/P2 A, X, Y, H, Sp;
+  all 16 canister words; RAM[$EC]; scores F1/F2. Inputs replayed from the trace scripts with a 2-pass lag.

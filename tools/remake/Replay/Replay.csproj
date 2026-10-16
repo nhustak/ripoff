@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Full-frame replay of the MAME RAM logs through RipOff.Core (dev tool, not part of RipOff.sln).
+       usage: dotnet run -c Release (args) <tag> 202 12000 <maxReports> <mode>
+       mode: idle | shoot | ram | wander | 2p:<p1mode>:<p2mode> (pvp allowed). Logs: $RUNS or /workspace/mame/runs. -->
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../../src/RipOff.Core/RipOff.Core.csproj" /></ItemGroup>
+</Project>

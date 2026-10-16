@@ -70,7 +70,7 @@ Status: first pass and second decode pass, both done 2026-10-16. This is static 
   4. It is doubled (lst:2914-2916) and used as the loop bound for copying that many bytes (N (x,y) pairs, each byte ×8 by three `SHL`s) from the table at `$0F9A` into RAM starting at `$B0` (lst:2919-2939; table at lst:3684-3689).
   5. Unused entries up to 32 bytes are filled with 1 (lst:2941-2957).
   - Interpretation: the table at `$0F9A` holds the start positions of N fuel canisters, and the "Lives" DIP is the canister count. Pass 2 found the draw loop for this table (triangles, section 10.3), which supports the reading.
-- The 4-byte table at `$0FC2` (`15 0F 3F 1F`) is indexed by the same DIP index and stored to RAM[$78] and RAM[$7A] (lst:2892-2898, lst:3691-3692). Its meaning is **UNCHECKED**.
+- The 4-byte table at `$0FC2` (`15 0F 3F 1F`) is indexed by the same DIP index and stored to RAM[$78] and RAM[$7A] (lst:2892-2898, lst:3691-3692). Its use as the background-sound step is decoded in section 15.
 
 ## 4. Outputs and sound (all OUT sites listed in `ripoff_xref.json`)
 
@@ -408,7 +408,7 @@ Comparison semantics used below: `TST $n` + `JLT` branches when RAM[n] < accumul
   - **Speed:** v = F5 + (F5>>1) + FB + 1 into both word 6 (current) and word 3 (maximum) (lst:666-674). E.g. type 1 at level 1 is 3; type 6 at level 1 is 11.
   - **Turn step:** word E = (v>>1)+1 (lst:675-677).
   - **Draw scale:** `$50` (lst:1526-1527).
-  - Word 6 rises by 1 toward word 3 on frames where RAM[$A8] bits 0 and 1 are both clear (lst:1842-1854). RAM[$A8] += 1 each frame at lst:4587-4590, so that is every 4th frame.
+  - Word 6 rises by 1 toward word 3 on frames where RAM[$A8] bits 0 and 1 are both clear (lst:1842-1854). RAM[$A8] += 1 once per main-loop pass at lst:4587-4590 (section 17), so that is every 4th pass.
   - Speed below 3 after subtracting word F is clamped to 2 (lst:1813-1830).
   - **Movement:** same as the player, sin/cos with angle−90 (lst:1795-1841).
   - **AI is skipped** while word-A bit 0 = 1 (free), word-A bit 4 = 0, or RAM[$FA] ≠ 0 (lst:1507-1524).
@@ -454,7 +454,7 @@ Comparison semantics used below: `TST $n` + `JLT` branches when RAM[n] < accumul
   - While RAM[$FA] ≠ 0, FC = `$1C` (lst:283-288).
 - **Background tempo/pitch rises as canisters are stolen.**
   - RAM[$78] starts at `ROM[$0FC2+idx]` (idx from the Lives DIP; lst:2892-2898) and grows by the same step RAM[$7A] for each canister carried off (lst:1885-1888, 14.4).
-  - The steps `$1F`/`$3F`/`$0F`/`$15` for 8/4/16/12 canisters make N steps sum to about 248-252, i.e. one full sweep of bits 7-5 over the game. This is arithmetic from the table; the audible effect is **UNCHECKED**.
+  - The steps `$1F`/`$3F`/`$0F`/`$15` for 8/4/16/12 canisters make N steps sum to 248/252/240/252, i.e. one full sweep of bits 7-5 over the game. This is arithmetic from the table; the audible effect is **UNCHECKED**.
 - **Torpedo (Q3):** RAM[$FD] := 5 when a player shot is spawned (lst:2606-2609). Q3 = 0 while it counts down, then 1 (lst:343-353; section 4). So Q3 is low for 5 frames per player shot. Which level is "sound on" is still **UNCHECKED** (section 4).
 - **Explosion (Q7) pulses:**
   - `$0A39` (rammed victim);
@@ -471,7 +471,7 @@ Comparison semantics used below: `TST $n` + `JLT` branches when RAM[n] < accumul
 
 The remaining enemy behaviour sits in the word-A bits 1-3 transitions:
 
-- `$11B8`: shifts and updates the state from word B;
+- `$11B8`: the pseudo-random update of word B (exact function **UNCHECKED**);
 - `$081D-$0850`: arrival within `$48` of the target point;
 - `$1123-$1160`: close-range tests, including `$96`;
 - `$0850-$08C5`: random hops, now read (14.3).
@@ -479,3 +479,20 @@ The remaining enemy behaviour sits in the word-A bits 1-3 transitions:
 These decide when an enemy switches from canister-seeking to dragging, when it chases a player, and when enemies fire. Is there enemy fire? None of the paths read so far creates a projectile for an enemy. **UNCHECKED**.
 
 Decoding this needs the full data flow of word B and words C/D across the copy-back in `$0CAA`, through several indirect stores (`WS`/`WSP`) that the static analysis cannot resolve. It is possible statically, but it is long hand-tracing with a real risk of misreading the bit tests. Running the game would settle it quickly, and that is forbidden here.
+
+## 17. Pass 4: small items
+
+- **RAM[$A8] is a pass counter**, not a size variable.
+  - It is incremented by 1 at the start of the canister draw `$13A1` (lst:4587-4590), which the main loop calls at `$0457` (lst:1021-1024).
+  - Its low bits gate three things:
+    - bit 1 selects the small canister glyphs (10.3), so the canisters pulse every 2 passes;
+    - bits 0+1 both clear give enemy acceleration every 4th pass (14.3);
+    - bit 1 toggles the BONUS beep (15).
+  - That one pass equals one displayed frame is **UNCHECKED**.
+- **Canister count vs background step** (15): DIP index 0..3 = 12/16/4/8 canisters, step `$15`/`$0F`/`$3F`/`$1F`. The total rise is 252/240/252/248.
+- **Not decoded this pass (UNCHECKED):**
+  - the 7 open indirect returns (section 8);
+  - tread-frame advance (10, the RAM[$E9] write-back);
+  - shapes `$1F68-$1FAE`;
+  - the `$15E9` data read by `$1536-$1580`.
+- **`disasm/GAME_RULES.md`** collects the gameplay rules from sections 3, 10, 11 and 13-15, with citations, for the remake.

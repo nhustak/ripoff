@@ -8,7 +8,13 @@ Notes from Nick's planning call on 2026-10-16.
 
 - A C# remake of Rip-Off, the 1980 vector arcade game by Cinematronics.
 - It starts as a faithful recreation. Our own spin on it comes later.
-- Nick will write most of the code, working with YASS.
+- Nick will write most of the code, working with the Rip-Off bot (his Grok Bot assistant for this repo).
+
+## Repo ownership
+
+- The Rip-Off bot owns this repo end to end (decided 2026-10-16).
+- It may commit and push straight to `main`; PRs are optional. It may open and merge its own PRs.
+- It never force-pushes or rewrites pushed history.
 
 ## Original ROM
 
@@ -47,7 +53,7 @@ Notes from Nick's planning call on 2026-10-16.
 ## Library rule
 
 - Prefer established libraries that the community uses most.
-- When the options are split, YASS decides.
-- When choosing between two solid options, YASS flags the choice instead of silently picking one.
+- When the options are split, the Rip-Off bot decides.
+- When choosing between two solid options, the Rip-Off bot flags the choice instead of silently picking one.
 
 See also `STACK.md` in this repo for the stack decisions.

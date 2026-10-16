@@ -2,7 +2,7 @@
 
 Decisions from Nick's planning call on 2026-10-16. The game starts as a faithful remake of the vector arcade game Rip-Off. A makeover with our own spin comes later.
 
-Nick will write most of the code going forward, working with YASS.
+Nick will write most of the code going forward, working with the Rip-Off bot (his Grok Bot assistant for this repo).
 
 ## 1. Engine: MonoGame (C#)
 
@@ -36,11 +36,11 @@ Why:
 ## 4. Input
 
 - Prefer RawInput or SDL2's input layer for clean controller and keyboard handling.
-- Use either one over MonoGame's built-in input wherever YASS judges it the better fit.
+- Use either one over MonoGame's built-in input wherever the Rip-Off bot judges it the better fit.
 - Which of the two to use is not decided yet. It will be made and flagged when input work starts.
 
 ## 5. General rule for libraries
 
 - Prefer established libraries that the community uses most.
-- When the options are split, YASS decides.
-- When choosing between two solid options, YASS flags the choice instead of silently picking one.
+- When the options are split, the Rip-Off bot decides.
+- When choosing between two solid options, the Rip-Off bot flags the choice instead of silently picking one.

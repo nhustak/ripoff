@@ -1,6 +1,6 @@
 # Rip-Off: Planning Notes and Open Questions (2026-10-16)
 
-This file holds everything from today's calls that isn't already in `RIPOFF.md` or `STACK.md`. The project is **paused until the ROM is uploaded**. After this, the focus goes back to YASS.
+This file holds everything from today's calls that isn't already in `RIPOFF.md` or `STACK.md`. The project is **paused until the ROM is uploaded**. After this, Nick's focus goes back to the YASS project (yaas-mcp).
 
 ## How the idea started (Nick, on the call)
 
@@ -35,7 +35,7 @@ These figures come from the GitHub API and SteamDB on 2026-10-16.
 
 ## Open questions
 1. **ROM upload:** where it will go. A ROM probably shouldn't be committed to this repo; private storage for reference only may be better. This needs Nick's call.
-2. **Input:** RawInput or SDL2. YASS will decide and flag the choice when input work starts.
+2. **Input:** RawInput or SDL2. The Rip-Off bot will decide and flag the choice when input work starts.
 3. **Line-drawing layer:** the approach, either MonoGame line primitives or textured quads for thickness. Not decided yet.
 4. **Steam:** whether a Steamworks app ID or partner account exists yet. UNCHECKED.
 5. **The "own spin" makeover:** what changes after the faithful remake. Not discussed yet.

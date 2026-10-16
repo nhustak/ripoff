@@ -1,0 +1,44 @@
+# Targets of the 7 open indirect jumps/calls, read from MAME debugger traces (trace2.lua TRACE=..., -debug -debugger none).
+# Trace PCs carry the CCPU P register in the top nibble; region = (pc & 0xFFF) | (pc & 0x2000 ? 0x1000 : 0) (tools/ccpu/listing.py:43).
+# target = region of the next traced instruction after the site; pairs across a '(loops for N instructions)' line are dropped.
+# runs: rt1 = shoot1 input, TRACE 1-300,530-600,1020-1080,3160-3380,3600-3700 (ram.log identical to shoot1 for 3700 frames)
+#       rt2 = shoot1 input, TRACE 690-705,890-900,980-990,1330-1345,4780-4800,4950-5000 (identical to shoot1, 5000 frames)
+#       rt3 = 2-player, P1 shoot, P2 wander, TRACE 140-300,400-460,1000-1100
+#       rt4 = shoot1 input, TRACE 4341-4345,5056-5060 (frames where the $0BDD branch stores word B at $0BE8; identical to shoot1)
+# $0BDC is not one of the 7; listed as a cross-check (same RAM[$E5] return as $0C0A).
+== rt1
+$0457 T4K: targets {'$13A1': 753}  raw {('D457', 'E3A1'): 753}
+$0BDC JMP(aux): targets {'$081D': 1}  raw {('DBDC', 'D81D'): 1}
+$0C0A JMP: targets {}  raw {}
+$0CA9 JMP: targets {'$01E6': 1, '$0110': 1}  raw {('DCA9', 'D1E6'): 1, ('DCA9', 'D110'): 1}
+$0CC5 JMP: targets {'$066A': 2259, '$0411': 2259, '$08D2': 953, '$0428': 753, '$0437': 200, '$0287': 15, '$026E': 10, '$034C': 5}  raw {('DCC5', 'D66A'): 2259, ('DCC5', 'D411'): 2259, ('DCC5', 'D8D2'): 953, ('DCC5', 'D428'): 753, ('DCC5', 'D437'): 200, ('DCC5', 'D287'): 15, ('DCC5', 'D26E'): 10, ('DCC5', 'D34C'): 5}
+$1535 JMP: targets {'$14A6': 1002}  raw {('A535', 'A4A6'): 1002}
+$15E3 JMP: targets {'$13F7': 4037, '$1533': 1002, '$15E4': 1379, '$1542': 200, '$152B': 3}  raw {('E5E3', 'E3F7'): 4037, ('A5E3', 'A533'): 1002, ('A5E3', 'A5E4'): 1082, ('A5E3', 'A542'): 200, ('E5E3', 'E5E4'): 297, ('A5E3', 'A52B'): 3}
+$15E8 T4K: targets {'$04D6': 200, '$051B': 303, '$05F7': 200, '$0629': 200, '$05C8': 179, '$0579': 99, '$058E': 99, '$05B6': 99}  raw {('A5E8', 'D4D6'): 200, ('A5E8', 'D51B'): 303, ('A5E8', 'D5F7'): 200, ('A5E8', 'D629'): 200, ('A5E8', 'D5C8'): 179, ('E5E8', 'D579'): 99, ('E5E8', 'D58E'): 99, ('E5E8', 'D5B6'): 99}
+== rt2
+$0457 T4K: targets {'$13A1': 125}  raw {('D457', 'E3A1'): 125}
+$0BDC JMP(aux): targets {'$081D': 4}  raw {('DBDC', 'D81D'): 4}
+$0C0A JMP: targets {}  raw {}
+$0CA9 JMP: targets {}  raw {}
+$0CC5 JMP: targets {'$066A': 375, '$0411': 375, '$08D2': 125, '$0428': 125, '$0287': 3, '$026E': 2, '$034C': 1}  raw {('DCC5', 'D66A'): 375, ('DCC5', 'D411'): 375, ('DCC5', 'D8D2'): 125, ('DCC5', 'D428'): 125, ('DCC5', 'D287'): 3, ('DCC5', 'D26E'): 2, ('DCC5', 'D34C'): 1}
+$1535 JMP: targets {'$14A6': 186}  raw {('A535', 'A4A6'): 186}
+$15E3 JMP: targets {'$13F7': 808, '$1523': 124, '$152B': 124, '$1533': 186, '$15E4': 186, '$1542': 45}  raw {('E5E3', 'E3F7'): 808, ('A5E3', 'A523'): 124, ('A5E3', 'A52B'): 124, ('A5E3', 'A533'): 186, ('A5E3', 'A5E4'): 186, ('A5E3', 'A542'): 45}
+$15E8 T4K: targets {'$051B': 62, '$05F7': 62, '$0629': 62}  raw {('A5E8', 'D51B'): 62, ('A5E8', 'D5F7'): 62, ('A5E8', 'D629'): 62}
+== rt3
+$0457 T4K: targets {'$13A1': 323}  raw {('D457', 'E3A1'): 323}
+$0BDC JMP(aux): targets {}  raw {}
+$0C0A JMP: targets {}  raw {}
+$0CA9 JMP: targets {'$0110': 1}  raw {('DCA9', 'D110'): 1}
+$0CC5 JMP: targets {'$066A': 969, '$0411': 969, '$08D2': 646, '$0428': 323, '$0437': 323, '$0287': 9, '$026E': 6, '$034C': 3}  raw {('DCC5', 'D66A'): 969, ('DCC5', 'D411'): 969, ('DCC5', 'D8D2'): 646, ('DCC5', 'D428'): 323, ('DCC5', 'D437'): 323, ('DCC5', 'D287'): 9, ('DCC5', 'D26E'): 6, ('DCC5', 'D34C'): 3}
+$1535 JMP: targets {'$14A6': 354}  raw {('A535', 'A4A6'): 354}
+$15E3 JMP: targets {'$13F7': 2584, '$1533': 354, '$15E4': 415, '$1542': 105}  raw {('E5E3', 'E3F7'): 2584, ('A5E3', 'A533'): 354, ('A5E3', 'A5E4'): 415, ('A5E3', 'A542'): 105}
+$15E8 T4K: targets {'$04D6': 116, '$051B': 116, '$05C8': 61, '$05F7': 61, '$0629': 61}  raw {('A5E8', 'D4D6'): 116, ('A5E8', 'D51B'): 116, ('A5E8', 'D5C8'): 61, ('A5E8', 'D5F7'): 61, ('A5E8', 'D629'): 61}
+== rt4
+$0457 T4K: targets {'$13A1': 10}  raw {('D457', 'E3A1'): 10}
+$0BDC JMP(aux): targets {}  raw {}
+$0C0A JMP: targets {'$081D': 5}  raw {('DC0A', 'D81D'): 5}
+$0CA9 JMP: targets {}  raw {}
+$0CC5 JMP: targets {'$066A': 30, '$0411': 30, '$08D2': 10, '$0428': 10}  raw {('DCC5', 'D66A'): 30, ('DCC5', 'D411'): 30, ('DCC5', 'D8D2'): 10, ('DCC5', 'D428'): 10}
+$1535 JMP: targets {'$14A6': 15}  raw {('A535', 'A4A6'): 15}
+$15E3 JMP: targets {'$13F7': 45, '$1523': 10, '$152B': 10, '$1533': 15, '$15E4': 15}  raw {('E5E3', 'E3F7'): 45, ('A5E3', 'A523'): 10, ('A5E3', 'A52B'): 10, ('A5E3', 'A533'): 15, ('A5E3', 'A5E4'): 15}
+$15E8 T4K: targets {'$051B': 5, '$05F7': 5, '$0629': 5}  raw {('A5E8', 'D51B'): 5, ('A5E8', 'D5F7'): 5, ('A5E8', 'D629'): 5}

@@ -1,0 +1,6 @@
+idle1: from f1400 to f12000: RAM(f) == RAM(f+720) for every f, except words ['0xa8']; holds for every frame: True
+orb_nudge: from f3100 to f6000: RAM(f) == RAM(f+720) for every f, except words ['0xa8']; holds for every frame: True
+orb_wstop: from f3100 to f12000: RAM(f) == RAM(f+720) for every f, except words ['0x19', '0xa8']; holds for every frame: True
+idle1 cycle f1400-f2119: P1 at (984,320) speed 0; chaser frames 720, Chebyshev distance min 31 max 136; enemy word A = ['0x1', '0x18', '0x5']
+orb_nudge cycle f3100-f3819: P1 at (968,320) speed 0; chaser frames 720, Chebyshev distance min 26 max 136; enemy word A = ['0x1', '0x18', '0x5']
+orb_wstop cycle f3100-f3819: P1 at (984,320) speed 0; chaser frames 720, Chebyshev distance min 35 max 129; enemy word A = ['0x1', '0x18', '0x5']

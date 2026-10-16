@@ -1,6 +1,6 @@
 # Rip-Off (Cinematronics, 1980): game rules for the remake
 
-Rules come from static reading of `disasm/ripoff_program.bin` and, from pass 5, from running the ROM in MAME 0.276 (NOTES §18; evidence in `disasm/trace/`, cited as `trace:<file>` with frame numbers). Citations are `lst:N` (lines of `disasm/ripoff.lst`), `NOTES §n` (`disasm/NOTES.md`) or `ccpu.cpp`/`cinemat.cpp` (MAME, see NOTES §1-2). Anything not proven is marked **UNCHECKED**. Treat those items as design choices for the remake, not as facts about the arcade game.
+Rules come from static reading of `disasm/ripoff_program.bin` and, from pass 5, from running the ROM in MAME 0.276 (NOTES §18, §19; evidence in `disasm/trace/`, cited as `trace:<file>` with frame numbers). Citations are `lst:N` (lines of `disasm/ripoff.lst`), `NOTES §n` (`disasm/NOTES.md`) or `ccpu.cpp`/`cinemat.cpp` (MAME, see NOTES §1-2). Anything not proven is marked **UNCHECKED**. Treat those items as design choices for the remake, not as facts about the arcade game.
 
 Units:
 
@@ -75,16 +75,16 @@ Units:
 | Each enemy picks a canister; if its canister is gone, it takes the first remaining one | lst:1528-1573 |
 | **Approach:** it travels in hops. On reaching within 72 (`$48`) of its current hop point, it picks a new point at canister position + a random offset. The offset shrinks with each hop. | lst:1911-2069 |
 | **Separation:** an enemy within 96 (`$60`) of another live enemy steers away from it first | lst:1611-1675, lst:4151-4186 |
-| **Chase mode** (word-A bit 3 set, bit 2 clear): steer at P1 (one-player game) or at the nearer player by max(\|dx\|,\|dy\|) (two-player game) | lst:1686-1774 |
+| **Chase mode** (word-A bit 3 set, bit 2 clear): steer at P1 in a one-player game. In a two-player game, steer at P1 if \|dx to P1\| < max(\|dx\|,\|dy\|) to P2, else at P2 (ties → P2). The arcade code measures P1 by x only (`SUB $0` at `$074F` where P2's branch has `SUB $A`). This matched all 18,771 traced frames; a symmetric max(\|dx\|,\|dy\|) rule failed 252. Dead players are not excluded. The steer point is the chosen player's position at the previous frame. (Corrected in pass 6; what gates the per-frame refresh is **UNCHECKED**, 401 frames kept an older point.) | lst:1679-1774, `trace:excerpts/p6_two_player.txt` (e), NOTES §19.4 |
 | When a player tank is destroyed, **all** enemies switch to the bit-2 mode: chasers go back to approaching (`$018` → `$01C`) | lst:2457-2480, lst:4065-4107, idle_snap f1076 |
 | **Pick-up:** an approaching (or chasing) enemy that comes within 20 (box, inclusive) of **any** live canister (canister table coords / 2) stops (speed 0) and takes that canister (`$014`). Its exit point becomes spawn-table entry (word B & 7), not its own spawn point. | lst:2666-2798, `trace:excerpts/exit_point_rule.txt` (189/189), NOTES §18.3 |
 | **Turn, then tow:** it turns in place until its heading reaches the bearing to the exit point (within one turn step), then tows (`$01E`) and accelerates back to its max speed. The canister is drawn with it (idle1: 78 and 67 frames of turning). | lst:3858-3877, idle1 f537-f615, f596-f663 |
 | **Theft:** an enemy towing a canister (word-A bit 1) that leaves the field removes the canister for good and frees its record | lst:1856-1904, store `$0810` (y word bit 0) |
 | **Dropped canister:** if a towing enemy is destroyed, the canister stays where it was dropped and can be picked up again from there | lst:3117-3121, shoot1 f1818-f4789, NOTES §18.3 |
-| **Chase starts** when a live player comes within 256 (box, inclusive) of an enemy that is approaching (`$01C`). Enemies that are towing or at a canister never switch to chase. Chase does **not** end on distance (seen 770 away); it ended only when that enemy died, picked up a canister it touched (`$018` → `$014`), or a player was destroyed. | lst:2519-2545, NOTES §18.3, `trace:excerpts/misc_checks.txt` |
+| **Chase starts** when a live player comes within 256 (box, inclusive) of an enemy that is approaching (`$01C`). It is tested in each player's pass, so P2 triggers it too (tp_pvp1 f363). Enemies that are towing or at a canister never switch to chase. Chase does **not** end on distance (seen 770 away); it ended only when that enemy died, picked up a canister it touched (`$018` → `$014`), or a player was destroyed. | lst:2519-2545, NOTES §18.3, `trace:excerpts/misc_checks.txt` |
 | **Enemy fire (no projectile object):** each enemy record has a 4-frame fire window every 16 frames (record `$00`: frames 0-3 mod 16, `$10`: 4-7, `$20`: 8-11). A chasing enemy in its window destroys the player when its heading snaps onto the bearing to the player and the player is within 150 (box, inclusive) of it. All 13 kills by enemies in the trace match this. | lst:3972-4109, `trace:excerpts/exit_chase_kill_checks.txt`, NOTES §18.4 |
-| **Fire line:** in its window a chasing enemy is drawn with a line from its nose along its heading that shortens over the 4 frames, with the Laser sound bit set. It did not appear in every window (extra condition **UNCHECKED**). Whether the line itself can hit is **UNCHECKED**. | lst:3308-3338, `trace/snaps/idle_beam_kill_montage.png` f1029-f1032, NOTES §18.4 |
-| A single chaser can orbit a motionless player indefinitely without killing it (speed 3, turn 2°/frame); the idle game then never ends | idle1 f1124-f12000, NOTES §18.4 |
+| **Fire line:** in its window a chasing enemy is drawn with a line along its heading, with the Laser sound bit set. The line always reaches 145 from the enemy; its near end steps 25 → 55 → 85 → 115 over the 4 frames (shapes `$1F89`/`$1F92`/`$1F9B`/`$1FA4` × scale 80/128). It is drawn in **every** window frame, except when the enemy is off the field at draw time (the whole draw is skipped), when a player was destroyed in that pass (the enemy is already back to `$01C`), or when the enemy picked up a canister in that pass. This accounts for all 11,973 traced window frames, with none left over. **The line is cosmetic.** Kills come only from the fire test (next row), only players can be victims, and kills also happen without a drawn line. | lst:3125-3145, lst:3292-3338, lst:3169-3175, `trace:excerpts/p6_fireline_gating.txt`, `p6_beam_shapes.txt`, NOTES §19.1 |
+| A single chaser can orbit a motionless player indefinitely without killing it. This is real game behaviour: the whole RAM state repeats every 720 frames (except the pass counter `$A8`) in idle1 (f1400-f12000), after a thrust nudge (orb_nudge f3100-f6000) and after wandering then stopping (orb_wstop f3100-f12000). It is not guaranteed: with more enemies the idle player is still killed (orb_wstop f2081, f2821), or the canisters run out (orb_sstop, game over f3165). Any thrust breaks a loop, but a new one can form. | `trace:excerpts/p6_orbit_period.txt`, NOTES §19.6 |
 
 ## 7. Collisions
 
@@ -92,17 +92,18 @@ Units:
 |---|---|
 | All tests are boxes: hit when \|dx\| ≤ r and \|dy\| ≤ r (inclusive; corrected in pass 5) | lst:4172-4180, NOTES §18.1 |
 | Player shot vs enemy: r = 20. The enemy explodes, the shot is freed, and the shooter scores. | lst:3482-3549 |
-| Player tank vs any other tank (enemies or the other player): r = 24. **Both** explode; ramming an enemy scores, ramming the other player does not. | lst:2335-2494, lst:2423-2427 |
+| Player tank vs any other tank (enemies or the other player): r = 24. **Both** explode; ramming an enemy scores, ramming the other player does not (trace: tp_wander f2758, P1 and P2 both destroyed, no score store). | lst:2335-2494, lst:2423-2427, `trace:excerpts/p6_two_player.txt` (d) |
+| **Player shots never hit the other player** (the shot test covers enemy records only). In tp_pvp1/tp_pvp2, shots passed within 20 of the other player in 1,556 frames with no effect. | lst:3587-3591, `trace:excerpts/p6_two_player.txt` (a), NOTES §19.4 |
 | Besides tank contact (row above, tested in the player's pass, both explode), an enemy destroys a player through its fire test (§6 "Enemy fire"). Player deaths in the trace were all one of these two (store `$118A` or `$0A86`). | lst:3972-4109, NOTES §18.4 |
-| **Player respawn:** the player record is freed 23 frames after its death and respawns 25 frames later at the start point (1024, 320), angle 270 (lst:899-932); one frame later it was at (1018-1020, 320), angle 269-271, speed 4-6. There are unlimited respawns. The cause of the 25-frame delay is **UNCHECKED**. | lst:890, `trace:excerpts/p1_respawns.txt` (28 respawns) |
-| Enemy explosion lasts 16 frames after a shot kill and 24 after ramming, then the record is free | lst:3106, shoot1 f424-f440, ram1 f345-f369 |
+| **Player respawn:** the explosion counts word 4 down from `$300` by `$20` per pass (24 passes; frame-end logs show 23 because the first falls in the kill pass), then the record is free. While free, word 3 counts passes. At 25 (`$19`) the player respawns with speed 5 and turn step 0: **P1 at (1024, 320) angle 270, P2 at (0, 448) angle 90**. P2 is only handled in a two-player game, and nothing happens in attract mode. There are unlimited respawns. Trace: all P1 and P2 respawns in 7 runs took 23 + 25 frames (one 24-frame case: a tank-vs-tank kill in P2's pass). | lst:862-932 (`$03B2-$03BF`, `$03C6-$03CF`, `$03E2-$03EC`), lst:3093-3106, `trace:excerpts/p6_respawn_timing.txt`, NOTES §19.2 |
+| Enemy explosion lasts 16 frames after a shot kill (scale `$200`) and 24 after ramming (`$300`), −`$20` per pass, then the record is free | lst:3093-3106, shoot1 f424-f440, ram1 f345-f369 |
 
 ## 8. Scoring
 
 | Rule | Evidence |
 |---|---|
 | **Points per enemy = 10 × (type + level − 1)**: level 1 pays 10..60 for types 1..6, and each level adds 10 | lst:3550-3573, lst:2433-2455 |
-| Shot kills score for the shot's owner; ramming kills score for the rammer | lst:3556-3573, lst:2423-2455 |
+| Shot kills score for the shot's owner; ramming kills score for the rammer (trace: shot-kill stores at `$0F11` to F1 for P1 / F2 for P2, ram-kill stores at `$0A62` in that player's pass) | lst:3556-3573, lst:2423-2455, `trace:excerpts/p6_two_player.txt` (c) |
 | Scores are stored in tens (thousands + units words) and shown with a trailing 0 | lst:1052-1080, lst:4820-4832 |
 | Individual display: P2 at x=416 (left), P1 at x=608 (right), y=374. Combined: one total at (512, 460). | lst:1112-1198 |
 | BONUS LEVEL screen: "BONUS LEVEL + (L−1)0", the per-kill increase for new level L | lst:1252-1353 |
@@ -113,9 +114,10 @@ Units:
 | Rule | Evidence |
 |---|---|
 | Background drone: command bits 7-5 come from a value that rises by one step per stolen canister. The step is chosen so the full game sweeps the whole range: 8 canisters × 31, 4 × 63, 16 × 15, 12 × 21. | lst:292-309, lst:2892-2898, lst:1885-1888 |
-| Torpedo (fire) sound for 5 passes on each player shot | lst:2606-2609, lst:343-353 |
-| Explosion pulse on every destruction (shot kill, ramming, player killed) | NOTES §15 |
-| Beep toggling during the BONUS screen | lst:317-338 |
-| Attract mode sets command bit 4 | lst:313-315 |
-| **Laser** (Q4) cue = enemy fire line: command bit 1 is set only while a chasing enemy is in its fire window | lst:3338, lst:939, `trace:excerpts/sound_bits.txt`, NOTES §18.7 |
-| **Motor 1** (command bit 2) is set when a wave has ended and cleared when the next wave spawns. It does not follow player thrust. Audible polarity **UNCHECKED**. | lst:777-782, lst:576-581, `trace:excerpts/sound_bits.txt` |
+| Torpedo (fire) sound for 5 passes on each player shot. **Sound plays while Q3 = 0** (Q3 → IC18 74LS393 CLR; forcing Q3 = 1 removed it) | lst:2606-2609, lst:343-353, nl_ripoff.cpp:625, `trace:excerpts/p6_sound_polarity.txt` |
+| Explosion pulse on every destruction (shot kill, ramming, player killed). **Triggered by the falling edge of Q7** (Q7 → IC4 LM555 trigger; Q7 written 0 then 1; forcing Q7 = 1 removed the explosions) | NOTES §15, nl_ripoff.cpp:342, `trace:excerpts/p6_sound_polarity.txt` |
+| Beep toggling during the BONUS screen. **Beep sounds while command bit 3 = 0** | lst:317-338, nl_ripoff.cpp:489-497, `trace:excerpts/p6_sound_polarity.txt` |
+| Attract mode sets command bit 4. **Bit 4 = 1 silences the background drone** (bit 4 → IC22 74LS393 CLR); it is also 1 on the BONUS screen | lst:313-315, nl_ripoff.cpp:403, `trace:excerpts/p6_sound_polarity.txt` |
+| **Laser** (Q4) cue = enemy fire line: command bit 1 is set only while a chasing enemy is in its fire window and its line is drawn. **Sound plays while Q4 = 0** (Q4 → IC18 CLR; forcing Q4 = 0 added it) | lst:3338, lst:939, nl_ripoff.cpp:563, `trace:excerpts/p6_sound_polarity.txt`, NOTES §19.3 |
+| **Motor 1** (command bit 2) is set when a wave has ended and cleared when the next wave spawns. It does not follow player thrust. **It sounds while bit 2 = 0**, so the motor drone plays during waves and stops in the gaps between them (bit 2 → PNP pair → IC12 CA3080 bias; forcing 0 in the gaps added sound, forcing 1 during waves removed it) | lst:777-782, lst:576-581, nl_ripoff.cpp:523-531, `trace:excerpts/p6_sound_polarity.txt`, NOTES §19.3 |
+| Pitch mapping of background bits 7-5: **UNCHECKED** | nl_ripoff.cpp:404-408 |

@@ -1,6 +1,6 @@
-# MAME trace evidence (pass 5)
+# MAME trace evidence (passes 5 and 6)
 
-Evidence for NOTES §18 and the pass-5 rows in GAME_RULES.md. Recorded 2026-10-16 with MAME 0.276 (Debian 13 `mame` package), driver `ripoff`, ROM set verified good (`mame -verifyroms ripoff`). No ROM data and no MAME binaries are stored here. The excerpts contain data-RAM values only.
+Evidence for NOTES §18 (pass 5), NOTES §19 (pass 6) and the matching rows in GAME_RULES.md. Recorded 2026-10-16 with MAME 0.276 (Debian 13 `mame` package), driver `ripoff`, ROM set verified good (`mame -verifyroms ripoff`). No ROM data and no MAME binaries are stored here. The excerpts contain data-RAM values only.
 
 ## How it was run
 
@@ -50,3 +50,44 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy MODE=<idle|shoot|ram|wander> FRAMES=
 - `snaps/idle_f1029_f1075_f1076.png`: full-resolution f1029, f1075, f1076.
 
 Screen orientation in the snapshots: RAM y grows upward (the enemy at RAM (801, 89) is near the bottom).
+
+## Pass 6 (NOTES §19)
+
+Run with `scripts/trace2.lua` through `scripts/run2.sh`, which passes extra MAME arguments through, e.g. `-debug -debugger none` for `TRACE=` or `-wavwrite f.wav`. Environment variables:
+
+- `TAG`, `FRAMES`;
+- `PLAYERS=1|2`. A two-player game inserts a second coin at f150 and presses "2 Players Start" at f200;
+- `P1MODE`/`P2MODE` = `idle|shoot|ram|wander|pvp` (`pvp`: turn to the other player and fire); `P1STOP`/`P2STOP` = the frame after which that player is idle; `P1THRUST="a-b"` = extra thrust frames;
+- `TRACE="a-b,..."` = MAME debugger `trace` to `runs/<tag>/cpu_trace_<a>.log`. Trace PCs carry the CCPU P register in the top nibble;
+- `FORCEQ=n:v` = the io write tap returns v for every OUT n; `FORCEFC=mask:value` = forces bits of every store to RAM[$FC] (sound tests only).
+
+With the same input script, trace2.lua reproduced the pass-5 `ram.log` byte for byte (idle1 1,340 frames, fl_idle 1,560, rt1/rt2/rt4 vs shoot1 3,700/5,000/5,062).
+
+Analysis scripts are in `scripts/p6/`. They read `runs/<tag>/` relative to `/workspace/mame`.
+
+| run | input | frames | used for |
+|---|---|---|---|
+| tp_idle | 2P, both idle | 12,000 | chase target, respawn |
+| tp_pvp1 / tp_pvp2 | 2P, P1 fires at P2 / P2 fires at P1 | 6,000 | shots vs players, kills, scoring |
+| tp_shoot2 | 2P, P2 shoots enemies, P1 idle | 12,000 | per-player scoring |
+| tp_wander | 2P, both scripted wander | 12,000 | tank-vs-tank (f2758), chase target |
+| orb_nudge | 1P idle, thrust f3000-f3010 | 6,000 | orbit re-forms after a nudge |
+| orb_wstop | 1P wander until f1500, then idle | 12,000 | orbit after play stops |
+| orb_sstop | 1P shoot until f2500, then idle | 12,000 | no orbit; game over f3165 |
+| sl_* (12 runs) | 1P shoot, one bit forced each, `-wavwrite` | 4,000 | sound polarity |
+| fl_idle | idle1 input, TRACE 1554-1559 | 1,560 | fire-line branch per pass |
+| rt1, rt2, rt4 | shoot1 input with TRACE ranges | 3,700-5,062 | indirect targets |
+| rt3 | 2P, P1 shoot, P2 wander, TRACE ranges | 1,500 | indirect targets |
+
+Files:
+
+- `excerpts/p6_fireline_gating.txt`: every chase-window frame in 12 runs, classified; the f1554-f1559 debugger branch path.
+- `excerpts/p6_beam_shapes.txt`: fire-line shape distances (derived numbers only; the image is built locally with `tools/ccpu/build_image.py` and not committed).
+- `excerpts/p6_respawn_timing.txt`: death → free → respawn timing and respawn state, P1 and P2.
+- `excerpts/p6_sound_polarity.txt`: forced-bit runs, `ram.log` equality, per-frame RMS by bit value.
+- `excerpts/p6_two_player.txt`: shot passes near the other player, deaths, chase starts, kill and canister store PCs, score stores, the tank-vs-tank frame, the chase-target fit.
+- `excerpts/p6_chase_target_fit.txt`: the distance-rule fit alone.
+- `excerpts/p6_indirect_returns.txt`: observed targets of the 7 open indirect jumps/calls.
+- `excerpts/p6_orbit_period.txt`: exact 720-frame RAM period of the orbit in three runs.
+
+The WAV files, RAM logs and CPU traces are not committed (they are large, and the traces contain opcode text from the program ROM).

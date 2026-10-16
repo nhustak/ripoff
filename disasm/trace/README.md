@@ -90,4 +90,11 @@ Files:
 - `excerpts/p6_indirect_returns.txt`: observed targets of the 7 open indirect jumps/calls.
 - `excerpts/p6_orbit_period.txt`: exact 720-frame RAM period of the orbit in three runs.
 
+### Pass 7 (Milestone 1)
+
+No new MAME runs. `scripts/p7/p7_checks.py` re-reads 9 existing RAM logs; `tools/remake/Replay` replays them through `src/RipOff.Core`.
+
+- `excerpts/p7_checks.txt`: `$1204` rounding fit, at-canister turn target, player thrust cadence, wall bounce, tow offset, game-start timing, spawn-pass turn, and the full-frame replay result (NOTES §20).
+- `tests/RipOff.Core.Tests/Data/*.chk`: RAM checkpoints every 100 frames from 7 runs (words `$00-$4F`, `$A8`, `$B0-$CF`, `$EC`, `$F1`, `$F2`), used by the unit tests. RAM only, no ROM data.
+
 The WAV files, RAM logs and CPU traces are not committed (they are large, and the traces contain opcode text from the program ROM).

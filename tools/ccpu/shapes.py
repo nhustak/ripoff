@@ -145,6 +145,30 @@ def render_objects(img, out, rep):
                    % (name, body, end - 1, hdr, len(segs), a8, len(f8), a9, len(f9)))
 
 
+def dump_objects(img, out):
+    """Write objects.txt: every object body and animation frame as line
+    segments relative to the body pivot (header pair), plus the beams/burst.
+    One record per line, for the remake's data (disasm/shapes/README)."""
+    lines = ["# Rip-Off object vector data decoded by tools/ccpu/shapes.py (see NOTES section 5, 9.4, 10).",
+             "# Coordinates are relative to the body pivot (p - header), y up, unscaled shape units.",
+             "# Draw: origin + R_ccw(heading) * p * scale/128 (players 100, enemies $50). 'dim' = segment after an FE move.",
+             "# Format: <name> <part> <index> <start-addr> : x1,y1,x2,y2,dim; ..."]
+    objs = [("player1", 0x1A8B, 0x19FB, 0x1A43), ("player2", 0x1B48, 0x1ACC, 0x1B0A)]
+    objs += [("enemy%d" % m, 0x1000 + d7, 0x1000 + d8, 0x1000 + d9) for m, d7, d8, d9 in enemy_ptrs(img)]
+    fmt = lambda segs, h: "; ".join("%d,%d,%d,%d,%d" % (a[0] - h[0], a[1] - h[1], b[0] - h[0], b[1] - h[1], int(dm)) for a, b, dm in segs)
+    for name, body, a8, a9 in objs:
+        hdr, segs, _ = rotated_segs(img, body, True)
+        lines.append("%s body 0 $%04X pivot %d,%d : %s" % (name, body, hdr[0], hdr[1], fmt(segs, hdr)))
+        for part, start in (("anim8", a8), ("anim9", a9)):
+            for i, (p, fs) in enumerate(frames(img, start)):
+                lines.append("%s %s %d $%04X : %s" % (name, part, i, p, fmt(fs, hdr)))
+    for p, hdr_on in ((0x1F68, True), (0x1F89, True), (0x1F92, True), (0x1F9B, True), (0x1FA4, True), (0x1FAE, False)):
+        hdr, segs, _ = rotated_segs(img, p, hdr_on)
+        h = hdr if hdr else (0, 0)
+        lines.append("rot_%04X shape 0 $%04X pivot %d,%d : %s" % (p, p, h[0], h[1], fmt(segs, h)))
+    open("%s/objects.txt" % out, "w").write("\n".join(lines) + "\n")
+
+
 def render_canisters(img, out, rep):
     """Canister cluster as drawn by $13A1-$13F6: entry i of the RAM $B0 table
     (from $0F9A, byte*8 at $0C5D-$0C63) is drawn as a glyph with origin
@@ -207,6 +231,7 @@ def main():
         rep.append("rotated $%04X-$%04X  header %s  %d lines  %s" % (p, end - 1, h, len(segs), segs))
     render_objects(img, out, rep)
     render_canisters(img, out, rep)
+    dump_objects(img, out)
     open("%s/shapes.txt" % out, "w").write("\n".join(rep) + "\n")
     print("\n".join(r[:110] for r in rep))
 

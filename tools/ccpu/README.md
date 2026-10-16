@@ -18,3 +18,8 @@ MAME's CCPU core (`ccpu.cpp`) is the emulator that actually runs this ROM set, a
 ## One difference from MAME's disassembler
 
 `ccpudasm.cpp` reports `LKP` (`E2`/`F2`) as 1 byte long (ccpudasm.cpp:252-256). The execution core, however, skips one extra byte after `LKP` (`m_PC++`, ccpu.cpp:518). The listing walks code the way the core executes it, so it shows `LKP` with its skipped byte (e.g. `E2 5F`). The mnemonic text is still MAME's.
+
+## Pass 2 additions
+
+- `listing.py`: `KPART` raised to 64 return-slot contexts per address. Return sites the state analysis leaves open are run through `_reaching_returns` (reaching definitions of the LPAP slot). A site is marked resolved only when every definition is a constant; its targets are listed as `RD (may-set, context-insensitive)`, and they are not used as new analysis entries. The xref JSON gains `rd_return_targets` and `rd_open`.
+- `shapes.py`: `rotated_segs`, `render_objects` (player and enemy sprites with pivot and tread frames, pointers taken from the code paths cited in disasm/NOTES.md section 10) and `render_canisters`.

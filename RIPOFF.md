@@ -20,6 +20,7 @@ Notes from Nick's planning call on 2026-10-16.
 
 - Nick has the original ROM and will upload it from his machine when he's home.
 - The ROM is a disassembly reference only. It won't be run or shipped.
+- It is committed to this repo under `rom/` (Nick, 2026-10-16).
 - Things to pull from it:
   - logic tables
   - saucer and tank behavior

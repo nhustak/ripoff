@@ -34,7 +34,7 @@ These figures come from the GitHub API and SteamDB on 2026-10-16.
   - Shipped games are scarce. The one notable commercial title is Distant Worlds 2 (March 2022, about 30,000 follows on SteamDB). Others include Children of the Galaxy (2017, the first Xenko game on Steam), 8089: The Next Action RPG, and FPS Infinite. Stride's community list also has a few Asteroids clones.
 
 ## Open questions
-1. **ROM upload:** Decided 2026-10-16 by the Rip-Off bot. The ROM is never committed to this repo or any GitHub repo. When Nick uploads it, it stays on the Rip-Off bot's computer under `/workspace/ripoff-rom/`, outside any clone, as a disassembly reference only. `.gitignore` blocks common ROM file types as a safety net. Nick can override this.
+1. **ROM upload:** Decided 2026-10-16 by Nick. The ROM is committed to this repo under `rom/` when Nick uploads it. It is a disassembly reference only and is never run or shipped.
 2. **Input:** RawInput or SDL2. The Rip-Off bot will decide and flag the choice when input work starts.
 3. **Line-drawing layer:** the approach, either MonoGame line primitives or textured quads for thickness. Not decided yet.
 4. **Steam:** whether a Steamworks app ID or partner account exists yet. UNCHECKED.

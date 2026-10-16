@@ -1,0 +1,42 @@
+MAME 0.276
+device : ripoff
+device :maincpu ccpu
+  space io name=io databits=8 addrbits=nil shift=0
+    map 0-f r=delegate w=none
+    map 10-16 r=delegate w=none
+    map 17-17 r=delegate w=none
+    map 0-7 r=none w=delegate
+  space data name=data databits=16 addrbits=nil shift=-1
+    map 0-ff r=ram w=ram
+  space program name=program databits=8 addrbits=nil shift=0
+    map 0-fff r=rom w=none
+    map 2000-2fff r=rom w=none
+device :outlatch ls259
+device :vector vector_device
+device :screen screen
+device :mono speaker
+device :soundboard ripoff_audio
+device :soundboard:sound_nl netlist_sound
+device :soundboard:sound_nl:out_0 nl_logic_in
+device :soundboard:sound_nl:out_1 nl_logic_in
+device :soundboard:sound_nl:out_2 nl_logic_in
+device :soundboard:sound_nl:out_3 nl_logic_in
+device :soundboard:sound_nl:out_4 nl_logic_in
+device :soundboard:sound_nl:out_7 nl_logic_in
+device :soundboard:sound_nl:cout0 nl_stream_out
+port :INPUTS field 'P2 Button 2' mask=10 type=65
+port :INPUTS field 'P1 Button 2' mask=8000 type=65
+port :INPUTS field '2 Players Start' mask=8 type=8
+port :INPUTS field 'P1 Right' mask=4000 type=54
+port :INPUTS field 'P2 Button 1' mask=20 type=64
+port :INPUTS field 'P1 Button 1' mask=2000 type=64
+port :INPUTS field '1 Player Start' mask=2 type=7
+port :INPUTS field 'P2 Right' mask=4 type=54
+port :INPUTS field 'P2 Left' mask=1 type=53
+port :INPUTS field 'P1 Left' mask=1000 type=53
+port :SWITCHES field 'Coinage' mask=c type=5
+port :SWITCHES field 'Demo Sounds' mask=10 type=5
+port :SWITCHES field 'Scores' mask=20 type=5
+port :SWITCHES field 'Coin 1' mask=80 type=17
+port :SWITCHES field 'Service Mode' mask=40 type=5
+port :SWITCHES field 'Lives' mask=3 type=5

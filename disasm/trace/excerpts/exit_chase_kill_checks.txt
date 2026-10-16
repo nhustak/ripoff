@@ -1,0 +1,12 @@
+idle_snap {('exit in spawn table', True): 3, ('exit==own wave spawn', False): 3} max chebyshev dist enemy-P1 while 018: 256
+  chase triggers (frame, E0,E1,E2,E3): [(1016, '0xc0', '0x100', '0xf00', '0xf40'), (1124, '0x63', '0x4', '0xffc', '0xf9d')]
+  player kills by enemy: [(1076, 'by rec 10', '|d|=(74,117)', 'E8=10', 'f%16=4')]
+shoot1 {('exit in spawn table', True): 57, ('exit==own wave spawn', False): 57} max chebyshev dist enemy-P1 while 018: 250
+  chase triggers (frame, E0,E1,E2,E3): [(3165, '0xfa', '0xd7', '0xf29', '0xf06')]
+  player kills by enemy: []
+ram1 {('exit in spawn table', True): 63, ('exit==own wave spawn', False): 64, ('exit in spawn table', False): 1} max chebyshev dist enemy-P1 while 018: 323
+  chase triggers (frame, E0,E1,E2,E3): [(323, '0xfb', '0x70', '0x70', '0xf05'), (338, '0x100', '0xae', '0xae', '0xf00'), (442, '0xfc', '0x6f', '0x6f', '0xf04'), (577, '0x63', '0xf8', '0xf8', '0xf9d'), (580, '0xff', '0xb7', '0xb7', '0xf01'), (644, '0xbe', '0xb1', '0xb1', '0xf42'), (644, '0xe5', '0x2e', '0x2e', '0xf1b'), (741, '0x9b', '0x11', '0xfef', '0xf65'), (929, '0xf8', '0x64', '0x64', '0xf08'), (931, '0xfa', '0x4e', '0xfb2', '0xf06'), (1023, '0xfc', '0x34', '0x34', '0xf04'), (1147, '0xa2', '0xfe', '0xfe', '0xf5e')]
+  player kills by enemy: [(596, 'by rec 10', '|d|=(22,60)', 'E8=10', 'f%16=4'), (1158, 'by rec 10', '|d|=(117,137)', 'E8=10', 'f%16=6'), (1888, 'by rec 00', '|d|=(45,21)', 'E8=00', 'f%16=0'), (1986, 'by rec 00', '|d|=(145,9)', 'E8=00', 'f%16=2'), (2304, 'by rec 00', '|d|=(46,54)', 'E8=00', 'f%16=0'), (3140, 'by rec 10', '|d|=(41,130)', 'E8=10', 'f%16=4'), (3248, 'by rec 00', '|d|=(19,34)', 'E8=00', 'f%16=0')]
+wander1 {('exit in spawn table', True): 55, ('exit==own wave spawn', False): 55} max chebyshev dist enemy-P1 while 018: 770
+  chase triggers (frame, E0,E1,E2,E3): [(1597, '0x83', '0xff', '0xf01', '0x83'), (2202, '0x4a', '0xff', '0xf01', '0xfb6'), (2211, '0x12', '0xfc', '0xf04', '0x12'), (3030, '0xc2', '0xac', '0xf54', '0xf3e'), (3030, '0xa9', '0x75', '0xf8b', '0xf57'), (3088, '0x67', '0x34', '0xfcc', '0xf99'), (3088, '0xa6', '0x31', '0x31', '0xf5a'), (3179, '0x14', '0x96', '0x96', '0xfec'), (4020, '0x52', '0xf7', '0xf7', '0x52')]
+  player kills by enemy: [(1619, 'by rec 00', '|d|=(23,97)', 'E8=00', 'f%16=3'), (2982, 'by rec 10', '|d|=(98,104)', 'E8=10', 'f%16=6'), (3040, 'by rec 00', '|d|=(123,136)', 'E8=00', 'f%16=0'), (3412, 'by rec 10', '|d|=(105,29)', 'E8=10', 'f%16=4'), (4176, 'by rec 00', '|d|=(63,29)', 'E8=00', 'f%16=0')]

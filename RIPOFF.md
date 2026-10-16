@@ -26,6 +26,7 @@ Notes from Nick's planning call on 2026-10-16.
   - saucer and tank behavior
   - sound cues
   - scoring
+- First-pass disassembly: `disasm/ripoff.lst`, with findings in `disasm/NOTES.md` and tools in `tools/ccpu/` (2026-10-16).
 
 ## Engine: MonoGame (C#)
 

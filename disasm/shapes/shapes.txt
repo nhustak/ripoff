@@ -21,3 +21,13 @@ rotated $1F92-$1F9A  header (18, 242)  2 lines  [((20, 154), (18, 10)), ((18, 10
 rotated $1F9B-$1FA3  header (18, 242)  2 lines  [((20, 106), (18, 10)), ((18, 10), (16, 106))]
 rotated $1FA4-$1FAC  header (18, 242)  2 lines  [((20, 58), (18, 10)), ((18, 10), (16, 58))]
 rotated $1FAE-$1FEE  header None  13 lines  [((34, 59), (30, 0)), ((24, 8), (40, 56)), ((44, 48), (22, 19)), ((10, 8), (38, 39)), ((58, 54), (13, 16)), ((8, 19), (62, 48)), ((48, 36), (4, 25)), ((16, 34), (58, 29)), ((56, 25), (8, 39)), ((18, 37), (64, 21)), ((62, 0), (8, 58)), ((18, 64), (40, 14)), ((37, 11), (29, 46))]
+object player_rec30 body $1A8B-$1ACB pivot (26, 38) 24 lines; anim8 $19FB 7 frames; anim9 $1A43 7 frames
+object player_rec40 body $1B48-$1B8C pivot (26, 32) 26 lines; anim8 $1ACC 6 frames; anim9 $1B0A 6 frames
+object enemy_type1 body $1CDD-$1D0C pivot (22, 42) 17 lines; anim8 $1D0D 4 frames; anim9 $1D46 6 frames
+object enemy_type2 body $1B8D-$1BBC pivot (22, 42) 17 lines; anim8 $1BBD 4 frames; anim9 $1C0A 4 frames
+object enemy_type3 body $1E44-$1E6C pivot (22, 42) 12 lines; anim8 $1E6D 5 frames; anim9 $1EA1 5 frames
+object enemy_type4 body $1ED5-$1EFF pivot (22, 42) 16 lines; anim8 $1F00 5 frames; anim9 $1F34 5 frames
+object enemy_type5 body $1C52-$1C74 pivot (22, 42) 12 lines; anim8 $1C75 5 frames; anim9 $1CA9 5 frames
+object enemy_type6 body $1DB6-$1DEA pivot (22, 42) 18 lines; anim8 $1DEB 5 frames; anim9 $1E1A 4 frames
+canisters: first 8 entries of $0F9A drawn with $173E/$172C -> canisters_8.png
+canisters: first 16 entries of $0F9A drawn with $173E/$172C -> canisters_16.png

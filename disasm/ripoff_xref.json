@@ -1,19 +1,247 @@
 {
- "code_bytes": 5384,
- "instructions": 4648,
+ "code_bytes": 5483,
+ "instructions": 4732,
  "unresolved": {
   "0457": "T4K with unknown P",
   "0C0A": "JMP with unknown J (J loaded from RAM[$E5] by LPAP)",
   "0CA9": "JMP with unknown J (J loaded from RAM[$E7] by LPAP)",
   "0CC5": "JMP with unknown J (J loaded from RAM[$E7] by LPAP)",
-  "1203": "T4K with unknown J (J loaded from RAM[$E7] by LPAP)",
-  "1286": "T4K with unknown J (J loaded from RAM[$E7] by LPAP)",
-  "139B": "JMP with unknown J (J loaded from RAM[$AB] by LPAP)",
-  "140A": "T4K with unknown J (J loaded from RAM[$F7] by LPAP)",
-  "14BA": "T4K with unknown J (J loaded from RAM[$E7] by LPAP)",
-  "1535": "JMP with unknown J",
+  "1203": "T4K with unknown J (J loaded from RAM[$E7] by LPAP) -> RESOLVED by reaching definitions of RAM[$E7]",
+  "139B": "JMP with unknown J (J loaded from RAM[$AB] by LPAP) -> RESOLVED by reaching definitions of RAM[$AB]",
+  "140A": "T4K with unknown J (J loaded from RAM[$F7] by LPAP) -> RESOLVED by reaching definitions of RAM[$F7]",
+  "14BA": "T4K with unknown J (J loaded from RAM[$E7] by LPAP) -> RESOLVED by reaching definitions of RAM[$E7]",
+  "1535": "JMP with unknown J (J loaded from RAM[$AB] by LPAP)",
   "15E3": "JMP with unknown J (J loaded from RAM[$A7] by LPAP)",
   "15E8": "T4K with unknown J (J loaded from RAM[$E7] by LPAP)"
+ },
+ "rd_return_targets": {
+  "0C0A": {
+   "0000": [
+    "148D"
+   ],
+   "0001": [
+    "149D"
+   ],
+   "081D": [
+    "0B4A",
+    "0B4A",
+    "0B4A"
+   ],
+   "09EE": [
+    "0B4A",
+    "0B4A",
+    "0B4A"
+   ]
+  },
+  "0CA9": {
+   "01E6": [
+    "0C1F"
+   ]
+  },
+  "0CC5": {
+   "0287": [
+    "0274"
+   ],
+   "0411": [
+    "0E40"
+   ],
+   "066A": [
+    "0663"
+   ],
+   "08D2": [
+    "08CB"
+   ]
+  },
+  "1203": {
+   "070D": [
+    "0708"
+   ],
+   "0842": [
+    "0836"
+   ],
+   "0A1F": [
+    "0A11"
+   ],
+   "0AB4": [
+    "0AAB"
+   ],
+   "0B78": [
+    "0B73"
+   ],
+   "0ECE": [
+    "0EBA"
+   ]
+  },
+  "139B": {
+   "12A3": [
+    "129C"
+   ],
+   "12C3": [
+    "12BC"
+   ],
+   "12F2": [
+    "12EB"
+   ],
+   "139C": [
+    "0D8C"
+   ],
+   "1536": [
+    "0F77"
+   ],
+   "1569": [
+    "1562"
+   ]
+  },
+  "140A": {
+   "0458": [
+    "13A3"
+   ]
+  },
+  "14BA": {
+   "04D6": [
+    "04CD"
+   ],
+   "051B": [
+    "04DE",
+    "0511"
+   ],
+   "05C8": [
+    "05BE"
+   ],
+   "05F7": [
+    "05D5"
+   ],
+   "0629": [
+    "05FC"
+   ]
+  },
+  "1535": {
+   "14A6": [
+    "14BE"
+   ]
+  },
+  "15E3": {
+   "13F7": [
+    "13F3"
+   ],
+   "1542": [
+    "157B"
+   ],
+   "15E4": [
+    "1581"
+   ]
+  },
+  "15E8": {
+   "01E6": [
+    "0C1F",
+    "0C1F",
+    "0C1F"
+   ],
+   "0287": [
+    "0274"
+   ],
+   "0411": [
+    "0E40"
+   ],
+   "04D6": [
+    "04CD"
+   ],
+   "051B": [
+    "04DE",
+    "0511"
+   ],
+   "0579": [
+    "056E"
+   ],
+   "058E": [
+    "0583"
+   ],
+   "05B6": [
+    "05AF"
+   ],
+   "05C8": [
+    "054C",
+    "05BE"
+   ],
+   "05F7": [
+    "05D5"
+   ],
+   "0629": [
+    "05FC"
+   ],
+   "066A": [
+    "0663"
+   ],
+   "070D": [
+    "0708"
+   ],
+   "0798": [
+    "06BE",
+    "0716",
+    "072B"
+   ],
+   "07CD": [
+    "07B6"
+   ],
+   "0842": [
+    "0836"
+   ],
+   "0850": [
+    "11BB",
+    "11BB"
+   ],
+   "085C": [
+    "11BB",
+    "11BB"
+   ],
+   "08D2": [
+    "08CB",
+    "08CB",
+    "08CB"
+   ],
+   "09A7": [
+    "09A0"
+   ],
+   "0A1F": [
+    "0A11"
+   ],
+   "0AB4": [
+    "0AAB"
+   ],
+   "0B3C": [
+    "0B34"
+   ],
+   "0B78": [
+    "0B73",
+    "0B73",
+    "0B73"
+   ],
+   "0BE7": [
+    "11BB",
+    "11BB"
+   ],
+   "0D5F": [
+    "0D56"
+   ],
+   "0D96": [
+    "0D87"
+   ],
+   "0ECE": [
+    "0EBA",
+    "0EBA"
+   ],
+   "0F6F": [
+    "0F68"
+   ]
+  }
+ },
+ "rd_open": {
+  "0C0A": "reaches reset entry without a store; store of unknown value at 106A; store of unknown value at 1074; store of unknown value at 107E; store of unknown value at 10C2; store of unknown value at 10C9; store of unknown value at 1206; store of unknown value at 1210; store of unknown value at 121D",
+  "0CA9": "store of unknown value at 0C1F",
+  "0CC5": "store of unknown value at 032D; store of unknown value at 0E40",
+  "1535": "store of unknown value at 14BE",
+  "15E3": "store of unknown value at 1581",
+  "15E8": "reaches reset entry without a store; store of unknown value at 032D; store of unknown value at 0C1F; store of unknown value at 0E40"
  },
  "assumed_targets": [
   "0BDC->081D",
@@ -23,6 +251,7 @@
   "0CC5->0287",
   "0CC5->034C",
   "0CC5->0411",
+  "0CC5->0428",
   "0CC5->0437",
   "0CC5->066A",
   "0CC5->08D2",
@@ -280,10 +509,12 @@
   ],
   "12AE": [
    "1F6A",
+   "1FAE",
    "unknown"
   ],
   "12B3": [
    "1F6B",
+   "1FAF",
    "unknown"
   ],
   "12D2": [
@@ -299,13 +530,18 @@
    "unknown"
   ],
   "1557": [
-   "15E9"
+   "15E9",
+   "unknown"
   ],
   "155C": [
-   "15EA"
+   "15EA",
+   "unknown"
   ],
   "1589": [
    "1620",
+   "162A",
+   "162B",
+   "162C",
    "unknown"
   ],
   "1597": [
@@ -359,6 +595,7 @@
   "04B0",
   "051E",
   "055C",
+  "05A6",
   "05E3",
   "05EE",
   "0615",
@@ -388,6 +625,7 @@
  "iv": [
   "0532",
   "0560",
+  "059B",
   "0608",
   "062D",
   "066E",

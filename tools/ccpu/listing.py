@@ -83,15 +83,18 @@ OUT_BITS = {     # LS259 Q0-Q7 via io_map (cinemat.cpp:317)
 # Printed as comments; each starts a new DB row.
 DATA_LABELS = {
     0x0F82: "table base $F82 loaded by LDAI/A8I at $0355 and $0BC1 (use not decoded, UNCHECKED)",
-    0x0F9A: "16 (x,y) byte pairs read by LKP at $0C5D, scaled x8 into RAM $B0.. (canister start positions?)",
+    0x0F9A: "16 (x,y) byte pairs read by LKP at $0C5D, scaled x8 into RAM $B0..; canister positions (drawn as triangles by $13A1, NOTES 10.3)",
     0x0FC2: "4-byte table indexed by the Lives DIP value, read by LKP at $0C3D (meaning UNCHECKED)",
     0x0FC6: "end of $0FC2 table",
-    0x0FD0: "odd bytes $0FD1-$0FFF spell ASCII '(C)1980CINEMATRONICSINC.'",
+    0x0FD0: "odd bytes $0FD1-$0FFF spell ASCII '(C)1980CINEMATRONICSINC.'; byte differences here also give the enemy shape pointers ($02D1-$0317, NOTES 10.2)",
     0x15E9: "byte-pair table read by LKP at $1557/$155C (use UNCHECKED)",
     0x1620: "glyph offset index, 13 bytes, read by LKP at $1589; glyph n at $162D+index[n]",
     0x162D: "glyph vector data (format: see tools/ccpu/shapes.py), glyphs 0-9, BONUS, LEVEL, +",
     0x172C: "glyph-format triangles; pointers set at $13DC/$13E2 (+$12 at $13EC)",
-    0x1750: "region $1750-$1F67: not decoded (tables at $17AB/$17EB used by $104E/$1062, UNCHECKED)",
+    0x1750: "sine table, 91 bytes: round(256*sin(k deg)) k=0..90 (255 at k>=87), read by LKP at $1229/$1247 (NOTES 9.1)",
+    0x17AB: "atan row-offset table: 32 pairs, (b0<<4)+b1 = n(n+1)/2, read by LKP at $1054/$105E (NOTES 9.3)",
+    0x17EB: "triangular atan table: [max][min] = 90 - atan(min/max) in degrees, read by LKP at $1068 (NOTES 9.3)",
+    0x19FB: "object sprite stream (rotated format): player/enemy bodies with headers + headerless tread frames (NOTES 10)",
     0x1F68: "rotated-format shape read via LKP at $128E (header pair, then points)",
     0x1F89: "rotated-format shapes $1F89/$1F92/$1F9B/$1FA4 (header pair each)",
     0x1FAE: "rotated-format shape entered at $12A6 (no header); draws with OUT $6 toggling ($1315-$1321)",
@@ -177,6 +180,8 @@ class Analyzer:
         self.copy_edges = set()   # (src slot, dst slot) copies via LDA/LDAP then STA/STAP
         self.calls = {}           # jump addr -> (target, return point): A == address after the jump
         self.slotset_targets = set()  # (src, dst) taken from slot_consts for an unknown J
+        self.store_log = {}       # store site -> set of (slot or None, value or None)
+        self.retsites = {}        # JMP/T4K site whose J came from LPAP -> set of slots
 
     def indirect(self, a, s, how, mk):
         """J unknown: report it, never guess a target."""
@@ -253,6 +258,8 @@ class Analyzer:
             t = self.rd(a + 1)
             s.J = lo + (t & 0xf0) + ((t & 0x0f) << 8); s.setw("J", False); s.Jslot = UNK; to_a()
         elif op == 0x50:           # T4K ccpu.cpp:300-303
+            if s.Jslot is not UNK:
+                self.retsites.setdefault(a, set()).add(s.Jslot)
             if s.P is UNK:
                 self.unresolved[a] = "T4K with unknown P"
             elif s.J is UNK:
@@ -276,6 +283,8 @@ class Analyzer:
         elif op == 0x57:           # SSA ccpu.cpp:342-344
             toggle()
         elif op == 0x58:           # JMP ccpu.cpp:347-350
+            if s.Jslot is not UNK:
+                self.retsites.setdefault(a, set()).add(s.Jslot)
             to_a()
             if s.J is UNK:
                 return self.indirect(a, s, "JMP", lambda v: bank + v)
@@ -384,6 +393,7 @@ class Analyzer:
         src = getattr(s, s.acc + "slot")
         if i is not UNK and src is not None:
             self.copy_edges.add((src, i))
+        self.store_log.setdefault(a, set()).add((None if i is UNK else i, None if v is UNK else v))
         if i is UNK:
             # store to an unknown address: keep known slots but mark them WEAK
             self.wild_stores.add(a)
@@ -394,7 +404,7 @@ class Analyzer:
             s.ram[i] = (v, weak or s.isw("I"))
             self.slot_consts.setdefault(i, set()).add(v)
 
-    KPART = 16   # max distinct return-slot contexts kept apart per (address, accumulator)
+    KPART = 64   # max distinct return-slot contexts kept apart per (address, accumulator)
 
     def pkey(self, a, st):
         ctx = tuple(st.ram.get(k, (None,))[0] for k in sorted(self.key_slots))
@@ -409,7 +419,7 @@ class Analyzer:
         self.reset_records()
         self.states = {}
         self.parts = {}
-        work = [(entry, reset_state())]
+        work = [(entry, reset_state())] + [(t, State(acc=acc, ram={})) for t, acc in sorted(self.seeds)]
         while work:
             a, st = work.pop()
             a &= 0x1fff
@@ -429,17 +439,30 @@ class Analyzer:
         # different values in those slots apart (context sensitivity for
         # "return address in RAM" subroutine calls)
         self.prev_slot_consts = {}
-        for _ in range(20):
-            self.fixpoint(entry)
-            new = self.key_slots | self.lpap_slots
-            if new == self.key_slots:
-                break
-            self.key_slots = new
-        # final recording pass over fixpoint states only
-        self.reset_records()
-        self.add_target(-1, entry)
-        for k, st in self.states.items():
-            self.step(k[0], st)
+        self.seeds = set()        # (addr, acc) entered from reaching-definition return targets
+        self.rd_targets = {}      # return site -> {target: [def sites]}
+        self.rd_open = {}         # return site -> reason it stays unresolved
+        for _round in range(10):
+            for _ in range(20):
+                self.fixpoint(entry)
+                new = self.key_slots | self.lpap_slots
+                if new == self.key_slots:
+                    break
+                self.key_slots = new
+            # final recording pass over fixpoint states only
+            self.reset_records()
+            self.add_target(-1, entry)
+            self.succ = {}
+            for k, st in self.states.items():
+                for na, _ in self.step(k[0], st):
+                    self.succ.setdefault(k[0], set()).add(na & 0x1fff)
+            for t, _acc in self.seeds:
+                self.add_target(-2, t)
+            self.reaching_returns()
+            # RD targets are a context-insensitive MAY set; they are reported
+            # but not used as new analysis entries (doing so pulled in bogus
+            # targets such as L0000/L0001 from unrelated uses of the slot).
+            break
         self.retpoints = {r: c for c, (t, r) in self.calls.items()}
         self.code = {}
         self.accs = {}
@@ -452,6 +475,114 @@ class Analyzer:
                 ln = 2
             self.code[a] = (ln, text)
             self.accs.setdefault(a, []).append(st)
+
+
+def _reaching_returns(self):
+    """Resolve RAM-based returns by reaching definitions of the return slot.
+
+    For a return site X (JMP/T4K whose J came from LPAP of RAM[S]) walk the
+    control-flow graph backwards from X. A store to S ends a path and is a
+    definition; its value (if constant) gives a return target: bank(X)+v for
+    JMP (ccpu.cpp:347-350), (P<<12)+v for T4K (ccpu.cpp:300-303, P known at X).
+    A return point r of a CALL c is passed backwards to c directly (the callee
+    body is skipped), unless the callee body stores to S, in which case the
+    path is marked open. Reaching the reset entry, or a store with an unknown
+    value, also leaves the site open. The result is a context-insensitive MAY
+    set; it is used only for sites the state analysis left unresolved."""
+    pred = {}
+    for a, ns in self.succ.items():
+        for n in ns:
+            pred.setdefault(n, set()).add(a)
+    retp = {r: c for c, (t, r) in self.calls.items()}
+
+    def callee_body(t):
+        seen, todo = set(), [t]
+        while todo:
+            n = todo.pop()
+            if n in seen:
+                continue
+            seen.add(n)
+            if n in self.retsites:
+                continue
+            if n in self.calls:
+                todo.append(self.calls[n][1])
+                continue
+            todo.extend(self.succ.get(n, ()))
+        return seen
+
+    def stores_to(n, S):
+        return [v for (i, v) in self.store_log.get(n, ()) if i == S]
+
+    new_seeds = set()
+    self.rd_targets, self.rd_open = {}, {}
+    for X in sorted(self.unresolved):
+        if X not in self.retsites:
+            continue
+        sts = [st for k, st in self.states.items() if k[0] == X]
+        slots = self.retsites[X]
+        Ps = set(st.P for st in sts)
+        op = self.rd(X)
+        if len(slots) != 1 or (op == 0x50 and (UNK in Ps or len(Ps) != 1)):
+            self.rd_open[X] = "return slot or P not unique"
+            continue
+        S = next(iter(slots))
+        P = next(iter(Ps))
+        defs, why = {}, set()
+        seen, todo = set(), [(p, X) for p in pred.get(X, ())]
+        while todo:
+            n, frm = todo.pop()
+            if n in seen:
+                continue
+            seen.add(n)
+            if n == X:
+                continue
+            vals = stores_to(n, S)
+            if vals:
+                for v in vals:
+                    if v is None:
+                        why.add("store of unknown value at %04X" % n)
+                    else:
+                        defs.setdefault(v, []).append(n)
+                continue
+            if n == 0:
+                why.add("reaches reset entry without a store")
+            if n in retp:
+                c = retp[n]
+                body = callee_body(self.calls[c][0])
+                if any(stores_to(b, S) for b in body):
+                    # callee body may set S; its own stores are definitions too
+                    for b in body:
+                        for v in stores_to(b, S):
+                            if v is None:
+                                why.add("store of unknown value at %04X" % b)
+                            else:
+                                defs.setdefault(v, []).append(b)
+                todo.append((c, n))
+                continue
+            for p in pred.get(n, ()):
+                todo.append((p, n))
+        tg = {}
+        for v, ws in defs.items():
+            t = (X & 0x1000) + v if op == 0x58 else cpu_to_region((P << 12) + v)
+            tg[t & 0x1fff] = sorted(ws)
+        self.rd_targets[X] = tg
+        if why:
+            self.rd_open[X] = "; ".join(sorted(why))
+        acc_after = set()
+        for st in sts:
+            acc_after.add("A" if op == 0x58 else ("B" if st.acc == "A" else "A"))
+        for t in tg:
+            if not why:
+                self.add_target(X, t)
+            for acc in acc_after:
+                new_seeds.add((t, acc))
+    for X in list(self.rd_targets):
+        if X not in self.rd_open and self.rd_targets[X]:
+            self.unresolved[X] = self.unresolved[X] + " -> RESOLVED by reaching definitions of RAM[$%02X]" % next(iter(self.retsites[X]))
+    return new_seeds
+
+
+Analyzer.reaching_returns = _reaching_returns
 
 
 def describe(an, a):
@@ -511,8 +642,14 @@ def describe(an, a):
         if tg:
             c.append("-> " + ",".join(("L%04X" % t) + ("(SLOTSET)" if (a, t) in an.slotset_targets else "(ASSUMED)" if (a, t) in an.weak_targets else "")
                                       for t in tg))
+        if a in an.rd_targets and an.rd_targets[a]:
+            c.append("RD (may-set, context-insensitive): " + ",".join("L%04X(def %s)" % (t, "/".join("%04X" % w for w in ws[:3]))
+                                        for t, ws in sorted(an.rd_targets[a].items())))
         if a in an.unresolved:
-            c.append("UNRESOLVED: " + an.unresolved[a])
+            if "RESOLVED by" in an.unresolved[a]:
+                c.append("was " + an.unresolved[a])
+            else:
+                c.append("UNRESOLVED: " + an.unresolved[a] + ((" [RD open: " + an.rd_open[a] + "]") if a in an.rd_open else ""))
     if a in an.calls:
         t, r = an.calls[a]
         c.append("CALL L%04X, returns to L%04X (A=$%03X = next address)" % (t, r, r & 0xfff))
@@ -521,6 +658,10 @@ def describe(an, a):
     elif len(accs) > 1:
         c.append("acc=A|B")
     return "; ".join(c)
+
+
+def n_open(an):
+    return sum(1 for v in an.unresolved.values() if "RESOLVED by" not in v)
 
 
 def sx(v):
@@ -535,7 +676,7 @@ def write_listing(an, path, imgsha):
             covered.add(a + i)
     lines = []
     W = lines.append
-    W("; Rip-Off (Cinematronics, 1980) CCPU program listing -- first pass")
+    W("; Rip-Off (Cinematronics, 1980) CCPU program listing -- passes 1-2")
     W("; Generated by tools/ccpu/listing.py from disasm/ripoff_program.bin (sha1 %s)" % imgsha)
     W("; Mnemonics: MAME ccpudasm.cpp @ 7c11d9e0 (Python port verified byte-identical).")
     W("; Columns: region offset | CPU address | bytes | instruction | ; notes")
@@ -543,7 +684,7 @@ def write_listing(an, path, imgsha):
     W("; shown as DB (unreached: data, or code reached only via unresolved jumps).")
     W(";")
     W("; code bytes: %d of 8192; unresolved control transfers: %d; targets marked ASSUMED: %d"
-      % (len(covered), len(an.unresolved), len(an.weak_targets)))
+      % (len(covered), n_open(an), len(an.weak_targets)))
     W("; ASSUMED = jump target taken from a RAM slot that a store to an unknown address")
     W(";           might have overwritten; check by hand before relying on it.")
     W("")
@@ -588,6 +729,9 @@ def main():
             "code_bytes": len(covered),
             "instructions": len(an.code),
             "unresolved": {"%04X" % k: v for k, v in sorted(an.unresolved.items())},
+            "rd_return_targets": {"%04X" % x: {"%04X" % t: ["%04X" % w for w in ws] for t, ws in sorted(tg.items())}
+                                  for x, tg in sorted(an.rd_targets.items())},
+            "rd_open": {"%04X" % x: why for x, why in sorted(an.rd_open.items())},
             "assumed_targets": sorted("%04X->%04X" % st for st in an.weak_targets - an.slotset_targets),
             "slotset_targets": sorted("%04X->%04X" % st for st in an.slotset_targets),
             "wild_stores": sorted("%04X" % x for x in an.wild_stores),
@@ -603,7 +747,7 @@ def main():
             "frm": sorted("%04X" % a for a in an.code if an.rd(a) in (0xe5, 0xf5)),
         }
         json.dump(rep, open(sys.argv[3], "w"), indent=1)
-    print("code bytes %d, insns %d, unresolved %d" % (len(covered), len(an.code), len(an.unresolved)))
+    print("code bytes %d, insns %d, unresolved %d" % (len(covered), len(an.code), n_open(an)))
 
 
 if __name__ == "__main__":

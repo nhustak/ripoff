@@ -1,0 +1,36 @@
+# sound lab: 12 identical 4000-frame P1MODE=shoot runs (p6/soundlab.sh); one latch output or FC bit forced per run
+# ram.log diff vs sl_base (lines differing, words differing) and overall RMS (left channel, 16-bit samples):
+sl_q4_1 ramdiff (0, []) overall rms base 4733 var 4732 diff 67
+sl_q4_0 ramdiff (0, []) overall rms base 4733 var 4755 diff 1434
+sl_q3_1 ramdiff (0, []) overall rms base 4733 var 4702 diff 815
+sl_q3_0 ramdiff (0, []) overall rms base 4733 var 4809 diff 1345
+sl_q7_1 ramdiff (0, []) overall rms base 4733 var 2003 diff 4352
+sl_fc2_0 ramdiff (999, ['0xfc']) overall rms base 4733 var 4750 diff 434
+sl_fc2_1 ramdiff (3001, ['0xfc']) overall rms base 4733 var 4682 diff 688
+sl_fc3_0 ramdiff (4000, ['0xfc']) overall rms base 4733 var 4816 diff 995
+sl_fc3_1 ramdiff (49, ['0xfc']) overall rms base 4733 var 4729 diff 132
+sl_fc4_0 ramdiff (300, ['0xfc']) overall rms base 4733 var 4729 diff 1621
+sl_fc4_1 ramdiff (3777, ['0xfc']) overall rms base 4733 var 4560 diff 1365
+
+# per-frame RMS (1263 samples/frame), split by the value the bit had in the unforced run at that frame:
+  sl_q4_1: frames where base Q4=0: n=    4 base rms=   2438 forced rms=   2071 diff rms=   1288
+  sl_q4_1: frames where base Q4=1: n= 3995 base rms=   2440 forced rms=   2440 diff rms=      1
+  sl_q4_0: frames where base Q4=0: n=    4 base rms=   2438 forced rms=   2575 diff rms=   2019
+  sl_q4_0: frames where base Q4=1: n= 3995 base rms=   2440 forced rms=   2978 diff rms=   1402
+  sl_q3_1: frames where base Q3=0: n=  910 base rms=   3232 forced rms=   2747 diff rms=   1301
+  sl_q3_1: frames where base Q3=1: n= 3089 base rms=   2207 forced rms=   2196 diff rms=    106
+  sl_q3_0: frames where base Q3=0: n=  910 base rms=   3232 forced rms=   2834 diff rms=   1399
+  sl_q3_0: frames where base Q3=1: n= 3089 base rms=   2207 forced rms=   2291 diff rms=    406
+  sl_q7_1: frames where base Q7=1: n= 3999 base rms=   2440 forced rms=   1481 diff rms=   1355
+  sl_fc2_0: frames where base FCbit2=0: n= 3000 base rms=   2897 forced rms=   2901 diff rms=    153
+  sl_fc2_0: frames where base FCbit2=1: n=  999 base rms=   1069 forced rms=   1446 diff rms=    716
+  sl_fc2_1: frames where base FCbit2=0: n= 3000 base rms=   2897 forced rms=   2652 diff rms=    742
+  sl_fc2_1: frames where base FCbit2=1: n=  999 base rms=   1069 forced rms=   1068 diff rms=     30
+  sl_fc3_0: frames where base FCbit3=0: n=   49 base rms=   1106 forced rms=   1592 diff rms=   1083
+  sl_fc3_0: frames where base FCbit3=1: n= 3950 base rms=   2457 forced rms=   2776 diff rms=    942
+  sl_fc3_1: frames where base FCbit3=0: n=   49 base rms=   1106 forced rms=    202 diff rms=    970
+  sl_fc3_1: frames where base FCbit3=1: n= 3950 base rms=   2457 forced rms=   2456 diff rms=     20
+  sl_fc4_0: frames where base FCbit4=0: n= 3699 base rms=   2585 forced rms=   2581 diff rms=   1148
+  sl_fc4_0: frames where base FCbit4=1: n=  300 base rms=    656 forced rms=   1402 diff rms=    884
+  sl_fc4_1: frames where base FCbit4=0: n= 3699 base rms=   2585 forced rms=   2048 diff rms=   1045
+  sl_fc4_1: frames where base FCbit4=1: n=  300 base rms=    656 forced rms=    659 diff rms=     49

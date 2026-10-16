@@ -1,0 +1,4 @@
+$1F89: 2 lines, points at [40.0, 40.0, 232.0] shape units from the pivot; x 80/128 -> [25.0, 25.0, 145.0] field units
+$1F92: 2 lines, points at [88.0, 88.0, 232.0] shape units from the pivot; x 80/128 -> [55.0, 55.0, 145.0] field units
+$1F9B: 2 lines, points at [136.0, 136.0, 232.0] shape units from the pivot; x 80/128 -> [85.0, 85.0, 145.0] field units
+$1FA4: 2 lines, points at [184.0, 184.0, 232.0] shape units from the pivot; x 80/128 -> [115.0, 115.0, 145.0] field units

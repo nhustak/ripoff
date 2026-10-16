@@ -560,14 +560,14 @@ There is **no enemy projectile object**. Shot slots `$50-$6F` were never live in
 - **Trace:** 13 player kills by enemies (idle_snap 1, ram1 7, wander1 5). At every one, the killer was in `$018` at the previous frame end, RAM[$E8] equalled the killer's record, the frame fell in its window, and \|d\| ≤ (145,137) (`trace:excerpts/exit_chase_kill_checks.txt`).
 - **Visible "shot".** During a chasing enemy's window the draw code at `$0DFC-$0E1E` (lst:3308-3338) draws an extra line and sets RAM[$FC] bit 1 (Laser, Q4; cleared every frame at `$03F3`, lst:939). The snapshots show a straight line from the enemy's nose along its heading, shorter in each of the 4 frames (`trace/snaps/idle_beam_kill_montage.png`, f1029-f1032; enemy at (801,89), heading 144°, pointing at P1 (969,320) but out of reach).
   - In the trace, bit 1 was set **only** for an enemy in `$018` and only inside its window (all 2,404 sets).
-  - It was not set in every window: 1,083 chase-window frames (idle1 1,036, ram1 14, wander1 33) had no line. That extra condition is **UNCHECKED**.
-  - Whether the line itself can hit is **UNCHECKED**. All 13 kills match the window/aim/150 test above. At the idle_snap f1076 kill, no line was drawn in f1075/f1076 and the explosion starts f1077.
+  - It was not set in every window: 1,083 chase-window frames (idle1 1,036, ram1 14, wander1 33) had no line. That extra condition is **UNCHECKED** (resolved in 19.1: off-field draw skip, kill pass, pick-up).
+  - Whether the line itself can hit is **UNCHECKED** (resolved in 19.1: it cannot; it is cosmetic). All 13 kills match the window/aim/150 test above. At the idle_snap f1076 kill, no line was drawn in f1075/f1076 and the explosion starts f1077.
 - **Orbit.** In idle1 the last enemy circles the motionless P1 from f1124 to f12000 without a kill (speed 3, turn step 2°: it never snaps onto the bearing inside its window). So **an idle player can survive indefinitely against a single chaser**, and the idle game never ends (idle1: 3 canisters lost, then no change in the canister table, word A, F8/F9 or score for 10,600 frames, `trace:excerpts/idle1_state_changes.txt`).
 
 ### 18.5 Player death, respawn, game over
 
 - Player destroyed by an enemy: P1 word A `$01C` → `$00C` at `$118A`. All enemies get bit 2 (`$018` → `$01C` at `$1199/$11A2/$11B4`; free records `$001` → `$005` at `$11AB`) (idle_snap f1076). Chasers go back to approaching their canister.
-- P1 record freed at `$0D23` 23 frames later (f1099). P1 respawns at `$03BC` (lst:890) 25 frames after that (f1124), at (1024, 320) with angle 270. All 28 respawns in idle1/ram1/wander1 had the same timing (death → free 23 frames, free → respawn 25 frames) and, one frame later, position (1018-1020, 320), angle 269-271, speed 4-6 (`trace:excerpts/p1_respawns.txt`). What sets the 25-frame delay and the initial speed is **UNCHECKED**.
+- P1 record freed at `$0D23` 23 frames later (f1099). P1 respawns at `$03BC` (lst:890) 25 frames after that (f1124), at (1024, 320) with angle 270. All 28 respawns in idle1/ram1/wander1 had the same timing (death → free 23 frames, free → respawn 25 frames) and, one frame later, position (1018-1020, 320), angle 269-271, speed 4-6 (`trace:excerpts/p1_respawns.txt`). What sets the 25-frame delay and the initial speed is **UNCHECKED** (resolved in 19.2).
 - There is no life counter: ram1 alone had 20 respawns (`trace:excerpts/p1_respawns.txt`). Game over came only when the canisters were gone (shoot1 f4790, ram1 f3434, wander1 f4462: RAM[$F0] bit 1 set).
 
 ### 18.6 RNG `$11B8`
@@ -579,12 +579,12 @@ There is **no enemy projectile object**. Shot slots `$50-$6F` were never live in
 
 ### 18.7 Sound cues seen in the trace (`trace:excerpts/sound_bits.txt`)
 
-- **Laser (Q4 = ~(FC>>1)&1, lst:340-342):** FC bit 1 is set only at `$0E1E` (the enemy-fire line, 18.4) and cleared each frame at `$03F3`. So the Laser cue is the **enemy fire**. Whether Q4 = 0 is audible is **UNCHECKED**.
+- **Laser (Q4 = ~(FC>>1)&1, lst:340-342):** FC bit 1 is set only at `$0E1E` (the enemy-fire line, 18.4) and cleared each frame at `$03F3`. So the Laser cue is the **enemy fire**. Whether Q4 = 0 is audible is **UNCHECKED** (resolved in 19.3: yes).
 - **Motor 1 (command bit 2):**
   - set at `$0348` (lst:777-782) when a wave has ended (all records free; the inter-wave countdown of 14.1);
   - cleared at `$0266` (lst:576-581) when the next wave spawns;
   - also set at `$004D`, `$00D1` and `$0130` (game start/attract paths).
-  It does **not** follow player thrust: bit 2 was 0 in 1,589 frames with P1 moving and 1 in 125 frames with P1 stopped (ram1). The audible meaning is **UNCHECKED**.
+  It does **not** follow player thrust: bit 2 was 0 in 1,589 frames with P1 moving and 1 in 125 frames with P1 stopped (ram1). The audible meaning is **UNCHECKED** (resolved in 19.3: on while bit 2 = 0).
 - **Torpedo (Q3):** RAM[$FD] := 5 at `$0B0D` on each P1 shot (250 shots in shoot1). Q3 toggled 245 times in shoot1, never in the other runs.
 
 ### 18.8 Other checks
@@ -594,8 +594,155 @@ There is **no enemy projectile object**. Shot slots `$50-$6F` were never live in
 
 ### 18.9 Still UNCHECKED after pass 5
 
+(Items 1-4 resolved in §19, item 5 for the exercised paths; see 19.7 for what remains.)
+
 1. What else gates the fire line in a chase window (18.4), its length/range, and whether the line itself can destroy a player.
 2. What sets the 25-frame respawn delay and the initial respawn speed.
 3. The audible polarity of Laser/Motor/Torpedo/Beep.
 4. Two-player behaviour (target choice between players, P2 respawn); no two-player run was made.
 5. The 7 open indirect returns (section 8) are not affected by this pass.
+
+## 19. Pass 6: MAME runs on the pass-5 open items
+
+Status: done 2026-10-16. Same setup as §18 (MAME 0.276, driver `ripoff`, headless, default DIPs). New Lua script `trace/scripts/trace2.lua`: one- or two-player games (`PLAYERS=2` adds a second coin at f150 and presses "2 Players Start" at f200), per-player input modes (`idle`, `shoot`, `ram`, `wander`, `pvp` = turn to the other player and fire), debugger traces over frame ranges (`TRACE=`, needs `-debug -debugger none`), and forced latch/command bits for the sound tests (`FORCEQ=`, `FORCEFC=`). trace2.lua with the `idle1` input reproduces `idle1`'s `ram.log` exactly for 1,340 frames, and every pass-6 replay of a pass-5 input script (fl_idle, rt1, rt2, rt4) reproduced its pass-5 `ram.log` byte for byte. New runs are listed in `trace/README.md`. Excerpts are `trace:excerpts/p6_*.txt`.
+
+Two reading notes used throughout:
+
+- **Frame-end positions lag the draw by one step.** A record is moved and drawn from its `$D0` work copy, and the copy goes back to the record afterwards (`$0CAA`, lst:2995-3021). The frame notifier fires between the two, so the position the draw used is the one logged at the **next** frame end. The debugger trace below shows this (f1558: logged x = 1022, but the draw took the x ≥ `$400` exit).
+- **Explosion length (correction to 14.5/18.3).** "Scale 2/3" in 14.5 is `LDAI $2`/`LDAI $3`, which loads `$200`/`$300` (18 intro). `$0D14-$0D23` (lst:3093-3106) subtracts `$20` from word 4 every pass and frees the record (word A := 1) when it reaches 0. That gives 16 passes for a shot kill and 24 for a ram or player kill. In the trace, P1's word 4 goes `$2E0` → 0 in steps of `$20` (idle1 f1077-f1100). That is 23 frame-end steps, because the first subtraction falls in the kill pass.
+
+### 19.1 Fire line: what gates it, its range, and what it can hit
+
+- **Gating (resolved).** `trace:excerpts/p6_fireline_gating.txt`, classifier `p6/fireline_gating.py`, 12 runs. We looked at every frame where RAM[$E8] names an enemy in `$018`, using the position at draw time. Results:
+  - 7,841 frames: line drawn, enemy on the field.
+  - 4,059 frames: no line, enemy **off the field at draw time**.
+  - 72 frames: no line, a **player was destroyed in that pass**. The kill broadcast sets the enemy to `$01C` before it is drawn.
+  - 1 frame: no line, the enemy **picked up a canister in that pass** (`$018` → `$014`, ram1 f2902).
+  - 0 frames left unexplained. No line was ever drawn for an off-field enemy.
+
+  The code, in order:
+  - `$0CC6` skips free records.
+  - `$0D39-$0D51` (lst:3125-3145) skip the whole draw, line included, when x < 0, y < 0, x ≥ `$400` or y ≥ `$300`.
+  - `$0DEC-$0DF7` (lst:3292-3305) skip if the speed is non-zero and RAM[$FA] ≠ 0. RAM[$FA] was 0 in every chase-window frame. It only counted down (from 123) while F0 bit 1 (attract/game over) was set: ram1 f1, f3434, f4743 … So this branch never applied in play.
+  - `$0DFC-$0E03` (lst:3308-3314): word-A bit 2 must be clear.
+  - `$0E07-$0E0C` (lst:3318-3322): RAM[$E8] = RAM[$EF].
+  - `$0E10-$0E1E` (lst:3326-3338): RAM[$A4] := RAM[$ED] (the shape), FC |= 2 (Laser), then draw.
+
+  So the 1,083 "no line" frames of 18.4 were off-field enemies plus kill frames. The debugger trace in the same excerpt (run `fl_idle`, f1554-f1559) shows the branch taken in each pass: not-window, not-window, LINE, LINE, OFF(x), OFF(x).
+- **Shape and range (resolved).**
+  - RAM[$ED] cycles `$F89`, `$F92`, `$F9B`, `$FA4` (region `$1F89-$1FA4`), one per frame (`p6_fireline_gating.txt`, ED column).
+  - Decoded with `tools/ccpu/shapes.py` (`p6/beam_shapes.py`, distances only, `trace:excerpts/p6_beam_shapes.txt`), each is a thin two-line spike. Its tip is 232 shape units from the pivot. Its base is at 40, 88, 136 or 184.
+  - The draw origin is the record's x,y unscaled (`$0D69-$0D6F`, lst:3169-3175). The scale is word 4 (`$0D59-$0D5E`, lst:3153-3157) over 128 (§9.3). Word 4 was `$50` in all 16,239 chase frames sampled.
+  - So the line always reaches **145 field units** along the heading. Its near end steps out 25 → 55 → 85 → 115 over the 4 frames. This matches the kill reach of 150 (`$96`, 18.4).
+- **What it can hit (resolved: only players, and the line itself is cosmetic).**
+  - The kill comes from the test at `$1123-$11B7` (18.4), entered from steering, not from the draw. Its only victims are player records that C/D matches (`$1169-$1185`, lst:4038-4064).
+  - Over 9 runs, every enemy explosion was stored at `$0EE5` (player shot) or `$0A2D` (ramming). No enemy was ever destroyed at `$118A`.
+  - Canister-table words were changed only by stores at `$0C63`, `$0C79`, `$0DA2`, `$0DA9`, `$0B96` (pick-up), `$0D35` (drop) and `$0810` (theft) (18.3; `trace:excerpts/p6_two_player.txt` (b)). None of these is in the fire-line or kill code. What the first four do exactly was not traced.
+  - Kills also happen in frames where no line was drawn: idle1 f1076, and all 72 kill-pass frames above.
+
+### 19.2 Respawn delay and speed (resolved from code + trace)
+
+`$039E-$03EC` (lst:862-932) runs every pass:
+
+- It is skipped while RAM[$F0] bit 1 (attract/game over) is set (`$03A1-$03A4`).
+- For P1 (P=3), and then P2 (P=4) only when F0 bit 0 is clear (two-player game, `$03D3-$03D5`), it does the following when the record is free (word A bit 0, `$03AC-$03AE`):
+  - word 3 += 1;
+  - while word 3 < `$19` (25) it waits (`$03B2-$03B6`);
+  - then word 3 := 0, word E := 0, word A := `$01C` (`$03BC`, lst:890) and **speed word 6 := 5** (`$03BD-$03BF`, lst:891-893).
+- Position comes from RAM[$E6] (0 for the first record, 1 for the second, `$03A6`, `$03D6-$03D9`, `$03C3-$03C5`):
+  - **P1:** x = `$400`, y = `$140`, angle `$140` − `$32` = 270 (`$03C6-$03CF`, lst:899-906);
+  - **P2:** x = 0, y = `$1C0`, angle `$5A` = 90 (`$03E2-$03EC`, lst:924-932).
+- So the delay is the word-3 counter (`$19` passes). The initial speed is 5, then the usual thrust decay applies (−1 per pass, 11.1).
+
+Trace: `trace:excerpts/p6_respawn_timing.txt`.
+- Across 7 runs, every death → free took 23 frames and every free → respawn took 25 (word 3 runs 0..24), for P1 and for P2.
+- The one 24-frame exception is tp_wander f3878: a tank-vs-tank kill in P2's pass, where word 4 was still `$300` at the frame end.
+- One frame after respawn (99 respawns after f260 in 8 runs), P1 was at (1012-1016, 320), angle 268-272, speed 4-6 (64 respawns). P2 was at (8-10, 448), angle 90, speed 4-5 (35 respawns).
+
+### 19.3 Sound polarity (resolved by forced-bit runs + netlist)
+
+**Method.** `trace:excerpts/p6_sound_polarity.txt`; scripts `p6/soundlab.sh`, `p6/sound_rms.py`, `p6/sound_polarity.py`.
+- We made 12 identical 4,000-frame one-player runs with the `shoot` script and `-wavwrite` (48 kHz). The netlist sound is still computed with `-sound none`.
+- In each run, one bit was forced:
+  - `FORCEQ=n:v` makes the `io` write tap return v for every OUT n;
+  - `FORCEFC=mask:value` forces those bits in every store to RAM[$FC], the serial command byte.
+- Game logic was unaffected: the latch-forced runs have `ram.log` identical to the base run, and the FC-forced runs differ only in word `$FC`.
+- Per-frame RMS (1,263 samples per frame) was compared to the base run, split by the bit's base value.
+
+**Netlist wiring** (MAME `src/mame/cinematronics/nl_ripoff.cpp` at tag mame0276; `cinemat_a.cpp:243-246`):
+- `ripoff_audio` takes latch outputs Q0-Q4 and Q7 (mask `$9F`, scale 0.61), all as "active high" TTL inputs (nl_ripoff.cpp:55-60).
+- Q5 and Q6 do not reach the sound board.
+
+| bit | forced-run result (mean frame RMS) | netlist | **sound on when** |
+|---|---|---|---|
+| Q4 Laser | Q4 forced 0 in the 3,995 frames where it was 1: 2440 → 2978. Q4 forced 1: no change outside the 4 laser frames (diff RMS 1) | `I_OUT_4` → IC18.12, the CLR of a 74LS393 counter (nl_ripoff.cpp:563, IC18 at :311). CLR high holds the counter, so it is silent | **Q4 = 0** (FC bit 1 = 1, 18.7) |
+| Q3 Torpedo | Q3 = 0 frames are louder in the base run (3232 vs 2207). Forcing Q3 = 1 there: 3232 → 2747 | `I_OUT_3` → IC18.2 (CLR) (:625) | **Q3 = 0** (5 passes per shot, 18.7) |
+| Q7 Explosion | Q7 forced 1 (no low pulse): overall RMS 4733 → 2003, frame RMS 2440 → 1481 | `I_OUT_7` → IC4.2, the LM555 trigger (:342, IC4 at :263) | **falling edge of Q7.** `$1188` writes 0, then `$118E` writes 1 (idle1 f1076 `OUT7=0 pc=1189`, `OUT7=1 pc=118f`) |
+| FC bit 2 Motor | bit-2 = 1 frames are quiet (1069 vs 2897). Forcing 0 there: 1069 → 1446. Forcing 1 in bit-2 = 0 frames: 2897 → 2652 | IC9.15 → Q4 (2N3906) → Q5 → IC12 CA3080 bias (:523-531). A low output turns the PNP pair on and enables the OTA | **bit 2 = 0.** So the motor drone plays **during waves** and is off in the inter-wave gaps (bit 2 set at `$0348`, lst:777-782, cleared at `$0266`, lst:576-581) |
+| FC bit 3 Beep | base bit 3 = 0 only on the BONUS screen (49 frames, f3266-f3363, every other pair). Forcing 1 there: 1106 → 202. Forcing 0 elsewhere: 2457 → 2776 | IC9.12 → Q2 → Q3 → IC6 CA3080 bias (:489-497); IC5 LM555 tone | **bit 3 = 0** (the BONUS beeps, lst:317-338) |
+| FC bit 4 background enable | bit 4 = 1 frames (attract/pre-game f1-201 and BONUS f3266-3364) are quiet (656). Forcing 0 there: 656 → 1402. Forcing 1 in play: 2585 → 2048 | IC9.9 → IC22.2, the CLR of a 74LS393 (:403, IC22 at :327) | **bit 4 = 0.** Bit 4 = 1 silences the background drone |
+
+- Which serial command bit drives which IC9 output was established by these runs. Each match (bit 4 ↔ IC22 clear, bit 3 ↔ the Beep path, bit 2 ↔ the Motor path) is the only one consistent with both the RMS changes and the game events. The shift order itself was not derived from the netlist.
+- The pitch mapping of background bits 7-5 (IC9.2/.5/.6 → IC10, :404-408) was not tested: **UNCHECKED**.
+
+### 19.4 Two-player games (resolved items)
+
+Runs: tp_idle, tp_pvp1, tp_pvp2, tp_shoot2, tp_wander (6,000-12,000 frames each; `trace:excerpts/p6_two_player.txt`).
+
+- **Player shots never hit the other player** (code: the shot test loops over records `$00-$2F` only, 14.5).
+  - Trace: 787 (tp_pvp1) and 769 (tp_pvp2) frames had a live shot within 20 of the other live player (box; shot word 0 is 2·x, which also matches the shot-kill positions in shoot1). Example: tp_pvp1 f326, shot (54, 442), P2 (55, 448).
+  - None of those frames had a player death, a score store, or a shot slot freed early. Of the 39 player deaths in the two pvp runs (16 + 23), 36 were enemy fire kills stored at `$118A` and 3 were player-vs-enemy rams (tp_pvp1 f3953, tp_pvp2 ×2; enemy store `$0A2D`) (`p6_two_player.txt` (a), (b)).
+- **Tank vs tank:** both players explode, nobody scores.
+  - tp_wander f2758, in P1's pass: P2 word A `$01C` → `$00C` at `$0A2D` and P1 → `$00E` at `$0A86`, at \|dx\|,\|dy\| = 23,21 ≤ 24.
+  - No store to F1/F2 that frame. Free enemy records got the bit-2 broadcast (`$001` → `$005`). Both respawned at f2807.
+- **Scoring per player:**
+  - shot kills store the score at `$0F11` (lst:3573) to F1 for P1's slots and F2 for P2's slots (tp_pvp1: 32 F1 stores, tp_shoot2: 28 F2 stores);
+  - ram kills store at `$0A62` (lst:2455), to F1 in P1's pass (EF = `$30`) and F2 in P2's pass (EF = `$40`) (tp_wander 4 + 2).
+- **Chase start in either player's pass:** `$0ABF` fires with EF = `$40` as well as `$30` (tp_pvp1 f363, f468, f1365 …). The box is 256, as in 18.3. Correction to 18.3, which saw only EF = `$30` because it only had one-player runs.
+- **Which player a chaser steers at:** `$072C-$078D` (lst:1679-1774).
+  - In a one-player game (F0 bit 0 set, `$0734-$073A`) it is always P1.
+  - Otherwise it compares a distance to P1 (`$073B-$075B`) with one to P2 (`$075C-$077C`) and copies the chosen player's x,y into C/D (`$0787-$078D`).
+  - P2's distance is max(\|dx\|, \|dy\|).
+  - P1's computation takes \|dx\|, then at `$074E-$074F` computes `0 − RAM[$E0]` (`SUB $0`) where the P2 branch has `SUB $A` (`$076F-$0770`). The listing therefore never takes \|dy\| for P1. Read literally, the result is \|dx\|.
+  - **Trace check** (`p6/chase_target_fit.py`): in 18,771 chase frames whose C/D equalled one player's previous-frame position, the rule "P1 if \|dx₁\| < max(\|dx₂\|,\|dy₂\|), else P2 (tie → P2)" matched all 18,771. So did "P1 by max(\|dx\|, −dy)", which the data cannot tell apart from it. The symmetric rule "nearer by max(\|dx\|,\|dy\|) for both", which GAME_RULES §6 stated, fails 252 times. Example: tp_wander f1698, P1 \|d\| = (250, 313), P2 (256, 81), the enemy chose P1.
+  - Dead or free players are not excluded: C/D kept pointing at a dead P1's last position.
+  - In 401 further chase frames, C/D matched neither player. Example: tp_pvp1 f3130-f3134 kept the old hop point (505,349) for the first frames after a chase start. What gates the per-frame C/D refresh is **UNCHECKED**.
+- **Enemy fire kills either player.** C/D equal to a player's position is the kill condition (18.4). P2 was destroyed by enemies at `$118A` 10 times in tp_pvp1 and 14 times in tp_pvp2.
+- **P2 respawn:** (0, 448) at angle 90 with the same 23 + 25 frame timing (19.2).
+
+### 19.5 The 7 open indirect returns (resolved for the paths exercised)
+
+`trace:excerpts/p6_indirect_returns.txt`, from debugger traces of four runs (rt1, rt2 and rt4 replay shoot1 exactly; rt3 is a 2P game). These are observed target sets; whether they are complete is **UNCHECKED**.
+
+| site | lst | observed targets (count) | compared with the listing |
+|---|---|---|---|
+| `$0457` T4K (unknown P) | 1024 | `$13A1` only, with P = `$E` (trace `D457` → `E3A1`, 1,211×) | resolves the unknown P: the callee is region `$13A1` |
+| `$0C0A` JMP via RAM[$E5] | 2846 | `$081D` (5×, rt4 f4341-4345 and f5056-5060, the `$0BDD` branch from `$0B82`, lst:2718/2804) | one of the two RD targets. `$09EE` was not seen. `$0BDC`, which returns through the same RAM[$E5], also went only to `$081D` |
+| `$0CA9` JMP via RAM[$E7] | 2993 | `$01E6`, `$0110` | the two ASSUMED targets, both seen |
+| `$0CC5` JMP via RAM[$E7] | 3021 | `$066A`, `$0411`, `$08D2`, `$0428`, `$0437`, `$0287`, `$034C`, **`$026E`** | `$026E` was not in the listing's ASSUMED set |
+| `$1535` JMP via RAM[$AB] | 4955 | `$14A6` only | `$149A` not seen |
+| `$15E3` JMP via RAM[$A7] | 5116 | `$13F7`, `$1533`, `$15E4`, `$1542`, **`$1523`**, **`$152B`** | two targets not in the listing's set |
+| `$15E8` T4K via RAM[$E7] | 5122 | `$0579`, `$058E`, `$05B6`, `$05C8`, **`$04D6`**, **`$051B`**, **`$05F7`**, **`$0629`** | four targets beyond the listing's narrowed set. All four are in its RD may-set |
+
+### 19.6 The orbit: real game behaviour, an exact cycle
+
+`trace:excerpts/p6_orbit_period.txt` (`p6/orbit_period.py`):
+
+- **idle1** (no input), from f1400 to the end (f12000): **RAM(f) = RAM(f + 720) for every frame, except the pass counter RAM[$A8]**. One chaser (`$10`, speed 3, turn step 2) stays 31-136 from the motionless P1.
+- **orb_nudge** (idle, plus P1 thrust f3000-f3010): P1 moved from x 984 to 968 and stopped. The chaser went into a new loop, and from f3100 to f6000 RAM repeats every 720 frames except RAM[$A8] (distance 26-136).
+- **orb_wstop** (wander until f1500, then idle): two more kills of the stopped P1 (f2081, f2821), then from f3100 to f12000 RAM repeats every 720 frames except RAM[$A8] and RAM[$19] (word 9, a sprite pointer of the chaser record) (distance 35-129).
+- **orb_sstop** (shoot until f2500, then idle): no orbit. The enemies took the remaining canisters, and the game ended at f3165 (F0 bit 1 set).
+- **Conclusion:**
+  - The cycle is the game's own deterministic logic, not an emulation artifact, and not specific to one input history.
+  - While the input stays idle the state repeats exactly. The only differing word is the pass counter, whose bits 0-1 (the only uses found, NOTES §17/§18) are themselves 720-periodic. So the loop does not end.
+  - Each lap brings the chaser within 26-35 of the player. That is outside the ram radius (24), and its window never coincides with a heading snap onto the bearing (the kill test, 18.4).
+  - It is not guaranteed: with more enemies, or before the last chaser, an idle player is still killed (idle1 f1076, orb_wstop f2081/f2821), and without a chaser the canisters are stolen (orb_sstop). Any thrust breaks the cycle, but a new one can form (orb_nudge).
+  - That RAM[$A8] has no other use is **UNCHECKED** (no full reference search was made).
+
+### 19.7 Still UNCHECKED after pass 6
+
+1. The condition that refreshes a chaser's C/D every frame (401 frames kept an older point, 19.4).
+2. Whether P1's chase distance is exactly \|dx\| (literal reading of `$074F`) or max(\|dx\|, −dy). Both fit all trace frames.
+3. The pitch mapping of background command bits 7-5.
+4. Completeness of the observed indirect-target sets (19.5).
+5. Other uses of RAM[$A8], beyond bits 0-1 (19.6).

@@ -1,0 +1,35 @@
+# Fire-line gating, pass 6. Classifier p6/fireline_gating.py: for each frame f whose frame-end RAM[$E8] names an enemy in $018,
+# 'line drawn' = a store FC|=2 at $0E1E (writes.log pc=0e1f, EF = that record) in frame f; position at draw time = the record's position logged at f+1
+# (the record is drawn from its $D0 work copy after this pass's move, before the copy-back, so the frame-end log lags by one step; see the trace below).
+idle1 {'line drawn, on-field': 1696, 'no line: player killed this pass (A->01C)': 1, 'no line: off-field at draw': 1035}
+shoot1 {'line drawn, on-field': 4}
+ram1 {'line drawn, on-field': 219, 'no line: player killed this pass (A->01C)': 7, 'no line: picked up canister (A->014)': 1, 'no line: off-field at draw': 7}
+wander1 {'line drawn, on-field': 485, 'no line: player killed this pass (A->01C)': 5, 'no line: off-field at draw': 28}
+tp_idle {'line drawn, on-field': 1967, 'no line: player killed this pass (A->01C)': 1, 'no line: off-field at draw': 928}
+tp_pvp1 {'line drawn, on-field': 366, 'no line: player killed this pass (A->01C)': 15, 'no line: off-field at draw': 188}
+tp_pvp2 {'line drawn, on-field': 289, 'no line: player killed this pass (A->01C)': 21, 'no line: off-field at draw': 49}
+tp_shoot2 {'line drawn, on-field': 236, 'no line: player killed this pass (A->01C)': 11, 'no line: off-field at draw': 42}
+tp_wander {'line drawn, on-field': 554, 'no line: player killed this pass (A->01C)': 7, 'no line: off-field at draw': 141}
+orb_nudge {'line drawn, on-field': 764, 'no line: player killed this pass (A->01C)': 1, 'no line: off-field at draw': 467}
+orb_wstop {'line drawn, on-field': 1261, 'no line: off-field at draw': 1174, 'no line: player killed this pass (A->01C)': 3}
+orb_sstop {}
+TOTAL {'line drawn, on-field': 7841, 'no line: player killed this pass (A->01C)': 72, 'no line: off-field at draw': 4059, 'no line: picked up canister (A->014)': 1}
+other []
+
+# Debugger trace of idle1 input, frames 1554-1559 (run fl_idle; ram.log identical to idle1). Per pass: draw markers for the records drawn (enemy $10 first, then P1).
+
+pass draw not-window draw 
+pass draw not-window draw 
+pass draw LINE draw 
+pass draw LINE draw 
+pass draw OFF(x) draw 
+pass draw OFF(x) draw
+
+# frame-end log for record $10 at the same frames (x,y logged; FC stores with pc=0e1f in writes.log):
+f1554 E8=000 rec10 x,y=(1010,455) A=018 ED=f9b line=no
+f1555 E8=000 rec10 x,y=(1013,454) A=018 ED=fa4 line=no
+f1556 E8=010 rec10 x,y=(1016,453) A=018 ED=f89 line=yes EF=010
+f1557 E8=010 rec10 x,y=(1019,452) A=018 ED=f92 line=yes EF=010
+f1558 E8=010 rec10 x,y=(1022,451) A=018 ED=f9b line=no
+f1559 E8=010 rec10 x,y=(1025,450) A=018 ED=fa4 line=no
+f1560 E8=020 rec10 x,y=(1028,449) A=018 ED=f89 line=no

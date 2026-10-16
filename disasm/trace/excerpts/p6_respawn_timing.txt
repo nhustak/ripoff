@@ -1,0 +1,27 @@
+idle1 {('P1', 'death->free 23', 'free->respawn 25'): 1}
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1016,320)', 'angle 270', 'speed 4', 'f1077/f1100/f1125', 'word3 0..24')
+ram1 {('P1', 'death->free 23', 'free->respawn 25'): 20}
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1014,320)', 'angle 269', 'speed 5', 'f346/f369/f394', 'word3 0..24')
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1014,320)', 'angle 270', 'speed 5', 'f463/f486/f511', 'word3 0..24')
+wander1 {('P1', 'death->free 23', 'free->respawn 25'): 7}
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1013,320)', 'angle 271', 'speed 6', 'f1620/f1643/f1668', 'word3 0..24')
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1014,320)', 'angle 272', 'speed 5', 'f2983/f3006/f3031', 'word3 0..24')
+tp_pvp1 {('P1', 'death->free 23', 'free->respawn 25'): 5, ('P2', 'death->free 23', 'free->respawn 25'): 11}
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1016,320)', 'angle 270', 'speed 4', 'f1045/f1068/f1093', 'word3 0..24')
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1016,320)', 'angle 270', 'speed 4', 'f2053/f2076/f2101', 'word3 0..24')
+    ('P2', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (8,448)', 'angle 90', 'speed 4', 'f421/f444/f469', 'word3 0..24')
+    ('P2', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (8,448)', 'angle 90', 'speed 4', 'f1409/f1432/f1457', 'word3 0..24')
+tp_pvp2 {('P1', 'death->free 23', 'free->respawn 25'): 8, ('P2', 'death->free 23', 'free->respawn 25'): 15}
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1016,320)', 'angle 270', 'speed 4', 'f1045/f1068/f1093', 'word3 0..24')
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1014,320)', 'angle 270', 'speed 5', 'f2039/f2062/f2087', 'word3 0..24')
+    ('P2', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (8,448)', 'angle 90', 'speed 4', 'f421/f444/f469', 'word3 0..24')
+    ('P2', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (10,448)', 'angle 90', 'speed 5', 'f1410/f1433/f1458', 'word3 0..24')
+tp_shoot2 {('P1', 'death->free 23', 'free->respawn 25'): 13, ('P2', 'death->free 23', 'free->respawn 25'): 1}
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1015,320)', 'angle 270', 'speed 4', 'f2600/f2623/f2648', 'word3 0..24')
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1014,320)', 'angle 270', 'speed 5', 'f2698/f2721/f2746', 'word3 0..24')
+    ('P2', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (8,448)', 'angle 90', 'speed 4', 'f2057/f2080/f2105', 'word3 0..24')
+tp_wander {('P1', 'death->free 23', 'free->respawn 25'): 9, ('P1', 'death->free 24', 'free->respawn 25'): 1, ('P2', 'death->free 23', 'free->respawn 25'): 7}
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1014,320)', 'angle 270', 'speed 5', 'f786/f809/f834', 'word3 0..24')
+    ('P1', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (1016,320)', 'angle 270', 'speed 4', 'f965/f988/f1013', 'word3 0..24')
+    ('P2', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (10,448)', 'angle 90', 'speed 5', 'f391/f414/f439', 'word3 0..24')
+    ('P2', 'death->free 23', 'free->respawn 25', 'pos@respawn+1 (8,448)', 'angle 90', 'speed 4', 'f1637/f1660/f1685', 'word3 0..24')

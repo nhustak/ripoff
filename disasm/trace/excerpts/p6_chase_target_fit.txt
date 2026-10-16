@@ -1,0 +1,23 @@
+rows with C/D = a player position (prev frame end): 18771  rows with C/D = neither: 401
+best fits (matches, P1 metric, P2 metric, tie):
+   (18771, 'max(|dx|,-dy)', 'cheb', 'tie->P2')
+   (18771, 'absdx', 'cheb', 'tie->P2')
+   (18768, 'max(|dx|,-dy)', 'cheb', 'tie->P1')
+   (18768, 'absdx', 'cheb', 'tie->P1')
+   (18693, 'absdx', 'max(|dx|,-dy)', 'tie->P2')
+   (18691, 'absdx', 'max(|dx|,-dy)', 'tie->P1')
+same metric for both players:
+   (18687, 'max(|dx|,-dy)', 'max(|dx|,-dy)', 'tie->P2')
+   (18685, 'max(|dx|,-dy)', 'max(|dx|,-dy)', 'tie->P1')
+   (18519, 'cheb', 'cheb', 'tie->P2')
+   (18518, 'cheb', 'cheb', 'tie->P1')
+   (18468, 'euclid2', 'euclid2', 'tie->P2')
+   (18468, 'euclid2', 'euclid2', 'tie->P1')
+   (18451, 'manhattan', 'manhattan', 'tie->P2')
+   (18451, 'manhattan', 'manhattan', 'tie->P1')
+   (18432, 'absdx', 'absdx', 'tie->P2')
+   (18432, 'absdx', 'absdx', 'tie->P1')
+   (18236, 'max(|dx|,dy)', 'max(|dx|,dy)', 'tie->P1')
+   (18235, 'max(|dx|,dy)', 'max(|dx|,dy)', 'tie->P2')
+   (15217, '|dy|', '|dy|', 'tie->P2')
+   (15084, '|dy|', '|dy|', 'tie->P1')

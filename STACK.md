@@ -9,7 +9,7 @@ Nick will write most of the code going forward, working with the Rip-Off bot (hi
 **Chosen: [MonoGame](https://github.com/MonoGame/MonoGame).**
 
 Why:
-- It's C#, the same language as Nick's other projects (e.g. yaas-mcp).
+- It's C#, the same language as Nick's other projects.
 - It's actively maintained. Figures checked against GitHub on 2026-10-16:
   - The latest stable release is v3.8.6, released 2026-10-07.
   - The last commit was 2026-10-11.

@@ -1,6 +1,6 @@
 # Rip-Off: Planning Notes and Open Questions (2026-10-16)
 
-This file holds everything from today's calls that isn't already in `RIPOFF.md` or `STACK.md`. The project is **paused until the ROM is uploaded**. After this, Nick's focus goes back to the YASS project (yaas-mcp).
+This file holds everything from today's calls that isn't already in `RIPOFF.md` or `STACK.md`. The project is **paused until the ROM is uploaded**.
 
 ## How the idea started (Nick, on the call)
 
@@ -42,4 +42,3 @@ These figures come from the GitHub API and SteamDB on 2026-10-16.
 
 ## Repo housekeeping
 - This repo is private, and its default branch is `main` (GitHub's starter README). Nick's other repos use `master`.
-- The docs first landed by mistake in `nhustak/yaas-mcp` (PRs #1 and #2). Both PRs are closed, with their branches left in place, and the docs moved here.

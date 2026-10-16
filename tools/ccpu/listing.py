@@ -82,9 +82,10 @@ OUT_BITS = {     # LS259 Q0-Q7 via io_map (cinemat.cpp:317)
 # Data regions identified from the code that reads them (see disasm/NOTES.md).
 # Printed as comments; each starts a new DB row.
 DATA_LABELS = {
-    0x0F82: "table base $F82 loaded by LDAI/A8I at $0355 and $0BC1 (use not decoded, UNCHECKED)",
+    0x0F82: "enemy wave spawn points: 8 (x,y) byte pairs, x8, indexed by RAM[$0B]&$E at $034C-$0378 (NOTES 14.2)",
+    0x0F92: "enemy wave spawn headings: 8 bytes, x2 = degrees, read at $037D-$0389 (NOTES 14.2)",
     0x0F9A: "16 (x,y) byte pairs read by LKP at $0C5D, scaled x8 into RAM $B0..; canister positions (drawn as triangles by $13A1, NOTES 10.3)",
-    0x0FC2: "4-byte table indexed by the Lives DIP value, read by LKP at $0C3D (meaning UNCHECKED)",
+    0x0FC2: "4-byte table indexed by the Lives DIP value, read by LKP at $0C3D into RAM[$78]/[$7A]: background-sound step per stolen canister (NOTES 15)",
     0x0FC6: "end of $0FC2 table",
     0x0FD0: "odd bytes $0FD1-$0FFF spell ASCII '(C)1980CINEMATRONICSINC.'; byte differences here also give the enemy shape pointers ($02D1-$0317, NOTES 10.2)",
     0x15E9: "byte-pair table read by LKP at $1557/$155C (use UNCHECKED)",

@@ -3674,10 +3674,12 @@ L0F6F:    ; from 1286
 0F7E  0F7E  8A        SETP $A     
 0F7F  0F7F  4A 53     LPAI $35A   
 0F81  0F81  50        T4K         ; -> L135A
-; ---- $0F82: table base $F82 loaded by LDAI/A8I at $0355 and $0BC1 (use not decoded, UNCHECKED)
+; ---- $0F82: enemy wave spawn points: 8 (x,y) byte pairs, x8, indexed by RAM[$0B]&$E at $034C-$0378 (NOTES 14.2)
 0F82  0F82            DB $00,$00,$26,$00,$70,$00
 0F88  0F88            DB $4A,$00,$80,$60,$5A,$60,$10,$60
-0F90  0F90            DB $36,$60,$43,$5A,$70,$5A,$9D,$00
+0F90  0F90            DB $36,$60
+; ---- $0F92: enemy wave spawn headings: 8 bytes, x2 = degrees, read at $037D-$0389 (NOTES 14.2)
+0F92  0F92            DB $43,$5A,$70,$5A,$9D,$00
 0F98  0F98            DB $16,$00
 ; ---- $0F9A: 16 (x,y) byte pairs read by LKP at $0C5D, scaled x8 into RAM $B0..; canister positions (drawn as triangles by $13A1, NOTES 10.3)
 0F9A  0F9A            DB $80,$5A,$80,$66,$86,$60
@@ -3686,7 +3688,7 @@ L0F6F:    ; from 1286
 0FB0  0FB0            DB $80,$6E,$72,$52,$72,$6E,$8E,$52
 0FB8  0FB8            DB $8E,$6E,$5D,$57,$03,$B1,$2A,$8A
 0FC0  0FC0            DB $84,$30
-; ---- $0FC2: 4-byte table indexed by the Lives DIP value, read by LKP at $0C3D (meaning UNCHECKED)
+; ---- $0FC2: 4-byte table indexed by the Lives DIP value, read by LKP at $0C3D into RAM[$78]/[$7A]: background-sound step per stolen canister (NOTES 15)
 0FC2  0FC2            DB $15,$0F,$3F,$1F
 ; ---- $0FC6: end of $0FC2 table
 0FC6  0FC6            DB $FF,$FF

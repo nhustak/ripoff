@@ -1,0 +1,6 @@
+(a) frames with enemy within 200 of live P1, by state; and 014/01E->018 switches: {('ram1', 'A=014'): 18, ('ram1', 'A=01e'): 269, ('wander1', 'A=01e'): 258}
+(b) idle1 words changing after f210: 00 01 02 03 05 06 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 15 16 18 19 1a 1b 1c 1d 1e 1f 20 21 23 25 26 29 2a 2c 2d 2e 2f 30 33 34 36 38 39 3a 3c 78 a0 a1 a2 a3 a4 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b8 b9 be bf d0 d3 d4 d6 d8 d9 da dc e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea ec ed f8 f9 fc
+(c) idle1: frames with a live P1 shot slot ($50-$5F word0 bit0=0): 0; live P2 slot ($60-$6F): 0
+(c) shoot1: frames with a live P1 shot slot ($50-$5F word0 bit0=0): 4125; live P2 slot ($60-$6F): 0
+(c) ram1: frames with a live P1 shot slot ($50-$5F word0 bit0=0): 0; live P2 slot ($60-$6F): 0
+(c) wander1: frames with a live P1 shot slot ($50-$5F word0 bit0=0): 0; live P2 slot ($60-$6F): 0

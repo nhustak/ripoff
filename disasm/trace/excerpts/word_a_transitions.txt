@@ -1,0 +1,111 @@
+#### idle1
+== word-A transitions (kind, old, new, store pc+1): count, first frame
+('enemy', '000', '001', 'pc=0c8a') 3 0
+('player', '000', '001', 'pc=0c8a') 2 0
+('enemy', '001', '01c', 'pc=02c4') 9 173
+('enemy', '01c', '001', 'pc=0c8a') 3 201
+('player', '001', '01c', 'pc=03bd') 2 201
+('enemy', '01c', '001', 'pc=039b') 2 251
+('enemy', '01c', '014', 'pc=0b89') 3 537
+('enemy', '014', '01e', 'pc=10be') 3 615
+('enemy', '01e', '001', 'pc=080a') 3 795
+('enemy', '01c', '018', 'pc=0ac0') 2 1016
+('player', '01c', '00c', 'pc=118b') 1 1076
+('enemy', '018', '01c', 'pc=11a3') 1 1076
+('enemy', '001', '005', 'pc=11ac') 1 1076
+('enemy', '018', '01c', 'pc=11b5') 1 1076
+('player', '00c', '001', 'pc=0d24') 1 1099
+== end: score P1 units F1=0 thousands FE=0, type F5=1 level FB=1, canisters gone=3, F9=2
+frames with any shot slot live: 0  P2 slot live frames: 0
+#### shoot1
+== word-A transitions (kind, old, new, store pc+1): count, first frame
+('enemy', '000', '001', 'pc=0c8a') 3 0
+('player', '000', '001', 'pc=0c8a') 2 0
+('enemy', '001', '01c', 'pc=02c4') 105 173
+('enemy', '01c', '001', 'pc=0c8a') 9 201
+('player', '001', '01c', 'pc=03bd') 1 201
+('enemy', '01c', '001', 'pc=039b') 12 251
+('enemy', '01c', '00c', 'pc=0ee6') 16 424
+('enemy', '00c', '001', 'pc=0d24') 16 440
+('enemy', '01c', '014', 'pc=0b89') 67 700
+('enemy', '014', '004', 'pc=0ee6') 9 723
+('enemy', '004', '001', 'pc=0d24') 9 739
+('enemy', '014', '01e', 'pc=10be') 57 931
+('enemy', '01e', '001', 'pc=080a') 49 1007
+('enemy', '01e', '00e', 'pc=0ee6') 7 1818
+('enemy', '00e', '001', 'pc=0d24') 7 1834
+('enemy', '01c', '018', 'pc=0ac0') 1 3165
+('enemy', '018', '008', 'pc=0ee6') 1 3178
+('enemy', '008', '001', 'pc=0d24') 1 3194
+('player', '01c', '001', 'pc=0c8a') 1 4912
+== end: score P1 units F1=119 thousands FE=0, type F5=3 level FB=2, canisters gone=1, F9=42
+frames with any shot slot live: 4125  P2 slot live frames: 0
+#### ram1
+== word-A transitions (kind, old, new, store pc+1): count, first frame
+('enemy', '000', '001', 'pc=0c8a') 3 0
+('player', '000', '001', 'pc=0c8a') 2 0
+('enemy', '001', '01c', 'pc=02c4') 81 173
+('enemy', '01c', '001', 'pc=0c8a') 9 201
+('player', '001', '01c', 'pc=03bd') 21 201
+('enemy', '01c', '001', 'pc=039b') 11 251
+('enemy', '01c', '018', 'pc=0ac0') 31 323
+('enemy', '018', '008', 'pc=0a2e') 12 345
+('enemy', '008', '00c', 'pc=0a6c') 6 345
+('enemy', '018', '01c', 'pc=0a75') 3 345
+('enemy', '001', '005', 'pc=0a7e') 6 345
+('player', '01e', '00e', 'pc=0a87') 14 345
+('player', '00e', '001', 'pc=0d24') 14 368
+('enemy', '00c', '001', 'pc=0d24') 12 369
+('enemy', '001', '005', 'pc=0a6c') 2 462
+('enemy', '008', '00c', 'pc=0a75') 6 462
+('enemy', '005', '01c', 'pc=02c4') 15 537
+('player', '01c', '00c', 'pc=118b') 7 596
+('enemy', '018', '01c', 'pc=119a') 6 596
+('enemy', '018', '01c', 'pc=11a3') 6 596
+('enemy', '001', '005', 'pc=11ac') 5 596
+('enemy', '018', '01c', 'pc=11b5') 7 596
+('player', '00c', '001', 'pc=0d24') 7 619
+('enemy', '018', '01c', 'pc=0a6c') 2 693
+('enemy', '001', '005', 'pc=0a75') 3 784
+('enemy', '01c', '014', 'pc=0b89') 62 1188
+('enemy', '014', '01e', 'pc=10be') 64 1223
+('enemy', '018', '014', 'pc=0b89') 2 1232
+('enemy', '01e', '00e', 'pc=0a2e') 2 1255
+('enemy', '00e', '001', 'pc=0d24') 2 1279
+('enemy', '01e', '001', 'pc=080a') 61 1288
+('enemy', '005', '001', 'pc=0c8a') 1 3556
+== end: score P1 units F1=44 thousands FE=0, type F5=6 level FB=2, canisters gone=5, F9=55
+frames with any shot slot live: 0  P2 slot live frames: 0
+#### wander1
+== word-A transitions (kind, old, new, store pc+1): count, first frame
+('enemy', '000', '001', 'pc=0c8a') 3 0
+('player', '000', '001', 'pc=0c8a') 2 0
+('enemy', '001', '01c', 'pc=02c4') 66 173
+('enemy', '01c', '001', 'pc=0c8a') 8 201
+('player', '001', '01c', 'pc=03bd') 8 201
+('enemy', '01c', '001', 'pc=039b') 5 251
+('enemy', '01c', '014', 'pc=0b89') 55 537
+('enemy', '014', '01e', 'pc=10be') 55 615
+('enemy', '01e', '001', 'pc=080a') 53 795
+('enemy', '01c', '018', 'pc=0ac0') 9 1597
+('player', '01c', '00c', 'pc=118b') 5 1619
+('enemy', '018', '01c', 'pc=119a') 4 1619
+('enemy', '001', '005', 'pc=11ac') 3 1619
+('enemy', '018', '01c', 'pc=11b5') 5 1619
+('player', '00c', '001', 'pc=0d24') 5 1642
+('enemy', '005', '01c', 'pc=02c4') 3 2098
+('enemy', '018', '01c', 'pc=11a3') 3 2982
+('enemy', '018', '008', 'pc=0a2e') 1 3131
+('enemy', '008', '00c', 'pc=0a6c') 1 3131
+('enemy', '018', '01c', 'pc=0a75') 1 3131
+('player', '01e', '00e', 'pc=0a87') 2 3131
+('player', '00e', '001', 'pc=0d24') 2 3154
+('enemy', '00c', '001', 'pc=0d24') 1 3155
+('enemy', '001', '005', 'pc=119a') 1 3412
+('enemy', '01e', '00e', 'pc=0a2e') 1 3917
+('enemy', '00e', '001', 'pc=0d24') 1 3941
+('enemy', '001', '005', 'pc=11a3') 1 4176
+('enemy', '005', '001', 'pc=0c8a') 2 4584
+('player', '01c', '001', 'pc=0c8a') 1 4584
+== end: score P1 units F1=2 thousands FE=0, type F5=1 level FB=2, canisters gone=5, F9=48
+frames with any shot slot live: 0  P2 slot live frames: 0

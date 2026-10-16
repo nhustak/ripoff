@@ -1,6 +1,6 @@
-# Rip-Off CCPU disassembly: notes (passes 1 and 2)
+# Rip-Off CCPU disassembly: notes (passes 1-5)
 
-Status: first pass and second decode pass, both done 2026-10-16. This is static analysis only; the ROM was never executed. Line numbers (`lst:N`) refer to the listing as regenerated in pass 2; pass-1 citations were remapped by address.
+Status: first pass and second decode pass, both done 2026-10-16. Passes 1-4 are static analysis only. Pass 5 (section 18) ran the ROM in MAME to settle the enemy state machine. Line numbers (`lst:N`) refer to the listing as regenerated in pass 2; pass-1 citations were remapped by address.
 
 ## Citation conventions
 
@@ -431,9 +431,9 @@ Comparison semantics used below: `TST $n` + `JLT` branches when RAM[n] < accumul
     - RAM[$F9] += 1;
     - RAM[$78] += RAM[$7A] (15);
     - its own word A := 1 (free);
-    - word 0 of its canister (via RAM[$D2]) += 1, which sets the "gone" bit 0 that the canister draw loop and game-over test check.
+    - the canister's y word (RAM[$D2]+1; corrected in 18.3 from the trace, store at `$0810`) += 1, which sets the "gone" bit 0 that the canister draw loop and game-over test check.
   - How bit 1 gets set (the pick-up) is **UNCHECKED**.
-- **14.5 Collisions** (all use `$11E0`: hit when |dx| < r and |dy| < r, r in RAM[$E4]).
+- **14.5 Collisions** (all use `$11E0`: hit when |dx| ≤ r and |dy| ≤ r, r in RAM[$E4]; inclusive, corrected in 18.1).
   - **Player shots vs enemies:** r = `$14` (20) (lst:3482-3484), for records `$00-$2F` only (lst:3587-3591); players are never hit by shots.
     - On a hit: the enemy's word A &= `$F`, word 4 (draw scale) := 2, word C := 0; the shot slot is freed; Explosion is pulsed (lst:3513-3549); score as in section 13.
   - **Player tank vs any other record** (`$00-$4F` except itself): r = `$18` (24) (lst:2335-2367, loop lst:2350-2557).
@@ -441,7 +441,7 @@ Comparison semantics used below: `TST $n` + `JLT` branches when RAM[n] < accumul
     - Enemy victims score.
     - Then every enemy gets word-A bit 2 set: (A & `$1B`)+4 (lst:2457-2480).
     - The player's own scale := 3 and its word A &= `$F`, with a second Explosion pulse (lst:2481-2494). Interpretation, **UNCHECKED**: both tanks are destroyed and the remaining enemies switch to their bit-2 behaviour.
-  - **`$1158-$11B7`:** when an enemy is close to its target point and that point equals a live player's position, the player record gets word A &= `$F` and scale 3, Explosion pulses, and all enemies get bit 2 set. This looks like the enemy destroying the player. The exact trigger (the `$1158`/`$1161` thresholds 4 and 3) is **UNCHECKED**.
+  - **`$1158-$11B7`** (corrected in 18.4: the "4 and 3" are `$400`/`$300` field bounds, and the range test is `$96` at `$1145`): when an enemy is close to its target point and that point equals a live player's position, the player record gets word A &= `$F` and scale 3, Explosion pulses, and all enemies get bit 2 set. This is the enemy destroying the player; the trigger is resolved in 18.4.
 - **14.6 Shots** (`$0E4A-$0F54`).
   - 8 slots of 4 words at `$50-$6F`: P1 `$50-$5F`, P2 `$60-$6F` (11.2; loop lst:3614-3623).
   - Each frame a live slot moves by its velocity words (lst:3432-3445). It is freed when y ≥ `$300` or x ≥ `$400` (unsigned, so negatives too) (lst:3446-3466).
@@ -480,6 +480,8 @@ These decide when an enemy switches from canister-seeking to dragging, when it c
 
 Decoding this needs the full data flow of word B and words C/D across the copy-back in `$0CAA`, through several indirect stores (`WS`/`WSP`) that the static analysis cannot resolve. It is possible statically, but it is long hand-tracing with a real risk of misreading the bit tests. Running the game would settle it quickly, and that is forbidden here.
 
+**Resolved in pass 5 (section 18)** by running the ROM in MAME: the states and transitions (18.2-18.3), chase trigger (18.3), enemy fire (18.4) and `$11B8` (18.6).
+
 ## 17. Pass 4: small items
 
 - **RAM[$A8] is a pass counter**, not a size variable.
@@ -488,7 +490,7 @@ Decoding this needs the full data flow of word B and words C/D across the copy-b
     - bit 1 selects the small canister glyphs (10.3), so the canisters pulse every 2 passes;
     - bits 0+1 both clear give enemy acceleration every 4th pass (14.3);
     - bit 1 toggles the BONUS beep (15).
-  - That one pass equals one displayed frame is **UNCHECKED**.
+  - That one pass equals one displayed frame: verified in MAME (18.8).
 - **Canister count vs background step** (15): DIP index 0..3 = 12/16/4/8 canisters, step `$15`/`$0F`/`$3F`/`$1F`. The total rise is 252/240/252/248.
 - **Not decoded this pass (UNCHECKED):**
   - the 7 open indirect returns (section 8);
@@ -496,3 +498,104 @@ Decoding this needs the full data flow of word B and words C/D across the copy-b
   - shapes `$1F68-$1FAE`;
   - the `$15E9` data read by `$1536-$1580`.
 - **`disasm/GAME_RULES.md`** collects the gameplay rules from sections 3, 10, 11 and 13-15, with citations, for the remake.
+
+## 18. Pass 5: MAME trace of the enemy state machine
+
+Status: done 2026-10-16. **This pass ran the ROM** in MAME 0.276 (Debian `mame` package, driver `ripoff`, `-verifyroms`: good), headless (`-video none -sound none -nothrottle`), default DIPs (8 canisters). Method, scripts and every excerpt cited below are in `disasm/trace/` (see `disasm/trace/README.md`). Trace citations are `trace:<file>` plus frame numbers `fN`. A frame is one MAME video frame of 26.316 ms (38 Hz, measured from `machine.time`).
+
+How the evidence was collected:
+
+- A Lua frame notifier logs all 256 data-RAM words every frame (`data` space, 16-bit, word addressed, values `& $FFF`).
+- A write tap on the `data` space logs every store to word 2/A/B/C/D/F of records `$00-$40` and the work copy `$D0`, the canister table `$B0-$CF` and `$F0-$FF`, with the CPU PC and RAM[$EF] (the record being processed; `$0CAA` copies from RAM[$EF] to RAM[$EE], lst:2995-3021). Stores by the `$0CAA` copy loop are dropped.
+  - **PC convention:** the tap sees `CURPC` after the store, so the logged `pc=` is the store instruction's address **+1** (e.g. `pc=0b89` is the `STAP` at `$0B88`). Region address = CURPC & `$FFF`, +`$1000` when CPU bit 13 is set (same mapping as `tools/ccpu/listing.py:43`).
+  - On every state-word change the tap also logs RAM[$E0-$EF] (`E=` in `trace:excerpts/idle_state_writes_with_E_page.txt`).
+- Runs, 12,000 frames each, one-player game (coin f120, START1 f200): `idle1` (no input), `shoot1` (P1 turns to the nearest enemy and fires), `ram1` (turns and thrusts at it), `wander1` (scripted pseudo-random turning/thrust). `idle_snap`/`idle_states` replay `idle1` with snapshots; their RAM logs are byte-identical to `idle1` for the frames they cover, so the emulation is deterministic for a given input script.
+- Listing reminder: `LDAI $n` in `ripoff.lst` prints the nibble, but the instruction loads **n<<8** (ccpu.cpp:233-240; `listing.py:246-247`). So `LDAI $1` = `$100`, `LDAI $4` = `$400`. Section 14.5 read `$1158`/`$1161` as "thresholds 4 and 3"; they are `$400`/`$300` (see 18.4).
+
+### 18.1 Box test `$11E0` is inclusive
+
+`$11E0` sets RAM[$E6] = 1, then clears it (hit) unless r < |dx| or r < |dy| (`TST $4` + `JLT` at `$11F7-$11FC`, lst:4172-4180). So **hit when |dx| ≤ r and |dy| ≤ r**. Sections 14.5 and GAME_RULES §7 said `<`. Trace: the first chase trigger in `idle_snap` has E0,E1 = `$0C0`,`$100` with r = `$100` (f1016); the f596 pick-up has E1 = `$014` with r = `$14` (`trace:excerpts/idle_state_writes_with_E_page.txt`).
+
+### 18.2 Enemy word A values (observed)
+
+All values seen in word A of enemy records `$00/$10/$20` in the four runs (`trace:excerpts/word_a_transitions.txt`):
+
+| word A | meaning (from the trace) |
+|---|---|
+| `$001` | free / inactive |
+| `$005` | free record that received the "all enemies +bit 2" broadcast (18.5); still free (bit 0) |
+| `$01C` | **approach**: hopping toward the target canister (bits 4,3,2) |
+| `$014` | **at canister**: stopped (speed word 6 = 0), turning toward its exit point (bit 3 clear) |
+| `$01E` | **towing**: carrying the canister to the exit point (bits 4,3,2,1) |
+| `$018` | **chase**: steering at the player (bit 2 clear) |
+| `$00C/$004/$00E/$008` | exploding (bit 4 cleared by `A & $F` from `$01C/$014/$01E/$018`), then `$001` |
+
+### 18.3 Transitions, with the code that stores them
+
+Every transition below was seen in the trace with the given store PC; counts and first frames are in `trace:excerpts/word_a_transitions.txt`.
+
+| from → to | store | condition (code + trace) |
+|---|---|---|
+| `$001` → `$01C` | `$02C3` (lst:665) | wave spawn (14.1). In a one-player level-1 wave the third record is then set back to `$001` at `$039A` (14.1) |
+| `$01C` → `$014` | `$0B88` (lst:2723) | **pick-up**: `$0B49` loops over the canister table; for a live canister (y bit 0 clear) it tests the enemy position against (x/2, y/2) with the box test, r = `$14` (lst:2666-2707). On a hit: word A := (A & `$13`) + 4, word 2 := that canister's address, canister x += 1 (bit 0 = "carried", `$0B93-$0B96`, lst:2734-2737), speed and hop count := 0, and words C/D := exit point (next row) (lst:2719-2798). E-page at the pick-ups: \|dx\|,\|dy\| = (3,19), (1,20) (idle_snap f537, f596). The enemy takes **any** live canister it touches, not only its target: idle1 f537 r00 targeted `$B0` and took `$B8` (`trace:excerpts/idle1_transition_context.txt`). A chasing enemy also picks up (`$018` → `$014` at `$0B88`, ram1, 2 times) |
+| (exit point) | `$0BB7-$0BD8` (lst:2768-2798) | k = word B & 7; C = ROM[`$0F82`+2k]·8, D = ROM[`$0F83`+2k]·8: one of the 8 spawn points of 14.2. Trace: all 189 pick-ups in idle_snap/shoot1/ram1/wander1 match (C/D from the stores at `$0BCD`/`$0BD8`, word B from the frame log; `trace:excerpts/exit_point_rule.txt`). It is **not** the enemy's own spawn point (`trace:excerpts/exit_chase_kill_checks.txt`) |
+| `$014` → `$01E` | `$10BD` (lst:3877) | **tow starts** when the steering routine `$109C` snaps the heading onto the bearing to C/D (bearing reached exactly, `$10A3`, or within one turn step, `$10DF`) while bit 3 is clear: A := (A & `$15`) + `$A` (lst:3858-3877). idle1: f537 → f615 and f596 → f663, the turn-in-place took 78 and 67 frames at speed 0 |
+| `$01E` → `$001` | `$0809` (lst:1892) | **theft**: leaves the field (14.4). Then canister **y** += 1 (store `$0810`, lst:1899), i.e. the "gone" flag is bit 0 of the y word (14.4 said word 0) |
+| `$01C` → `$018` | `$0ABF` (lst:2537) | **chase starts**: in the player's pass (RAM[$EF] = `$30`), for each enemy record whose word A has bit 1 clear and bit 3 set (`$0A9F-$0AA7`), the box test against the player with r = `$100` (`LDAI $1`, `$0AAC`, lst:2522) clears bit 2: A := A & `$1B` (lst:2537). It is re-evaluated every frame while the player is inside the box (`018->018` stores every frame in idle_snap f1017-f1599). Towing (`$01E`) and at-canister (`$014`) enemies never switched: 545 frames with such an enemy within 200 of a live player in ram1/wander1, and no `$014`/`$01E` → `$018` change (`trace:excerpts/misc_checks.txt` (a)) |
+| `$018` → `$01C` | `$1199-$11B4`, `$0A6B`, `$0A74` | only by the "player destroyed" broadcasts (18.5). **Chase never ends on distance:** wander1 had a chasing enemy 770 away from P1 |
+| any → exploding | `$0EE5` (lst:3530) | shot kill (14.5); `$0A2D`/`$0A6B` ram kill |
+| exploding → `$001` | `$0D23` (lst:3106) | after 16 frames (shot kill, scale 2: shoot1 f424 → f440) or 24 frames (ramming, scale 3: ram1 f345 → f369). If the enemy was towing, the canister x bit 0 is cleared (`$0D30-$0D35`, lst:3117-3121) and the canister **stays where it was dropped** (shoot1: canister 2 dropped at (572,415) f1818, still there f2500/f3000, later picked up again from there and moved to (582,428), finally stolen f4789) |
+
+### 18.4 Enemy fire
+
+There is **no enemy projectile object**. Shot slots `$50-$6F` were never live in idle1/ram1/wander1, and P2's slots `$60-$6F` never in any run. The only RAM words that changed during the idle game are in the records `$00-$3F`, `$78`, scratch `$A0-$AF`, the canister table, `$D0-$ED` and `$F8/$F9/$FC` (`trace:excerpts/misc_checks.txt` (b), (c)). Instead:
+
+- **Fire window.** RAM[$E8] = `$10`·((frame >> 2) & 3) at every frame end (`trace:excerpts/laser_windows.txt`, all 12,000 frames of ram1). The record whose base equals RAM[$E8] may fire, so each record gets a **4-frame window every 16 frames** (`$00`: f%16 = 0-3, `$10`: 4-7, `$20`: 8-11).
+- **Kill test** `$1123-$11B7` (lst:3972-4109). It is entered from the steering routine when the heading snaps onto the bearing (`$10AF`, `$10EB`, lst:3865, :3920), for an enemy with bit 3 set and bit 2 clear (chase). It requires:
+  - RAM[$E8] = RAM[$EF] (its window, `$1126-$1128`);
+  - \|enemy − C/D\| ≤ `$96` (150) on both axes (`$112C-$1152`; the test is `$96` < value → no kill);
+  - C/D inside the field (< `$400`, < `$300`, `$1158-$1168`, lst:4023-4036);
+  - C/D equal to P1's or P2's position, and that player alive (`$1169-$1185`).
+  Then that player's word A &= `$F`, scale := 3, Explosion pulse, and every enemy gets bit 2 (`$1186-$11B4`, lst:4065-4107).
+- **Trace:** 13 player kills by enemies (idle_snap 1, ram1 7, wander1 5). At every one, the killer was in `$018` at the previous frame end, RAM[$E8] equalled the killer's record, the frame fell in its window, and \|d\| ≤ (145,137) (`trace:excerpts/exit_chase_kill_checks.txt`).
+- **Visible "shot".** During a chasing enemy's window the draw code at `$0DFC-$0E1E` (lst:3308-3338) draws an extra line and sets RAM[$FC] bit 1 (Laser, Q4; cleared every frame at `$03F3`, lst:939). The snapshots show a straight line from the enemy's nose along its heading, shorter in each of the 4 frames (`trace/snaps/idle_beam_kill_montage.png`, f1029-f1032; enemy at (801,89), heading 144°, pointing at P1 (969,320) but out of reach).
+  - In the trace, bit 1 was set **only** for an enemy in `$018` and only inside its window (all 2,404 sets).
+  - It was not set in every window: 1,083 chase-window frames (idle1 1,036, ram1 14, wander1 33) had no line. That extra condition is **UNCHECKED**.
+  - Whether the line itself can hit is **UNCHECKED**. All 13 kills match the window/aim/150 test above. At the idle_snap f1076 kill, no line was drawn in f1075/f1076 and the explosion starts f1077.
+- **Orbit.** In idle1 the last enemy circles the motionless P1 from f1124 to f12000 without a kill (speed 3, turn step 2°: it never snaps onto the bearing inside its window). So **an idle player can survive indefinitely against a single chaser**, and the idle game never ends (idle1: 3 canisters lost, then no change in the canister table, word A, F8/F9 or score for 10,600 frames, `trace:excerpts/idle1_state_changes.txt`).
+
+### 18.5 Player death, respawn, game over
+
+- Player destroyed by an enemy: P1 word A `$01C` → `$00C` at `$118A`. All enemies get bit 2 (`$018` → `$01C` at `$1199/$11A2/$11B4`; free records `$001` → `$005` at `$11AB`) (idle_snap f1076). Chasers go back to approaching their canister.
+- P1 record freed at `$0D23` 23 frames later (f1099). P1 respawns at `$03BC` (lst:890) 25 frames after that (f1124), at (1024, 320) with angle 270. All 28 respawns in idle1/ram1/wander1 had the same timing (death → free 23 frames, free → respawn 25 frames) and, one frame later, position (1018-1020, 320), angle 269-271, speed 4-6 (`trace:excerpts/p1_respawns.txt`). What sets the 25-frame delay and the initial speed is **UNCHECKED**.
+- There is no life counter: ram1 alone had 20 respawns (`trace:excerpts/p1_respawns.txt`). Game over came only when the canisters were gone (shoot1 f4790, ram1 f3434, wander1 f4462: RAM[$F0] bit 1 set).
+
+### 18.6 RNG `$11B8`
+
+- One step: **s(x) = ((x << 1) & `$FFF`) | (bit10(x) XOR bit8(x))**.
+- Code: `SHL` + `JMI` tests bit 10, and the `$200` mask + 2×`SHL` + `JMI` tests bit 8 (lst:4111-4149).
+- Trace: the word-B stores at `$0860` (two `$11B8` calls, lst:1955, :1966, :1972). A search over all 12-bit two-tap shift-feedback functions found this as the **only** fit, over 1,328 distinct (old, new) pairs (`trace:excerpts/rng_11B8_fit.txt`).
+- From the reset seed `$387` (record `$00` word B, set at `$0037`) the sequence has period **2047**.
+
+### 18.7 Sound cues seen in the trace (`trace:excerpts/sound_bits.txt`)
+
+- **Laser (Q4 = ~(FC>>1)&1, lst:340-342):** FC bit 1 is set only at `$0E1E` (the enemy-fire line, 18.4) and cleared each frame at `$03F3`. So the Laser cue is the **enemy fire**. Whether Q4 = 0 is audible is **UNCHECKED**.
+- **Motor 1 (command bit 2):**
+  - set at `$0348` (lst:777-782) when a wave has ended (all records free; the inter-wave countdown of 14.1);
+  - cleared at `$0266` (lst:576-581) when the next wave spawns;
+  - also set at `$004D`, `$00D1` and `$0130` (game start/attract paths).
+  It does **not** follow player thrust: bit 2 was 0 in 1,589 frames with P1 moving and 1 in 125 frames with P1 stopped (ram1). The audible meaning is **UNCHECKED**.
+- **Torpedo (Q3):** RAM[$FD] := 5 at `$0B0D` on each P1 shot (250 shots in shoot1). Q3 toggled 245 times in shoot1, never in the other runs.
+
+### 18.8 Other checks
+
+- **One main-loop pass = one frame** (open item in 17): RAM[$A8] increased by exactly 1 in each of 11,999 frame steps of ram1 (`trace:excerpts/laser_windows.txt`).
+- Address spaces, inputs and DIP fields found by Lua: `trace:excerpts/mame_discover.txt`.
+
+### 18.9 Still UNCHECKED after pass 5
+
+1. What else gates the fire line in a chase window (18.4), its length/range, and whether the line itself can destroy a player.
+2. What sets the 25-frame respawn delay and the initial respawn speed.
+3. The audible polarity of Laser/Motor/Torpedo/Beep.
+4. Two-player behaviour (target choice between players, P2 respawn); no two-player run was made.
+5. The 7 open indirect returns (section 8) are not affected by this pass.

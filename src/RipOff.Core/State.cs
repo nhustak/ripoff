@@ -125,6 +125,11 @@ namespace RipOff.Core
         /// <summary>Remake option (GameConfig.AutoFire, not in the arcade): holding fire repeats shots every
         /// <see cref="GameData.AutoFireInterval"/> passes.</summary>
         public bool AutoFire;
+        /// <summary>Rule set of this game (GameConfig.Mode). Arcade by default; the hash includes it only when it is
+        /// not Arcade, so Arcade checksums are unchanged from arcade-v1.0.</summary>
+        public PlayMode PlayMode = PlayMode.Arcade;
+        /// <summary>The rules the simulation reads for <see cref="PlayMode"/>.</summary>
+        public GameRules Rules => GameRules.For(PlayMode);
         /// <summary>Passes fire has been held since the last shot (auto-fire only), per player.</summary>
         public readonly int[] AutoFireTimer = new int[2];
         /// <summary>Shots fired this game, per player (remake statistic; used by tests and the game-over screen).</summary>

@@ -17,6 +17,9 @@ namespace RipOff.Core
 
         public Simulation(GameState? state = null) { State = state ?? new GameState(); }
 
+        /// <summary>Rules of the current play mode (GameRules.Arcade unless the config chose another mode).</summary>
+        public GameRules Rules => State.Rules;
+
         // ---------------------------------------------------------------- helpers
 
         /// <summary>Box test $11E0: hit when |dx| ≤ r and |dy| ≤ r, inclusive (lst:4150-4186, §18.1, GR §7).</summary>
@@ -94,7 +97,7 @@ namespace RipOff.Core
                 // Word 3 is $19 before the start (set by the game-over/attract path, lst:86-90), so P1 (and P2 in a
                 // two-player game) respawn in the first pass: trace idle1/shoot1/ram1/tp_wander, start f202 =
                 // respawn f202 (trace:excerpts/p7_checks.txt (f)).
-                r.Word3 = GameData.RespawnDelay;
+                r.Word3 = Rules.RespawnDelay;
                 r.Speed = 0;
             }
             for (int i = 0; i < s.Shots.Length; i++) s.Shots[i] = default;
@@ -287,11 +290,11 @@ namespace RipOff.Core
                 var r = s.Players[p];
                 if (!EnemyState.IsFree(r.A)) continue;
                 r.Word3 += 1;
-                if (r.Word3 < GameData.RespawnDelay) continue;
+                if (r.Word3 < Rules.RespawnDelay) continue;
                 r.Word3 = 0;
                 r.TurnStep = 0;
                 r.A = EnemyState.PlayerAlive;      // lst:890
-                r.Speed = GameData.RespawnSpeed;   // lst:891-893
+                r.Speed = Rules.RespawnSpeed;   // lst:891-893
                 var st = GameData.PlayerStarts[p]; // lst:899-906, lst:924-932
                 r.X = st.X; r.Y = st.Y; r.Heading = st.Heading;
                 r.Scale = GameData.PlayerScale;
@@ -665,8 +668,8 @@ namespace RipOff.Core
             {
                 // Auto-fire (remake option, NOTES §23): while held, another shot every AutoFireInterval passes. With
                 // all 4 slots busy the timer stays due, so the next shot leaves as soon as a slot frees up.
-                if (s.AutoFireTimer[p] < GameData.AutoFireInterval) s.AutoFireTimer[p]++;
-                if (s.AutoFireTimer[p] >= GameData.AutoFireInterval && TryFire(p, r)) s.AutoFireTimer[p] = 0;
+                if (s.AutoFireTimer[p] < Rules.AutoFireInterval) s.AutoFireTimer[p]++;
+                if (s.AutoFireTimer[p] >= Rules.AutoFireInterval && TryFire(p, r)) s.AutoFireTimer[p] = 0;
             }
             if (!inp.Fire) s.AutoFireTimer[p] = 0;
         }

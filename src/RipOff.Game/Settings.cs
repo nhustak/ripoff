@@ -1,13 +1,14 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using RipOff.Core;
 
 namespace RipOff.Game
 {
     /// <summary>
     /// Player settings, saved as JSON (<see cref="SettingsStore"/>). Out-of-range values from a hand-edited file are
-    /// clamped by <see cref="Normalize"/>. AutoFire and Canisters form the <see cref="GameConfig"/> of games this
+    /// clamped by <see cref="Normalize"/>. AutoFire, Canisters and Mode form the <see cref="GameConfig"/> of games this
     /// machine starts (local, or online as host); the rest is local only.
     /// </summary>
     public sealed class Settings
@@ -29,13 +30,18 @@ namespace RipOff.Game
         /// picked, because an initialized Steam client under App ID 480 can take the controller away (Steam Input).
         /// Replaces v1's "SteamEnabled" (default on), which is ignored when an old file is read.</summary>
         public bool SteamAtLaunch { get; set; }
+        /// <summary>Last choice on the MODE SELECT screen (default Arcade = the original game). Saved by name
+        /// ("Arcade" / "Enhanced"); a missing value or an unknown number reads as Arcade.</summary>
+        [JsonConverter(typeof(JsonStringEnumConverter<PlayMode>))]
+        public PlayMode Mode { get; set; } = PlayMode.Arcade;
 
-        public GameConfig GameConfig => new(Canisters, AutoFire);
+        public GameConfig GameConfig => new(Canisters, AutoFire, Mode);
 
         public Settings Normalize()
         {
             Version = 2;
             if (Array.IndexOf(GameData.CanistersForDip, Canisters) < 0) Canisters = GameConfig.Default.Canisters;
+            if (!GameRules.IsDefined(Mode)) Mode = PlayMode.Arcade;
             Volume = double.IsFinite(Volume) ? Math.Round(Math.Clamp(Volume, 0, 1) / VolumeStep) * VolumeStep : 1.0;
             StickDeadzone = float.IsFinite(StickDeadzone) ? MathF.Round(Math.Clamp(StickDeadzone, DeadzoneMin, DeadzoneMax) / DeadzoneStep) * DeadzoneStep : PadMapper.DefaultStickDeadzone;
             return this;

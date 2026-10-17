@@ -63,6 +63,8 @@ public class SteamInputMappingTests
         Act(new SteamActions { MenuDown = true }); Assert.Equal(1, r.F.Selected);
         Act(new SteamActions { MenuUp = true }); Assert.Equal(0, r.F.Selected);
         Act(new SteamActions { MenuSelect = true });                            // START 1 PLAYER
+        Assert.Equal(Screen.ModeSelect, r.F.Top);
+        Act(new SteamActions { MenuSelect = true });                            // ARCADE
         Assert.Equal(Screen.LocalGame, r.F.Top);
         Assert.True(r.F.InGame);
         var st = r.F.LocalSim!.State;

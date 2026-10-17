@@ -18,7 +18,7 @@ namespace RipOff.Core
                 }
             }
             void B(bool b) => Add(b ? 1 : 0);
-            Add((int)s.Mode); B(s.OnePlayer); Add(s.Credits); Add(s.CanisterDip); Add(s.PassCounter); Add(s.WaveCounter);
+            Add((int)s.Mode); B(s.OnePlayer); Add(s.CanisterDip); Add(s.PassCounter); Add(s.WaveCounter);
             Add(s.EnemyType); Add(s.Level); Add(s.KillsThisWave); Add(s.TheftsThisWave); B(s.BonusFlag); B(s.MotorOff);
             Add(s.TorpedoTimer); Add(s.Background); Add(s.BackgroundStep);
             for (int i = 0; i < 2; i++) { Add(s.Score[i]); Add(s.ScoreThousands[i]); }
@@ -34,6 +34,7 @@ namespace RipOff.Core
             B(snd.Torpedo); Add(snd.Explosions); B(snd.Laser); B(snd.Motor); B(snd.Beep); B(snd.BackgroundMuted); Add(snd.BackgroundLevel);
             Add(s.FireLines.Count); foreach (var f in s.FireLines) { Add(f.Record); Add(f.Frame); }
             B(s.GameOverThisPass);
+            B(s.AutoFire); Add(s.AutoFireTimer[0]); Add(s.AutoFireTimer[1]); Add(s.ShotsFired[0]); Add(s.ShotsFired[1]);
             return h;
         }
     }

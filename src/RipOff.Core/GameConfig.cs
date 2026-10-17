@@ -6,18 +6,16 @@ namespace RipOff.Core
     /// Every setting that changes the simulation (and so must be identical on both peers online). Online, the host's
     /// config is sent at session start, validated by the guest (a config this build cannot run is refused) and its
     /// hash echoed back and compared, so both peers provably run the same rules (RipOff.Net LockstepSession).
-    /// Settings that do not touch the simulation (volume, key bindings, window) do not belong here.
+    /// Settings that do not touch the simulation (volume, dead zone, window) do not belong here.
     /// Game over stays as in the arcade: when all canisters are gone.
     /// </summary>
     /// <param name="Canisters">Canister count, one of the arcade DIP values 12/16/4/8 (GameData.CanistersForDip).</param>
-    /// <param name="AutoFire">RESERVED for the front-end milestone: this build does not implement auto-fire, so
-    /// <see cref="Validate"/> refuses true (a peer that has it on cannot silently desync against one that doesn't).</param>
+    /// <param name="AutoFire">Remake option (default off = arcade one shot per press): holding fire repeats a shot
+    /// every <see cref="GameData.AutoFireInterval"/> passes, within the 4-shot cap (NOTES §23).</param>
     public readonly record struct GameConfig(int Canisters, bool AutoFire = false)
     {
         /// <summary>Layout version of <see cref="Encode"/>; bump when fields are added.</summary>
         public const byte SchemaVersion = 1;
-        /// <summary>Whether this build's simulation honours <see cref="AutoFire"/>. Set true together with the implementation.</summary>
-        public const bool AutoFireSupported = false;
 
         private const byte FlagAutoFire = 1;
 
@@ -30,15 +28,15 @@ namespace RipOff.Core
         public string? Validate()
         {
             if (CanisterDip < 0) return $"unsupported canister count {Canisters} (allowed: {string.Join("/", GameData.CanistersForDip)})";
-            if (AutoFire && !AutoFireSupported) return "auto-fire is not supported by this build";
             return null;
         }
 
-        /// <summary>Applies the config to a fresh state before StartGame.</summary>
+        /// <summary>Applies the config to a state before StartGame.</summary>
         public void ApplyTo(GameState s)
         {
             if (Validate() is { } err) throw new ArgumentException(err);
             s.CanisterDip = CanisterDip;
+            s.AutoFire = AutoFire;
         }
 
         /// <summary>Wire form: schema, canisters, flags (bit 0 auto-fire; other bits reserved, must be 0).</summary>

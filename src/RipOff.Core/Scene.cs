@@ -116,14 +116,8 @@ namespace RipOff.Core
 
         static void DrawScores(GameState s, List<Line> o)
         {
-            if (s.Mode != GameMode.Playing)
-            {
-                // UNCHECKED: the arcade attract screen (credits, high scores at ($200,$10)/($200,$2DC), NOTES §13) is
-                // not reproduced; the remake shows only the credit count, bottom centre, so a player can see it.
-                float x = 0x200 - GlyphAdvance / 2f;
-                foreach (char ch in s.Credits.ToString()) x = Glyph(ch - '0', x, 0x40, o);
-                return;
-            }
+            // No credit display: the remake has no credits (NOTES §23); attract mode shows no score.
+            if (s.Mode != GameMode.Playing) return;
             // Individual scores (Scores DIP 0): P2 at ($1A0,$176), P1 at ($260,$176) (NOTES §13, lst:1112-1156).
             // UNCHECKED: in a one-player game only P1 is shown (path $04B6 → $0505, NOTES §13).
             Number(s.Score[0], 0x260, 0x176, o, s.ScoreThousands[0]);

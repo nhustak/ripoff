@@ -74,7 +74,7 @@ public class RulesTests
     public void RespawnTimingAndPlace()
     {
         var sim = new Simulation(); var st = sim.State;
-        st.Credits = 1; sim.StartGame(true);
+        sim.StartGame(true);
         sim.Step(default); // game-start pass: word 3 = $19 → P1 respawns at once (NOTES §20 (k))
         var p = st.Players[0];
         Assert.Equal(EnemyState.PlayerAlive, p.A);
@@ -111,7 +111,7 @@ public class RulesTests
     public void FirstWaveSpawn()
     {
         var sim = new Simulation(); var st = sim.State;
-        st.Credits = 1; sim.StartGame(true);
+        sim.StartGame(true);
         int passes = 0;
         while (st.Enemies.All(e => EnemyState.IsFree(e.A)) && passes < 500) { sim.Step(default); passes++; }
         Assert.Equal(51, passes); // f202 start → f252 spawn (NOTES §20 (k)): 50 passes after the start pass
@@ -124,19 +124,18 @@ public class RulesTests
         Assert.Equal(Simulation.EnemyMaxSpeed(1, 1), e0.Speed);
     }
 
-    [Fact] // GR §8: coin → credit, start consumes it; two-player start needs two
-    public void CreditsAndStart()
+    [Fact] // NOTES §23: no credits. Attract mode ignores all input; only StartGame starts a game.
+    public void NoCreditsGamesStartOnlyThroughStartGame()
     {
         var sim = new Simulation(); var st = sim.State;
-        sim.Step(new FrameInput { Start1 = true });
+        for (int i = 0; i < 100; i++)
+            sim.Step(new FrameInput { P1 = new PlayerInput { Fire = true, Thrust = true }, P2 = new PlayerInput { Fire = i % 2 == 0 } });
         Assert.Equal(GameMode.Attract, st.Mode);
-        sim.Step(new FrameInput { Coin = true });
-        sim.Step(new FrameInput { Start2 = true });
-        Assert.Equal(GameMode.Attract, st.Mode);
-        sim.Step(new FrameInput { Start1 = true });
+        sim.StartGame(onePlayer: false, new GameConfig(12));
         Assert.Equal(GameMode.Playing, st.Mode);
-        Assert.True(st.OnePlayer);
-        Assert.Equal(0, st.Credits);
+        Assert.False(st.OnePlayer);
+        Assert.Equal(12, GameData.CanistersForDip[st.CanisterDip]);
+        Assert.Equal(12, st.Canisters.Count(c => !c.Gone));
     }
 
     [Fact] // Determinism: two runs with the same inputs give identical state
@@ -144,7 +143,7 @@ public class RulesTests
     {
         static string Run()
         {
-            var sim = new Simulation(); var st = sim.State; st.Credits = 2; sim.StartGame(false);
+            var sim = new Simulation(); var st = sim.State; sim.StartGame(false);
             for (int f = 0; f < 3000; f++)
                 sim.Step(new FrameInput { P1 = new PlayerInput { Left = f % 50 < 20, Thrust = f % 7 < 5, Fire = f % 9 == 0 },
                                           P2 = new PlayerInput { Right = f % 30 < 10, Thrust = true, Fire = f % 13 == 0 } });
@@ -158,7 +157,7 @@ public class RulesTests
     public void ScoreCarry()
     {
         var sim = new Simulation(); var st = sim.State;
-        st.Credits = 1; sim.StartGame(true);
+        sim.StartGame(true);
         st.Score[0] = 1005;
         sim.Step(default);
         Assert.Equal((5, 1), (st.Score[0], st.ScoreThousands[0]));

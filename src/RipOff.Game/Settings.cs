@@ -1,0 +1,96 @@
+using System;
+using System.IO;
+using System.Text.Json;
+using RipOff.Core;
+
+namespace RipOff.Game
+{
+    /// <summary>
+    /// Player settings, saved as JSON (<see cref="SettingsStore"/>). Out-of-range values from a hand-edited file are
+    /// clamped by <see cref="Normalize"/>. AutoFire and Canisters form the <see cref="GameConfig"/> of games this
+    /// machine starts (local, or online as host); the rest is local only.
+    /// </summary>
+    public sealed class Settings
+    {
+        public const double VolumeStep = 0.1;
+        public const float DeadzoneMin = 0.10f, DeadzoneMax = 0.60f, DeadzoneStep = 0.05f;
+
+        public int Version { get; set; } = 1;
+        /// <summary>Default off = the arcade's one shot per press.</summary>
+        public bool AutoFire { get; set; }
+        /// <summary>Default 8 = the arcade's default DIP.</summary>
+        public int Canisters { get; set; } = GameConfig.Default.Canisters;
+        public double Volume { get; set; } = 1.0;
+        public bool Muted { get; set; }
+        public bool Fullscreen { get; set; }
+        public float StickDeadzone { get; set; } = PadMapper.DefaultStickDeadzone;
+        /// <summary>Initialize Steam at launch (takes effect on the next start). Off avoids Steam entirely, e.g. when
+        /// Steam Input takes over the controller under App ID 480 (README).</summary>
+        public bool SteamEnabled { get; set; } = true;
+
+        public GameConfig GameConfig => new(Canisters, AutoFire);
+
+        public Settings Normalize()
+        {
+            Version = 1;
+            if (Array.IndexOf(GameData.CanistersForDip, Canisters) < 0) Canisters = GameConfig.Default.Canisters;
+            Volume = double.IsFinite(Volume) ? Math.Round(Math.Clamp(Volume, 0, 1) / VolumeStep) * VolumeStep : 1.0;
+            StickDeadzone = float.IsFinite(StickDeadzone) ? MathF.Round(Math.Clamp(StickDeadzone, DeadzoneMin, DeadzoneMax) / DeadzoneStep) * DeadzoneStep : PadMapper.DefaultStickDeadzone;
+            return this;
+        }
+
+        public Settings Clone() => (Settings)MemberwiseClone();
+    }
+
+    /// <summary>
+    /// Loads and saves <see cref="Settings"/> as JSON in %APPDATA%\&lt;Branding.SettingsFolder&gt;\settings.json
+    /// (Environment.SpecialFolder.ApplicationData; ~/.config on Linux). A missing file gives defaults. A corrupt
+    /// file is renamed to settings.json.corrupt (kept for inspection), defaults are used, and the reason is
+    /// reported. Saving writes a temporary file and then replaces the old one.
+    /// </summary>
+    public sealed class SettingsStore
+    {
+        private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+
+        public string FilePath { get; }
+
+        public SettingsStore(string? directory = null)
+        {
+            directory ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Branding.SettingsFolder);
+            FilePath = Path.Combine(directory, "settings.json");
+        }
+
+        /// <summary>Never throws. <paramref name="warning"/> explains a reset (null when the file loaded or was missing).</summary>
+        public Settings Load(out string? warning)
+        {
+            warning = null;
+            try
+            {
+                if (!File.Exists(FilePath)) return new Settings();
+                var s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), Json) ?? throw new JsonException("empty settings file");
+                return s.Normalize();
+            }
+            catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                warning = "settings file unreadable (" + e.GetType().Name + "), defaults used";
+                try { File.Move(FilePath, FilePath + ".corrupt", overwrite: true); warning += "; old file kept as settings.json.corrupt"; }
+                catch (Exception) { /* read-only folder: keep going with defaults */ }
+                return new Settings();
+            }
+        }
+
+        /// <summary>Never throws; returns the error text or null.</summary>
+        public string? Save(Settings s)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+                string tmp = FilePath + ".tmp";
+                File.WriteAllText(tmp, JsonSerializer.Serialize(s.Clone().Normalize(), Json));
+                File.Move(tmp, FilePath, overwrite: true);
+                return null;
+            }
+            catch (Exception e) { return "could not save settings: " + e.Message; }
+        }
+    }
+}

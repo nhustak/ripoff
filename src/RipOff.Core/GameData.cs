@@ -70,6 +70,9 @@ namespace RipOff.Core
         public const int RespawnSpeed = 5;     // lst:891-893
 
         public const int ShotSlotsPerPlayer = 4; // lst:2584-2602
+        /// <summary>Auto-fire repeat interval in passes (remake option, not arcade): 6 passes = 158 ms, about
+        /// 6.3 shots/s while fire is held; the 4-slot cap still applies (a held button waits for a free slot).</summary>
+        public const int AutoFireInterval = 6;
         public const int ShotSpeedBonus = 15;    // lst:2647-2648 ($0B36-$0B37: speed + $F)
         public const int TorpedoPasses = 5;      // lst:2606-2609 (RAM[$FD] := 5)
 

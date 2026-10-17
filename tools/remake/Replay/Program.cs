@@ -5,10 +5,10 @@ foreach (var l in File.ReadLines(Path.Combine(Environment.GetEnvironmentVariable
 int S(int v){v&=0xFFF;return v>=0x800?v-0x1000:v;}
 var sim = new Simulation(); var st = sim.State;
 var pre = R[startF-1];
-st.CanisterDip = 3; st.Credits = 1;
+st.CanisterDip = 3;
 st.Enemies[0].B = pre[0x0B]; st.Enemies[1].B = pre[0x1B]; st.Enemies[2].B = pre[0x2B]; st.Players[0].B = pre[0x3B];
 st.PassCounter = pre[0xA8];
-if (mode.StartsWith("2p:")) { st.Credits=2; sim.StartGame(false); st.Players[1].B = pre[0x4B]; } else sim.StartGame(true);
+if (mode.StartsWith("2p:")) { sim.StartGame(false); st.Players[1].B = pre[0x4B]; } else sim.StartGame(true);
 int firstDiff=-1; int reported=0;
 var inp = new FrameInput();
 var q = new Queue<FrameInput>(); q.Enqueue(new FrameInput()); q.Enqueue(new FrameInput());

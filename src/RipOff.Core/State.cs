@@ -83,10 +83,11 @@ namespace RipOff.Core
         public bool Left, Right, Thrust, Fire;
     }
 
+    /// <summary>Both players' controls for one pass. There is no coin or start input: the remake has no credit
+    /// system; games are started by the front end with <see cref="Simulation.StartGame"/> (NOTES §23).</summary>
     public struct FrameInput
     {
         public PlayerInput P1, P2;
-        public bool Coin, Start1, Start2;
     }
 
     /// <summary>Fire-line draw request (cosmetic, GAME_RULES §6 "Fire line").</summary>
@@ -100,7 +101,6 @@ namespace RipOff.Core
     {
         public GameMode Mode = GameMode.Attract;
         public bool OnePlayer = true;           // RAM[$F0] bit 0
-        public int Credits;                     // RAM[$F3]
         public int CanisterDip = GameData.DefaultCanisterDip;
         public int PassCounter;                 // RAM[$A8]
         public int WaveCounter;                 // RAM[$EC]
@@ -122,6 +122,13 @@ namespace RipOff.Core
         public SoundState Sound;
         public readonly List<FireLine> FireLines = new List<FireLine>();
         public bool GameOverThisPass;
+        /// <summary>Remake option (GameConfig.AutoFire, not in the arcade): holding fire repeats shots every
+        /// <see cref="GameData.AutoFireInterval"/> passes.</summary>
+        public bool AutoFire;
+        /// <summary>Passes fire has been held since the last shot (auto-fire only), per player.</summary>
+        public readonly int[] AutoFireTimer = new int[2];
+        /// <summary>Shots fired this game, per player (remake statistic; used by tests and the game-over screen).</summary>
+        public readonly int[] ShotsFired = new int[2];
 
         public GameState()
         {

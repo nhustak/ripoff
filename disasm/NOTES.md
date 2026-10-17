@@ -861,3 +861,32 @@ UNCHECKED (no Steam client or Windows machine on the build box):
 1. Every Steam runtime path: lobby create/search/join, codes, invites through the overlay and friends list, rich-presence join, `+connect_lobby`, session accept, relay traffic and its latency, ICE disable taking effect, overlay showing with 480 outside the Steam client. Only "Steam missing → clean fallback" was run (Linux box: `InitEx` returns FailedGeneric, no steamclient.so).
 2. The published win-x64 zip running on Windows (contents verified by cross-publishing on Linux only). The MonoGame window/menu is also not run on the box (no OpenGL); the menu was checked by rendering its line list to PNG.
 3. Whether 3 frames of delay feels right over real relays; LAN direct-IP across two real machines and Windows Firewall prompts (only localhost UDP was tested).
+
+## 23. Milestone 4: game front end, no credits, auto-fire
+
+Code: `src/RipOff.Game/FrontEnd.cs` (state machine), `InputReader.cs`, `PadMapper.cs`, `OnScreenKeyboard.cs`, `Settings.cs`; Core changes in `Simulation.cs`, `State.cs`, `GameConfig.cs`.
+
+1. **Credits removed.** `FrameInput` has no coin/start fields and `GameState.Credits` is gone. `Simulation.Step` no longer models the coin/start code (lst:197-255). Attract mode just idles, and the front end starts games with `Simulation.StartGame(onePlayer, GameConfig)`. The replay tests already injected the start with `StartGame` and are unchanged apart from dropping `Credits`; they still match the arcade RAM checkpoints, since the RAM comparison never covered `$F3`. The attract screen draws no credit count. Online, a Start bit in attract mode calls `StartGame` (§22.5); the front end sends it from GAME OVER → PLAY AGAIN.
+2. **Auto-fire (remake option, not arcade).** `GameConfig.AutoFire` → `GameState.AutoFire`. The press edge fires exactly as before (lst:2562-2656, so OFF = arcade). With it ON, a held button also fires every `GameData.AutoFireInterval` = **6 passes** (158 ms, ≈ 6.3 shots/s). Per-player counter `AutoFireTimer`, reset on release and on every shot. With all 4 slots busy the timer stays due and the shot leaves when a slot frees, so the 4-shot cap holds and the rate never exceeds 1 per 6 passes. Both values are in `StateHash`, so a desync would show. Protocol version 2 (v1 builds refused auto-fire).
+3. **Menu tree / routing.** Screens form a stack: Splash, Main, Online, Options, Keyboard, Connecting, LocalGame, OnlineGame, Pause, GameOver.
+   - Back (Esc / B) pops the stack. It does nothing on the main menu, and Esc never quits.
+   - In a game, Esc or pad Start pushes Pause. Pad B does nothing in a game; it is not a game control, so a stray press cannot pause.
+   - In Pause, Esc / B / Start resume.
+   - F10 pushes Options from any screen except the keyboard (from the splash it goes to Main first).
+   - Pad Start does nothing in other menus. Flagged choice: Nick asked that Start only open the pause menu.
+   - Only the EXIT items set `ExitRequested`.
+   - A local game runs only while it is the top screen, so every menu pauses it.
+4. **Online pausing (flagged).** The shared simulation never pauses. The menu is drawn over the dimmed, still-running game, and the local player's input reads as released while it is open. Pausing both sides would let either player freeze the other indefinitely and would need protocol messages. The overlay costs the pausing player nothing extra beyond their own idle tank.
+5. **Options (flagged choices):**
+   - Volume 0-100 % in 10 % steps.
+   - Dead zone 10-60 % in 5 % steps (default 35 %).
+   - Fullscreen is borderless at desktop resolution (`HardwareModeSwitch = false`), which avoids a display mode change.
+   - STEAM AT LAUNCH (applies on the next start) was added because of the Steam Input issue in 6.
+   - Canisters 4/8/12/16 are the arcade DIP values.
+   - Auto-fire and canisters apply at the next game start and are the host's values online.
+   - Settings are JSON under `Environment.SpecialFolder.ApplicationData/RipOffRemake/settings.json`, saved after every change via a temporary file. A corrupt file is renamed `.corrupt` and defaults are used; out-of-range values are clamped.
+6. **Controller in menus (Nick's report on M3).** Two causes were found and both are fixed or documented:
+   - **Code:** pads were read only at MonoGame indices 0 and 1, so a pad that SDL put at another index was invisible; the stick-as-direction depended on MonoGame's `LeftThumbstick*` button mapping. M4 reads indices 0-3 for menus, takes the first two *connected* pads as P1/P2, and uses its own stick threshold (0.5). `InputReader` is pure and tested with fake pad states on every screen.
+   - **Steam Input:** with App ID 480, Steam treats the game as Spacewar and redirects controller input to Steam Input (Valve engineer, Steamworks.NET issue #380). The workarounds are documented in the README, plus the STEAM AT LAUNCH option. UNCHECKED: which of the two it was on Nick's machine.
+
+UNCHECKED: the MonoGame window itself (fullscreen switching, TextInput, real pads through SDL) has not run on the box (no OpenGL). The front end is tested through `InputReader` + `FrontEnd` with fake states, and the screens were checked by rendering their line lists to PNG.

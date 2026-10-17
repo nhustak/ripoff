@@ -13,7 +13,7 @@ namespace RipOff.Game.Steam
     /// +connect_lobby command line), and SteamNetworkingMessages session acceptance for <see cref="SteamTransport"/>.
     /// UNCHECKED: none of this has run against a real Steam client (the build box has none); see README.
     /// </summary>
-    public sealed class SteamPlatform : IDisposable
+    public sealed class SteamPlatform : ISteamUi, IDisposable
     {
         public enum LobbyPhase { None, Creating, Hosting, Searching, Joining, Joined, Failed }
 
@@ -30,6 +30,7 @@ namespace RipOff.Game.Steam
         public bool PeerLeft { get; private set; }
         /// <summary>A lobby the user asked to join from Steam (invite, friends list, or command line).</summary>
         public ulong? PendingJoin { get; set; }
+        public ulong? TakePendingJoin() { var p = PendingJoin; PendingJoin = null; return p; }
         public string PersonaName { get; private set; } = "";
 
         private Callback<GameLobbyJoinRequested_t>? _cbLobbyJoin;
@@ -136,8 +137,8 @@ namespace RipOff.Game.Steam
 
         public static string NewCode()
         {
-            Span<char> c = stackalloc char[Menu.CodeLength];
-            for (int i = 0; i < c.Length; i++) c[i] = Menu.CodeAlphabet[RandomNumberGenerator.GetInt32(Menu.CodeAlphabet.Length)];
+            Span<char> c = stackalloc char[OnScreenKeyboard.CodeLength];
+            for (int i = 0; i < c.Length; i++) c[i] = OnScreenKeyboard.CodeAlphabet[RandomNumberGenerator.GetInt32(OnScreenKeyboard.CodeAlphabet.Length)];
             return new string(c);
         }
 

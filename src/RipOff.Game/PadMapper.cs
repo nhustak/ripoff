@@ -1,90 +1,74 @@
+using System;
 using Microsoft.Xna.Framework.Input;
 using RipOff.Core;
 
 namespace RipOff.Game
 {
-    /// <summary>Inputs taken from the game pads for one pass; OR'd with the keyboard by the host.</summary>
+    /// <summary>Gameplay controls taken from the pads for one pass; OR'd with the keyboard by the front end.</summary>
     public struct PadFrame
     {
         public PlayerInput P1, P2;
-        public bool Coin, Start1, Start2;
     }
 
     /// <summary>
-    /// Game pad → arcade controls. Pad index 0 drives player 1, index 1 player 2 (MonoGame GamePad, SDL2
-    /// GameController on DesktopGL; buttons named in Xbox layout).
-    ///   turn:   left stick X beyond <see cref="StickDeadzone"/>, or D-pad left/right
-    ///   thrust: A, or left trigger beyond <see cref="TriggerThreshold"/> (held = thrust)
-    ///   fire:   X, right bumper, or right trigger beyond <see cref="TriggerThreshold"/>. All three produce the same
-    ///           "fire held" level, passed as is; the simulation's fire logic (unchanged) decides what a held
-    ///           button does
-    ///   coin:   Back / View (either pad, on press)
-    ///   start:  Start / Menu on pad 0 = 1-player start; Start on pad 1, or LB + Start on pad 0 = 2-player start
-    /// Coin and start are edges (one pass per press), like the keyboard keys: the simulation adds a credit on every
-    /// pass the coin input is set. A pad that is disconnected reads as neutral; on the pass a pad (re)connects its
-    /// previous state is taken to be the current one, so held buttons do not produce an edge.
+    /// Game pad → tank controls (MonoGame GamePad = SDL2 GameController on DesktopGL; Xbox button names).
+    /// The first connected pad (lowest MonoGame index) drives player 1 and the second connected pad player 2, so a
+    /// pad that Windows/SDL puts at index 1 or 2 still works (M4 fix: before, only indices 0 and 1 were read).
+    ///   turn:   left stick X beyond <see cref="StickDeadzone"/> (Options), or D-pad left/right
+    ///   thrust: A, or left trigger beyond <see cref="TriggerThreshold"/>
+    ///   fire:   X, right bumper, or right trigger beyond <see cref="TriggerThreshold"/>: one "fire held" level; the
+    ///           simulation decides what holding does (one shot per press, or auto-fire when that option is on)
+    /// There are no coin or start buttons (no credits, M4); Start opens the pause menu (InputReader / FrontEnd).
+    /// A disconnected pad reads as neutral.
     /// </summary>
     public sealed class PadMapper
     {
-        /// <summary>Axial dead zone on the left stick X (stick range −1..1). A design choice, not from the arcade.</summary>
-        public const float StickDeadzone = 0.35f;
+        /// <summary>Default axial dead zone on the left stick X (stick range −1..1). A design choice, not from the arcade.</summary>
+        public const float DefaultStickDeadzone = 0.35f;
         /// <summary>Trigger travel (0..1) beyond which LT counts as thrust and RT as fire.</summary>
         public const float TriggerThreshold = 0.3f;
 
-        private readonly GamePadState[] _prev = new GamePadState[2];
-        private readonly bool[] _connected = new bool[2];
+        /// <summary>Dead zone in use (Options → STICK DEAD ZONE).</summary>
+        public float StickDeadzone { get; set; } = DefaultStickDeadzone;
 
-        /// <summary>Whether pad <paramref name="index"/> was connected on the last <see cref="Update"/>.</summary>
-        public bool IsConnected(int index) => _connected[index];
+        /// <summary>MonoGame indices of the pads driving P1 and P2 on the last <see cref="Update"/> (-1 = none).</summary>
+        public int P1Index { get; private set; } = -1;
+        public int P2Index { get; private set; } = -1;
+        public int ConnectedCount { get; private set; }
 
         /// <summary>Level controls of one player from one pad state (no edges). Disconnected = neutral.</summary>
-        public static PlayerInput MapPlayer(in GamePadState s)
+        public static PlayerInput MapPlayer(in GamePadState s, float deadzone = DefaultStickDeadzone)
         {
             if (!s.IsConnected) return default;
             float x = s.ThumbSticks.Left.X;
             return new PlayerInput
             {
-                Left = x < -StickDeadzone || s.DPad.Left == ButtonState.Pressed,
-                Right = x > StickDeadzone || s.DPad.Right == ButtonState.Pressed,
+                Left = x < -deadzone || s.DPad.Left == ButtonState.Pressed,
+                Right = x > deadzone || s.DPad.Right == ButtonState.Pressed,
                 Thrust = s.Buttons.A == ButtonState.Pressed || s.Triggers.Left > TriggerThreshold,
                 Fire = s.Buttons.X == ButtonState.Pressed || s.Buttons.RightShoulder == ButtonState.Pressed
                     || s.Triggers.Right > TriggerThreshold,
             };
         }
 
-        /// <summary>Maps the current states of pads 0 and 1 and advances the edge detector by one pass.</summary>
-        public PadFrame Update(GamePadState pad0, GamePadState pad1)
+        /// <summary>Maps the pads (index order): first connected = P1, second connected = P2.</summary>
+        public PadFrame Update(params GamePadState[] pads) => Update((ReadOnlySpan<GamePadState>)pads);
+
+        public PadFrame Update(ReadOnlySpan<GamePadState> pads)
         {
-            var cur = new[] { pad0, pad1 };
-            var f = new PadFrame { P1 = MapPlayer(pad0), P2 = MapPlayer(pad1) };
-            bool[] startEdge = new bool[2];
-            for (int i = 0; i < 2; i++)
+            var f = new PadFrame();
+            P1Index = P2Index = -1; ConnectedCount = 0;
+            for (int i = 0; i < pads.Length; i++)
             {
-                var s = cur[i];
-                if (!s.IsConnected) { _connected[i] = false; _prev[i] = default; continue; }
-                var p = _connected[i] ? _prev[i] : s; // first pass after (re)connecting: no edges
-                bool Edge(Buttons b) => s.IsButtonDown(b) && !p.IsButtonDown(b);
-                f.Coin |= Edge(Buttons.Back);
-                startEdge[i] = Edge(Buttons.Start);
-                _prev[i] = s; _connected[i] = true;
+                if (!pads[i].IsConnected) continue;
+                ConnectedCount++;
+                if (P1Index < 0) { P1Index = i; f.P1 = MapPlayer(pads[i], StickDeadzone); }
+                else if (P2Index < 0) { P2Index = i; f.P2 = MapPlayer(pads[i], StickDeadzone); }
             }
-            bool lbHeld = pad0.IsConnected && pad0.IsButtonDown(Buttons.LeftShoulder);
-            f.Start1 = startEdge[0] && !lbHeld;
-            f.Start2 = startEdge[1] || (startEdge[0] && lbHeld);
             return f;
         }
 
-        /// <summary>Keyboard and pad inputs OR'd.</summary>
-        public static FrameInput Combine(in FrameInput k, in PadFrame p) => new FrameInput
-        {
-            P1 = Or(k.P1, p.P1),
-            P2 = Or(k.P2, p.P2),
-            Coin = k.Coin || p.Coin,
-            Start1 = k.Start1 || p.Start1,
-            Start2 = k.Start2 || p.Start2,
-        };
-
-        private static PlayerInput Or(in PlayerInput a, in PlayerInput b) => new PlayerInput
+        public static PlayerInput Or(in PlayerInput a, in PlayerInput b) => new PlayerInput
         {
             Left = a.Left || b.Left, Right = a.Right || b.Right, Thrust = a.Thrust || b.Thrust, Fire = a.Fire || b.Fire,
         };

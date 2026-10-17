@@ -9,10 +9,10 @@ The remake is six .NET projects in `RipOff.sln`:
 |---|---|
 | `src/RipOff.Core` | Pure .NET 10 library: the whole game simulation, one deterministic pass per 38 Hz frame, from `disasm/GAME_RULES.md` (code comments cite the rules and `ripoff.lst` lines). Also the shape data (`Shapes/ShapeData.g.cs`, generated from our decoded docs by `tools/remake/gen_shapes.py`) and the scene builder that turns the state into lines. |
 | `src/RipOff.Net` | Online play without MonoGame or Steam: input-sync lockstep (`LockstepSession`), wire protocol, the `ITransport` abstraction, a LiteNetLib 2.1.4 UDP transport and an in-memory loopback network for tests. |
-| `src/RipOff.Game` | MonoGame 3.8.6 DesktopGL window: fixed 38 Hz step, keyboard and game-pad input (`PadMapper`), custom line renderer, sound output (`SoundOutput`), a minimal menu, the online API (`OnlineController`) and Steam (`Steam/`, Steamworks.NET 2025.164.1). |
+| `src/RipOff.Game` | MonoGame 3.8.6 DesktopGL window: fixed 38 Hz step, input (`InputReader`, `PadMapper`), the front end (`FrontEnd`: splash, menus, options, pause, on-screen keyboard), settings (`Settings`), custom line renderer, sound output (`SoundOutput`), the online API (`OnlineController`) and Steam (`Steam/`, Steamworks.NET 2025.164.1). |
 | `tests/RipOff.Core.Tests` | xUnit tests: rule checks, replays of the scripted MAME runs against arcade RAM checkpoints (including the sound command byte), sound generator tests, and a headless render-to-PNG check. |
 | `tests/RipOff.Net.Tests` | Lockstep over a simulated link with latency, jitter, loss, duplication and reordering (6000 ticks, per-frame state hashes identical), desync detection, version/key and game-config checks, and LiteNetLib over localhost UDP. |
-| `tests/RipOff.Game.Tests` | xUnit tests for the controller mapping (fake `GamePadState` values), the PCM output path, the menu, the online API over localhost (direct IP, desync report), and starting without Steam; headless. |
+| `tests/RipOff.Game.Tests` | xUnit tests that drive every screen of the front end with fake pad states and keys (navigation, pause, Exit as the only quit, F10/Esc/Start routing, options, on-screen keyboard, an online direct-IP game between two front ends), plus settings files, pad mapping, the PCM path and starting without Steam; headless. |
 
 Sound (`src/RipOff.Core/Audio`) is synthesized at runtime from a model of the arcade sound board (MAME's netlist values plus measurements of its output, `disasm/NOTES.md` §21). No audio is recorded from MAME, and no sound files are shipped.
 
@@ -35,42 +35,103 @@ The game never loads or ships the ROM. Shapes and tables are re-expressed from t
 
 The same commands work on Linux and macOS with the .NET 10 SDK installed.
 
-### Keys
+### Menus
 
-| Action | Player 1 | Player 2 |
+The game opens on a splash screen (the title from `Branding.cs`); any key or pad button skips it, and it moves on by itself after 6 s.
+
+```
+MAIN MENU
+├─ START 1 PLAYER            starts at once
+├─ START 2 PLAYERS           starts at once (local, same screen)
+├─ ONLINE
+│  ├─ HOST ONLINE (STEAM)    lobby + 6-character code; INVITE A STEAM FRIEND / CANCEL
+│  ├─ JOIN BY CODE (STEAM)   on-screen keyboard
+│  ├─ HOST DIRECT IP         shows this PC's addresses and UDP port 47815
+│  ├─ JOIN DIRECT IP         on-screen keyboard (ip or ip:port)
+│  └─ BACK
+├─ OPTIONS
+│  ├─ AUTO FIRE: OFF/ON           (default OFF = arcade, one shot per press)
+│  ├─ CANISTERS: 4/8/12/16        (default 8)
+│  ├─ VOLUME: 0-100%              (steps of 10)
+│  ├─ MUTE: OFF/ON
+│  ├─ DISPLAY: WINDOWED/FULLSCREEN
+│  ├─ STICK DEAD ZONE: 10-60%     (default 35%, steps of 5)
+│  ├─ STEAM AT LAUNCH: ON/OFF     (applies on the next start)
+│  └─ BACK
+└─ EXIT                      the only way out, with EXIT TO DESKTOP below
+
+PAUSE MENU (in a game: Esc or pad Start)
+├─ RESUME
+├─ OPTIONS
+├─ QUIT TO MAIN MENU         (online: LEAVE ONLINE GAME)
+└─ EXIT TO DESKTOP
+
+GAME OVER (when all canisters are gone)
+├─ PLAY AGAIN                (online: either player starts the next game)
+└─ MAIN MENU                 (online: LEAVE ONLINE GAME)
+```
+
+There are no coins, credits or start buttons: picking a game in the menu starts it. Nothing quits the game except **EXIT** and **EXIT TO DESKTOP** (or closing the window). Auto fire and canisters apply when a game starts; online, the host's values are used for both players.
+
+Settings are saved as JSON in `%APPDATA%\RipOffRemake\settings.json` on Windows (`~/.config/RipOffRemake/settings.json` on Linux), after every change. A missing file means defaults. An unreadable file is renamed to `settings.json.corrupt`, and the game starts with defaults and says so at the bottom of the screen.
+
+### Controls
+
+Everything works with a controller alone, and everything works with the keyboard alone.
+
+**Menus**
+
+| Action | Controller (Xbox names; PlayStation in brackets) | Keyboard |
 |---|---|---|
-| Turn left / right | ← / → | A / D |
-| Thrust | ↑ | W |
-| Fire | Right Ctrl | Left Ctrl |
+| Move | D-pad or left stick | Arrow keys |
+| Select | A [Cross] | Enter or Space |
+| Back / close menu | B [Circle] | Esc |
+| Change an option | D-pad / stick left-right, or A | ← / →, or Enter |
+| Open / close pause menu (in a game) | Start / Menu [Options] | Esc |
+| Options from anywhere | (via the menus) | F10 |
+| Volume | (Options) | − / + lower / raise, M mute |
 
-**5** inserts a coin, **1** starts a one-player game (1 credit), **2** a two-player game (2 credits), **Esc** goes back to the menu. Default cabinet setting: 8 canisters.
+The on-screen keyboard (lobby code, IP address): move with the D-pad/stick and press A on a key. X deletes a character, B cancels, and A on OK confirms. A full 6-character code jumps the cursor to OK. On a keyboard you can also just type: Backspace deletes, Enter confirms, Esc cancels.
 
-Menu: ↑/↓ (or D-pad / left stick) move, **Enter** (or A / Start) selects, **Esc** (or B / Back) goes back. Code and address entry take typed text, or on a pad: ↑/↓ change the last character, → adds one, ← deletes one. The menu is a deliberately minimal stopgap; the front-end milestone replaces it.
+**Playing**
 
-Online, each player uses either keyboard set (arrows + Right Ctrl, or WASD + Left Ctrl) or the first pad. There are no coins: after a game over either player presses Start (**1**, **2** or pad Start) for a new game. The host is player 1, the guest player 2. **Esc** leaves the online game.
+| Action | Player 1 keys | Player 2 keys | Controller |
+|---|---|---|---|
+| Turn left / right | ← / → | A / D | Left stick (dead zone from Options) or D-pad |
+| Thrust | ↑ | W | A [Cross] or LT [L2] past 30 % |
+| Fire | Right Ctrl | Left Ctrl | X [Square], RB [R1] or RT [R2] past 30 % |
 
-Sound: **M** mutes / unmutes, **−** / **+** (main keyboard or keypad) lower / raise the volume in 10 % steps (changing the volume also unmutes). The window title shows the volume, "muted", or why there is no audio, and which pads are connected.
+- In a 1-player game (and online), both keyboard sets and every pad steer your tank.
+- In a 2-player game, player 1 uses the arrows, Right Ctrl and the first connected pad, and player 2 uses WASD, Left Ctrl and the second connected pad.
+- The pads are taken in the order MonoGame lists them (indices 0-3); empty slots are skipped, so a pad that Windows lists second still counts as the first pad.
+- Pads can be plugged in or pulled out at any time; a button held while plugging in does not count as a press.
+- **Fire**: one shot per press, as in the arcade. With **AUTO FIRE: ON**, holding fire repeats a shot every 6 passes, about 6.3 shots/s at 38 Hz. Each player still has at most 4 shots in flight: with all 4 out, the next shot leaves as soon as one ends.
 
-### Controller
+The window title shows the volume (or why there is no audio), how many pads are connected, and whether Steam is on.
 
-Any controller SDL2 knows as a GameController (Xbox, PlayStation, Switch Pro, most others) through MonoGame's `GamePad` API. The first pad Windows reports (MonoGame index 0) is player 1, the second (index 1) player 2. Keyboard and pads work at the same time (their inputs are OR'd).
+**If the controller does nothing while Steam is running** (Nick's report on M3): with `steam_appid.txt` = 480, Steam treats the game as Spacewar. A Valve input engineer [explains](https://github.com/rlabrecque/Steamworks.NET/issues/380) that this redirects controller input to Steam Input instead of XInput. There are three fixes:
 
-| Action | Pad button (Xbox names; PlayStation in brackets) |
-|---|---|
-| Turn left / right | Left stick left / right (dead zone 0.35), or D-pad left / right |
-| Thrust | A [Cross], or left trigger LT [L2] pulled past 30 % (held = thrust) |
-| Fire | X [Square], right bumper RB [R1], or right trigger RT [R2] pulled past 30 %. All three are the same fire button: one shot per press, as in the arcade (holding does not repeat) |
-| Coin | Back / View [Share / Create], on either pad |
-| 1-player start | Start / Menu [Options] on pad 1 |
-| 2-player start | Start on pad 2, or hold LB [L1] and press Start on pad 1 |
+- In Steam, open Library → Spacewar → Properties → Controller and set Steam Input to "Disable Steam Input". You may need to install Spacewar first with `steam://run/480`.
+- In Steam's controller settings, turn off "Xbox Configuration Support".
+- In Options, set **STEAM AT LAUNCH: OFF** (or start with `--no-steam`). This turns off Steam online play for that run.
 
-Pads can be plugged in or pulled out at any time; a pulled pad just stops steering, and a button held while plugging in does not count as a press.
+UNCHECKED: whether this, or the pad-index fix above, was the cause on Nick's machine. Both are addressed.
 
 ### Testing on Windows
 
-1. `dotnet test RipOff.sln` (all three test projects, no window, no audio device, no Steam needed).
-2. `dotnet run --project src/RipOff.Game`, then pick **LOCAL PLAY**. The title should read "volume 100%". If it shows "no audio hardware", the game still runs silently.
-3. Controller: connect a pad before or after starting. Back = coin, Start = 1-player game; steer with the stick and the D-pad, thrust with A and with LT, fire with X, RB and RT (each press = one shot; holding does not repeat). With a second pad: coin twice, Start on pad 2 for a 2-player game (or LB + Start on pad 1). Pull a pad out mid-game: the game keeps running; plug it back in.
+1. `dotnet test RipOff.sln` (all three test projects; no window, audio device or Steam needed).
+2. `dotnet run --project src/RipOff.Game` (or `RipOff.exe` from the zip). The splash appears; press any button.
+3. Controller only, keyboard untouched:
+   1. On the main menu, move with the D-pad and the stick and open **OPTIONS** with A.
+   2. Change every option with left/right and A. **DISPLAY** switches the window to fullscreen and back. Go back with B.
+   3. Pick **START 1 PLAYER**. Thrust with A and LT, fire with X, RB and RT.
+   4. Press Start: the pause menu opens and the game freezes. Press Start or B to resume. Then use **QUIT TO MAIN MENU**.
+   5. Turn **AUTO FIRE** on in Options, start again, and hold RT: shots repeat, never more than 4 in flight.
+   6. Plug in a second pad and pick **START 2 PLAYERS**: pad 2 drives player 2.
+   7. Let the enemies take all canisters: **GAME OVER** offers PLAY AGAIN / MAIN MENU.
+   8. Finally choose **EXIT** on the main menu.
+4. Keyboard only: the same tour with the arrows, Enter, Esc and F10. Esc and B never quit the game.
+5. Restart: your options are kept. To test a corrupt settings file, put garbage in `%APPDATA%\RipOffRemake\settings.json`. The game starts with defaults, mentions it at the bottom of the screen, and keeps the bad file as `settings.json.corrupt`.
 4. Each sound (what triggers it in the game):
 
 | Sound | How to hear it |
@@ -82,17 +143,21 @@ Pads can be plugged in or pulled out at any time; a pulled pad just stops steeri
 | Laser | An enemy that chases you fires its beam (the dashed fire line): a fast downward sweep |
 | Beep | The BONUS LEVEL screen, shown after the sixth enemy type has been beaten (the level goes up): beeps about 10 times a second |
 
-5. **M**, **−**, **+** change mute and volume while playing.
+6. **M**, **−**, **+** change mute and volume while playing.
 
 ### Online play
 
-Menu items: **LOCAL PLAY**, **HOST ONLINE (STEAM)** (creates a lobby and shows a 6-character code), **JOIN BY CODE (STEAM)**, **HOST DIRECT IP (LAN)** (UDP port 47815) and **JOIN DIRECT IP** (`ip` or `ip:port`). The Steam items are greyed out, with the reason, when Steam is not running; the rest still works. Start with `--no-steam` to skip Steam entirely.
+Main menu → **ONLINE** (tree above). The Steam items are greyed out, with the reason, when Steam is not running; direct IP still works. **STEAM AT LAUNCH: OFF** or `--no-steam` skips Steam entirely.
+
+- **Pausing online:** the shared game never pauses (a choice; it is flagged in NOTES §23). Esc or Start opens the menu as an overlay. The game keeps running, dimmed, behind it, and your tank gets no input until you close the menu.
+- **Rules:** the host's **AUTO FIRE** and **CANISTERS** settings are sent to the guest and checked by both sides before the first frame.
+- **After a game over:** choose **PLAY AGAIN**; either player can start the next game. There are no coins online either.
 
 How it works (`disasm/NOTES.md` §22):
 
 - **Lockstep**: both machines run the same deterministic simulation and exchange only inputs. Input delay **3 frames** (79 ms at 38 Hz); every 19th frame (twice a second) both sides compare a hash of the whole game state. **No rollback**: on a slow link the game waits ("WAITING FOR OTHER PLAYER") instead of predicting.
 - **Steam**: Steamworks.NET with Valve's test App ID **480** (Spacewar). Traffic goes through `ISteamNetworkingMessages` over Steam Datagram Relay, with direct (ICE) connections turned off, so nobody forwards ports and neither player sees the other's IP. Lobbies carry the game key and protocol version; every lobby search filters on both, and a peer with another version or key is refused.
-- **Game config**: the host's `GameConfig` (canister count; an auto-fire field reserved for the next milestone) goes to the guest at session start. The guest refuses a config it cannot run and echoes a hash of what it received; the host refuses a mismatch. No frame runs before that check.
+- **Game config**: the host's `GameConfig` (canister count and auto-fire) goes to the guest at session start. The guest refuses a config it cannot run and echoes a hash of what it received; the host refuses a mismatch. No frame runs before that check.
 - **Desync**: if the hashes differ, both games stop with "DESYNC at frame N" and each writes `desync-<date>-<time>-host|guest.txt` next to the exe (versions, start config, every frame's inputs).
 
 #### Online API (for the front end)
@@ -101,7 +166,7 @@ How it works (`disasm/NOTES.md` §22):
 
 | Call | Does |
 |---|---|
-| `HostSteam(GameConfig?)` / `JoinSteamCode(code)` / `JoinSteamLobby(id)` | Steam lobby host / join by code / join from an invite |
+| `HostSteam(GameConfig?)` / `JoinSteamCode(code)` / `JoinSteamLobby(id)` | Steam lobby host / join by code / join from an invite (the front end passes the Options values) |
 | `HostLan(GameConfig?, port)` / `JoinLan("ip[:port]")` | Direct-IP host / join (LiteNetLib) |
 | `Update(localInput, start)` | One 38 Hz tick |
 | `Running`, `Session.Sim`, `Session.IsHost` | What to draw and which player you are |
@@ -137,13 +202,13 @@ This writes `artifacts/RipOff-win-x64.zip` (about 37 MB): a self-contained win-x
 Steam (each person needs their own Steam account):
 
 1. Both: start Steam and log in (two different accounts; you do not need to own Spacewar). Unzip `RipOff-win-x64.zip` anywhere and run `RipOff.exe` directly (not through Steam). Steam should then show you as playing "Spacewar". That is App ID 480.
-2. Host: **HOST ONLINE (STEAM)**. The screen shows a code such as `K7QX2M`.
+2. Host: **ONLINE → HOST ONLINE (STEAM)**. The screen shows a code such as `K7QX2M`.
 3. Invite in one of these ways:
    - Overlay: press **Shift+Tab** or pick **INVITE A STEAM FRIEND**, then invite the friend.
    - Steam friends list: invite them or have them join you.
-   - Code: tell them the code. They pick **JOIN BY CODE (STEAM)** and type it.
+   - Code: tell them the code. They pick **ONLINE → JOIN BY CODE (STEAM)** and enter it on the on-screen keyboard (or type it).
 4. **The friend must already have `RipOff.exe` running before accepting an invite.** With App ID 480, accepting an invite while the game is closed starts Spacewar instead ([Unreal forum](https://forums.unrealengine.com/t/steam-session-invite-starts-spacewar/500975), [Unity forum](https://discussions.unity.com/t/steamworks-implementation-launches-spacewar/829009)). If that happens, close Spacewar, start `RipOff.exe`, and use the code.
-5. The game starts as soon as both are connected. Press Start after a game over to play again.
+5. The game starts as soon as both are connected. After a game over, either player chooses **PLAY AGAIN**.
 
 480 caveats:
 
@@ -154,9 +219,9 @@ Steam (each person needs their own Steam account):
 
 Direct IP / LAN (no Steam needed):
 
-1. Host: **HOST DIRECT IP (LAN)**. The screen lists this PC's IPv4 addresses and the port (47815).
+1. Host: **ONLINE → HOST DIRECT IP**. The screen lists this PC's IPv4 addresses and the port (47815).
 2. Allow `RipOff.exe` through Windows Firewall when Windows asks (UDP 47815 inbound). Over the internet, also forward UDP 47815 on the host's router, or use a virtual-LAN tool both of you trust.
-3. Friend: **JOIN DIRECT IP**, then enter the host's address, e.g. `192.168.1.20` or `203.0.113.5:47815`.
+3. Friend: **ONLINE → JOIN DIRECT IP**, then enter the host's address, e.g. `192.168.1.20` or `203.0.113.5:47815`.
 
 If a **DESYNC** appears: both of you go back to the menu and start a new session. Send Nick the `desync-*.txt` files from both machines (they are next to `RipOff.exe`). Also make sure both machines run the same zip; a different protocol version is refused at connect, but two different builds with the same version are not.
 

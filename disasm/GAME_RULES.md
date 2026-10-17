@@ -20,6 +20,8 @@ Units:
 
 ## 2. Credits and starting a game
 
+Arcade behaviour, for reference. The remake has no coins or credits; games start from the menu (NOTES §23).
+
 | Rule | Evidence |
 |---|---|
 | Credits are in RAM[$F3] | lst:236-238 |

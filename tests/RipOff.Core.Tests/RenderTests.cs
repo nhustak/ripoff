@@ -10,7 +10,7 @@ public class RenderTests
     public void RenderSceneToPng()
     {
         var sim = new Simulation(); var st = sim.State;
-        st.Credits = 2; sim.StartGame(false);
+        sim.StartGame(false);
         for (int f = 0; f < 400; f++)
             sim.Step(new FrameInput { P1 = new PlayerInput { Left = f % 60 < 15, Thrust = f % 5 < 3, Fire = f % 11 == 0 } });
         var lines = Scene.Build(st);

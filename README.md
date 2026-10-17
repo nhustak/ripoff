@@ -72,11 +72,13 @@ ENHANCED OPTIONS (OPTIONS → ENHANCED OPTIONS; Enhanced games only, Arcade igno
 ├─ ENEMY AIM ERROR: ON/OFF   enemy shots can miss; reload after a miss; later first shot
 ├─ SLOWER RAMP: ON/OFF       two clears per enemy type, 3-enemy waves from level 3, speed cap
 ├─ SLOWER TOWING: ON/OFF     towing enemies at 75 %
+├─ RANDOM WARP-IN: ON/OFF    warp in at a random spot, away from the canisters and the other player (needs WARP-IN)
+├─ WARP KILLS: ON/OFF        warping in on top of an enemy destroys it; you score and survive (needs WARP-IN)
 ├─ ALL ON
 └─ BACK
 ```
 
-All Enhanced options default ON. They're saved in settings.json as `"EnhancedOff": [...]` (the ones switched off), so older files and options added later read as ON. Each toggle sets its knobs back to the Arcade values when off; all off plays like Arcade. Online, the guest uses the host's options.
+All Enhanced options default ON. RANDOM WARP-IN and WARP KILLS only matter with WARP-IN on: while it's off they're dimmed and ignored, and they keep their setting. They're saved in settings.json as `"EnhancedOff": [...]` (the ones switched off), so older files and options added later read as ON. Each toggle sets its knobs back to the Arcade values when off; all off plays like Arcade. Online, the guest uses the host's options.
 
 The last mode picked is highlighted next time and saved in settings.json (`"Mode": "Arcade"` / `"Enhanced"`).
 
@@ -87,7 +89,9 @@ The last mode picked is highlighted next time and saved in settings.json (`"Mode
 - After a miss an enemy waits 32 passes before it can fire again, and a fresh chaser waits 0.5 s.
 - Two cleared waves per enemy-type step. Three-enemy waves start at level 3. Enemy speed is capped at 8 + level.
 - Towing enemies move at 75 %.
-- Warp-in (NOTES §28): after the respawn delay a player warps in at its spawn point (64 units inside the edge) over 0.8 s, with a contracting vector ring. While warping it can't be hit, doesn't collide and can't fire. It then materializes standing still.
+- Warp-in (NOTES §28): after the respawn delay a player warps in over 0.8 s, with a contracting vector ring. While warping it can't be hit, doesn't collide and can't fire. It then materializes standing still, facing the canisters.
+- Random warp-in (NOTES §29): the spot is picked when the warp starts, so the effect shows where you'll appear. It is at least 160 units from every edge, clear of the canister cluster (96-unit gap) and at least 240 units from the other player or their warp spot. Enemies aren't avoided. Each local game gets a fresh random seed.
+- Warp kills (NOTES §29): when the warp completes, any enemy touching you (the normal tank contact size) is destroyed. You get the normal points, it counts as a kill for the wave, a towed canister is dropped, and you survive. It only happens at the moment you materialize, not during the warp, so an enemy that drives out of the effect in time is spared.
 
 Enhanced changes done so far, and the ideas backlog: [ENHANCEMENTS.md](ENHANCEMENTS.md).
 
@@ -215,7 +219,7 @@ UNCHECKED: whether Steam Input is the cause on Nick's PC. The log and INPUT TEST
 Main menu → **ONLINE** (tree above). Steam starts the first time you pick a Steam item. If it cannot start, the reason is shown and the Steam items are greyed out; direct IP still works. `--no-steam` skips Steam entirely.
 
 - **Pausing online:** the shared game never pauses (a choice; it is flagged in NOTES §23). Esc or Start opens the menu as an overlay. The game keeps running, dimmed, behind it, and your tank gets no input until you close the menu.
-- **Rules:** the host's mode (**ARCADE** / **ENHANCED**), **AUTO FIRE** and **CANISTERS** settings are sent to the guest and checked by both sides before the first frame. The guest adopts the host's mode for that session (its own saved mode is unchanged). The connecting screen shows the mode; Steam lobbies also advertise it (`mode` lobby key). For Enhanced, the host's **ENHANCED OPTIONS** are sent too and adopted by the guest. Protocol version 4: builds from before the options (v3: 2026.10.17.1, 2026.10.17.2, `enhanced-preview-1`) and before game modes (v2, `arcade-v1.0`) are refused at connect with a version-mismatch message naming both builds.
+- **Rules:** the host's mode (**ARCADE** / **ENHANCED**), **AUTO FIRE** and **CANISTERS** settings are sent to the guest and checked by both sides before the first frame. The guest adopts the host's mode for that session (its own saved mode is unchanged). The connecting screen shows the mode; Steam lobbies also advertise it (`mode` lobby key). For Enhanced, the host's **ENHANCED OPTIONS** are sent too and adopted by the guest. RANDOM WARP-IN and WARP KILLS are two more bits in the same options byte, so the protocol is still v4. A 2026.10.17.3/.4 guest refuses a newer host that has either of them on ("unknown enhanced options"), while a newer guest joining an older host simply plays with both off. Protocol version 4: builds from before the options (v3: 2026.10.17.1, 2026.10.17.2, `enhanced-preview-1`) and before game modes (v2, `arcade-v1.0`) are refused at connect with a version-mismatch message naming both builds.
 - **After a game over:** choose **PLAY AGAIN**; either player can start the next game. There are no coins online either.
 
 How it works (`disasm/NOTES.md` §22):

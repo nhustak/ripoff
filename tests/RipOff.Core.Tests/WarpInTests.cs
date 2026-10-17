@@ -6,7 +6,11 @@ namespace RipOff.Core.Tests;
 /// effect lines, and Arcade untouched.</summary>
 public class WarpInTests
 {
-    static Simulation Start(bool onePlayer = true, EnhancedOption o = EnhancedOption.All, PlayMode m = PlayMode.Enhanced)
+    /// <summary>Warp-in at the fixed points without warp kills: the warp-in of 2026.10.17.3/.4 (random spots and warp
+    /// kills are WarpRandomTests).</summary>
+    public const EnhancedOption FixedWarp = EnhancedOption.All & ~EnhancedOption.RandomWarpIn & ~EnhancedOption.WarpKills;
+
+    static Simulation Start(bool onePlayer = true, EnhancedOption o = FixedWarp, PlayMode m = PlayMode.Enhanced)
     {
         var sim = new Simulation();
         sim.StartGame(onePlayer, new GameConfig(8, false, m, o));

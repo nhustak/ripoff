@@ -271,7 +271,9 @@ namespace RipOff.Game
                         var opt = v.Option;
                         bool on = (Settings.EnhancedOptions & opt) != 0;
                         void Toggle() => Change(() => Settings.EnhancedOptions ^= opt);
-                        l.Add(new(v.Label + ": " + (on ? "ON" : "OFF"), Toggle, _ => Toggle()));
+                        // A row that needs another option (RANDOM WARP-IN, WARP KILLS need WARP-IN) is dimmed and can't
+                        // be changed while that one is off; its setting is kept and used again once it's back on.
+                        l.Add(new(v.Label + ": " + (on ? "ON" : "OFF"), Toggle, _ => Toggle(), Enabled: v.Applies(Settings.EnhancedOptions)));
                     }
                     l.Add(new("ALL ON", () => Change(() => Settings.EnhancedOptions = EnhancedOption.All), Enabled: Settings.EnhancedOptions != EnhancedOption.All));
                     l.Add(new("BACK", Pop));
@@ -353,11 +355,15 @@ namespace RipOff.Game
         // ================================================================= games
 
         /// <summary>Starts a local game at once (no credits, no start button): the settings' canisters and auto-fire.</summary>
+        /// <summary>Per-game salt for the Enhanced RNG of local games (tests replace it for fixed results).</summary>
+        public Func<uint> LocalSeed { get; set; } = () => (uint)Random.Shared.Next() ^ (uint)Environment.TickCount;
+
         public void StartLocal(bool onePlayer)
         {
             EndGame();
             LocalSim = new Simulation();
             LocalSim.StartGame(onePlayer, Settings.GameConfig);
+            LocalSim.State.SaltEnhancedRng(LocalSeed()); // Enhanced only: a new random warp-in spot each game
             Game = onePlayer ? GameKind.OnePlayer : GameKind.TwoPlayer;
             SetStack(Screen.Main, Screen.LocalGame);
         }
@@ -541,7 +547,13 @@ namespace RipOff.Game
                 case Screen.EnhancedOptions:
                 {
                     var vs = GameRules.Variations;
-                    if (Selected < vs.Length) n.Add(vs[Selected].Info);
+                    if (Selected < vs.Length)
+                    {
+                        var v = vs[Selected];
+                        n.Add(v.Info);
+                        if (!v.Applies(Settings.EnhancedOptions))
+                            n.Add("NEEDS " + Array.Find(vs, x => x.Option == v.Requires)!.Label + " - IGNORED WHILE IT IS OFF");
+                    }
                     n.Add("ENHANCED MODE ONLY - ARCADE IGNORES THESE");
                     var mode = Game == GameKind.Online ? Online.Session?.Sim?.State.PlayMode : LocalSim?.State.PlayMode;
                     if (Game == GameKind.Online) n.Add("ONLINE GAMES USE THE HOST'S ENHANCED OPTIONS");

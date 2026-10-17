@@ -69,6 +69,28 @@ namespace RipOff.Core
         /// <summary>Enhanced warp-in points (remake, NOTES §28): each start moved 64 units into the field along its
         /// heading. That's about where the arcade's drive-in stops (speed 5 coasting down: 4·(5+4+3+2+1) = 60).</summary>
         public static readonly (int X, int Y, int Heading)[] WarpInPoints = { (1024 - 64, 320, 270), (64, 448, 90) };
+
+        /// <summary>Box around all 16 canister starts (CanisterStarts): x 456-568, y 328-440.</summary>
+        public static readonly (int MinX, int MinY, int MaxX, int MaxY) CanisterCluster = (456, 328, 568, 440);
+
+        // Random warp-in (Enhanced RANDOM WARP-IN, NOTES §29, Simulation.RandomWarpPoint).
+        /// <summary>Inset from every field edge: the warp effect's outer spoke tips reach WarpRadius (120) + 36 = 156
+        /// units at the start (Scene.DrawWarp), so 160 keeps the whole effect and ship on the field.</summary>
+        public const int WarpMargin = 160;
+        /// <summary>Gap kept around the canister cluster box, so a player never appears on the canisters (where the
+        /// enemies are headed): with 64 a ship could land so close that the warp ring swept over them, so 96 (about
+        /// four tank radii) keeps the materialized ship clearly apart.</summary>
+        public const int WarpCanisterClearance = 96;
+        /// <summary>Minimum distance to the other player (or its warp point): two warp-effect radii, so the two
+        /// effects and ships never overlap.</summary>
+        public const int WarpPlayerClearance = 240;
+        /// <summary>Candidates tried before the fallback. Even in the worst case (the other player in the middle of an
+        /// open area) 38 % of the inset field is allowed, so 32 misses in a row is about 1 in 6 million.</summary>
+        public const int WarpTries = 32;
+        /// <summary>Fallbacks, all inside the margin and clear of the canisters; whatever the other player's spot, the
+        /// farthest of them is more than WarpPlayerClearance away (WarpRandomTests).</summary>
+        public static readonly (int X, int Y)[] WarpFallbacks = { (864, 320), (160, 448), (864, 608), (160, 160), (512, 160), (512, 608) };
+
         public const int RespawnDelay = 0x19;  // 25 passes ($03B2-$03B6, lst:882-886, NOTES §19.2)
         public const int RespawnSpeed = 5;     // lst:891-893
 

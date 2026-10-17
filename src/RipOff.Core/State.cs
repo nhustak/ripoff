@@ -161,6 +161,17 @@ namespace RipOff.Core
             EnhancedRng = x == 0 ? 0x2545F491u : x;
         }
 
+        /// <summary>Mixes <paramref name="salt"/> into the Enhanced generator (Enhanced only; Arcade stays 0). Local games
+        /// call this with a fresh value per game (FrontEnd.StartLocal), so random warp-in spots and aim errors differ
+        /// from game to game; online games don't, both peers seed from the session's record seeds.</summary>
+        public void SaltEnhancedRng(uint salt)
+        {
+            if (PlayMode == PlayMode.Arcade) return;
+            uint x = (EnhancedRng ^ salt) * 0x01000193u;
+            x ^= x >> 15;
+            EnhancedRng = x == 0 ? 0x2545F491u : x;
+        }
+
         public uint NextEnhancedRandom()
         {
             uint x = EnhancedRng; x ^= x << 13; x ^= x >> 17; x ^= x << 5; EnhancedRng = x; return x;
@@ -169,6 +180,10 @@ namespace RipOff.Core
         public readonly int[] AutoFireTimer = new int[2];
         /// <summary>Shots fired this game, per player (remake statistic; used by tests and the game-over screen).</summary>
         public readonly int[] ShotsFired = new int[2];
+        /// <summary>Enemies destroyed by WARP KILLS per player (statistic for tests and logs). Not in the state hash:
+        /// it never feeds back into the simulation, and leaving it out keeps the hashes of the WARP KILLS off games
+        /// equal to the builds before it.</summary>
+        public readonly int[] WarpKills = new int[2];
 
         public GameState()
         {

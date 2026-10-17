@@ -71,7 +71,7 @@ public class ReplayTests
         var chk = Load(tag);
         var pre = chk[201];
         var sim = new Simulation(); var st = sim.State;
-        st.CanisterDip = 3; st.Credits = two ? 2 : 1;
+        st.CanisterDip = 3;
         for (int i = 0; i < 3; i++) st.Enemies[i].B = pre[0x10 * i + 0xB];
         st.Players[0].B = pre[0x3B]; st.Players[1].B = pre[0x4B];
         st.PassCounter = pre[IdxA8];
@@ -130,7 +130,7 @@ public class ReplayTests
         int Fc(int f) { int v = 0; foreach (var kv in changes) { if (kv.Key > f) break; v = kv.Value; } return v; }
 
         var sim = new Simulation(); var st = sim.State;
-        st.CanisterDip = 3; st.Credits = two ? 2 : 1;
+        st.CanisterDip = 3;
         for (int i = 0; i < 3; i++) st.Enemies[i].B = pre[i];
         st.Players[0].B = pre[3]; st.Players[1].B = pre[4];
         st.PassCounter = pre[5];

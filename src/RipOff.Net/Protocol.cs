@@ -9,7 +9,7 @@ namespace RipOff.Net
     public static class Protocol
     {
         /// <summary>Protocol version; peers with a different value are rejected (Hello).</summary>
-        public const ushort Version = 1;
+        public const ushort Version = 2; // 2: auto-fire accepted (M4)
 
         public const byte MsgHello = 1, MsgReject = 2, MsgStart = 3, MsgInput = 4, MsgBye = 5, MsgStartAck = 6;
 

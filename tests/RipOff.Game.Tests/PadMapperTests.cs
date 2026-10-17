@@ -73,12 +73,12 @@ public class PadMapperTests
         for (int i = 0; i < 3; i++) Assert.True(m.Update(Pad(buttons: Buttons.X), None).P1.Fire);
         // the simulation sees the same level as from the keyboard: identical games pad vs keyboard
         var fromPad = new Simulation(); var fromKey = new Simulation();
-        foreach (var s in new[] { fromPad, fromKey }) { s.State.CanisterDip = 3; s.State.Credits = 1; s.StartGame(true); }
+        foreach (var s in new[] { fromPad, fromKey }) { s.State.CanisterDip = 3; s.StartGame(true); }
         for (int i = 0; i < 200; i++)
         {
             bool down = (i / 25) % 2 == 1;
             var pf = m.Update(Pad(buttons: down ? Buttons.X : 0, stickX: i % 50 < 10 ? -1 : 0), None);
-            fromPad.Step(PadMapper.Combine(default, pf));
+            fromPad.Step(new FrameInput { P1 = pf.P1 });
             fromKey.Step(new FrameInput { P1 = new PlayerInput { Fire = down, Left = i % 50 < 10 } });
             Assert.Equal(fromKey.State.Sound.Torpedo, fromPad.State.Sound.Torpedo);
         }
@@ -92,18 +92,18 @@ public class PadMapperTests
         Simulation Play(Func<bool, GamePadState> pad)
         {
             var m = new PadMapper(); var sim = new Simulation();
-            sim.State.CanisterDip = 3; sim.State.Credits = 1; sim.StartGame(true);
+            sim.State.CanisterDip = 3; sim.StartGame(true);
             for (int i = 0; i < 300; i++)
             {
                 bool down = i >= 40 && (i < 140 || (i / 7) % 2 == 0); // held for 100 passes, then pumped
-                sim.Step(PadMapper.Combine(default, m.Update(pad(down), None)));
+                sim.Step(new FrameInput { P1 = m.Update(pad(down), None).P1 });
             }
             return sim;
         }
         var rt = Play(d => Pad(rt: d ? 1f : 0f));
         var x = Play(d => Pad(buttons: d ? Buttons.X : 0));
         var rb = Play(d => Pad(buttons: d ? Buttons.RightShoulder : 0));
-        var key = new Simulation(); key.State.CanisterDip = 3; key.State.Credits = 1; key.StartGame(true);
+        var key = new Simulation(); key.State.CanisterDip = 3; key.StartGame(true);
         for (int i = 0; i < 300; i++) key.Step(new FrameInput { P1 = new PlayerInput { Fire = i >= 40 && (i < 140 || (i / 7) % 2 == 0) } });
         foreach (var other in new[] { x, rb, key })
         {
@@ -120,13 +120,13 @@ public class PadMapperTests
     public void HeldFireGivesOneShotInTheSimulation()
     {
         // Documents the existing behaviour (Simulation.cs fire block, lst:2578-2582): a held fire input fires once.
-        var sim = new Simulation(); sim.State.CanisterDip = 3; sim.State.Credits = 1; sim.StartGame(true);
+        var sim = new Simulation(); sim.State.CanisterDip = 3; sim.StartGame(true);
         for (int i = 0; i < 60; i++) sim.Step(default);
         int newShots = 0; var m = new PadMapper();
         for (int i = 0; i < 200; i++)
         {
             int before = sim.State.Shots.Count(s => s.Live);
-            sim.Step(PadMapper.Combine(default, m.Update(Pad(rt: 1f), None)));
+            sim.Step(new FrameInput { P1 = m.Update(Pad(rt: 1f), None).P1 });
             if (sim.State.Shots.Count(s => s.Live) > before) newShots++;
         }
         Assert.Equal(1, newShots);
@@ -142,54 +142,37 @@ public class PadMapperTests
     }
 
     [Fact]
-    public void CoinAndStartAreEdges()
+    public void FirstConnectedPadIsPlayerOneWhateverItsIndex()
     {
+        // M4 controller fix: a pad SDL puts at index 1 or 2 (index 0 empty) still drives player 1.
         var m = new PadMapper();
-        Assert.False(m.Update(Pad(), Pad()).Coin);                       // connect, nothing held
-        Assert.True(m.Update(Pad(buttons: Buttons.Back), Pad()).Coin);   // press
-        Assert.False(m.Update(Pad(buttons: Buttons.Back), Pad()).Coin);  // held: no repeat credit
-        Assert.False(m.Update(Pad(), Pad()).Coin);
-        Assert.True(m.Update(Pad(), Pad(buttons: Buttons.Back)).Coin);   // coin from pad 1 too
-
-        var s = m.Update(Pad(buttons: Buttons.Start), Pad());
-        Assert.True(s.Start1); Assert.False(s.Start2);
-        Assert.False(m.Update(Pad(buttons: Buttons.Start), Pad()).Start1); // held
-        s = m.Update(Pad(), Pad(buttons: Buttons.Start));
-        Assert.True(s.Start2); Assert.False(s.Start1);
-        m.Update(Pad(buttons: Buttons.LeftShoulder), Pad());
-        s = m.Update(Pad(buttons: Buttons.LeftShoulder | Buttons.Start), Pad());
-        Assert.True(s.Start2); Assert.False(s.Start1);                   // LB + Start on pad 0 = 2-player start
-    }
-
-    [Fact]
-    public void HotPlugNeverProducesSpuriousEdges()
-    {
-        var m = new PadMapper();
-        // pad connects with Back and Start already held: no coin, no start
-        var f = m.Update(Pad(buttons: Buttons.Back | Buttons.Start), None);
-        Assert.False(f.Coin || f.Start1 || f.Start2);
-        Assert.True(m.IsConnected(0)); Assert.False(m.IsConnected(1));
-        // disconnect mid-game: neutral, no exception
-        f = m.Update(None, None);
+        var f = m.Update(None, Pad(buttons: Buttons.A), None, Pad(buttons: Buttons.X));
+        Assert.True(f.P1.Thrust); Assert.True(f.P2.Fire);
+        Assert.Equal((1, 3, 2), (m.P1Index, m.P2Index, m.ConnectedCount));
+        f = m.Update(None, None, Pad(dLeft: true), None);
+        Assert.True(f.P1.Left); Assert.Equal(default(PlayerInput), f.P2);
+        f = m.Update(None, None, None, None);
+        Assert.Equal((-1, -1, 0), (m.P1Index, m.P2Index, m.ConnectedCount));
         Assert.Equal(default(PlayerInput), f.P1);
-        Assert.False(m.IsConnected(0));
-        // reconnect still holding: no edge; release and press again: edge
-        Assert.False(m.Update(Pad(buttons: Buttons.Back), None).Coin);
-        Assert.False(m.Update(Pad(), None).Coin);
-        Assert.True(m.Update(Pad(buttons: Buttons.Back), None).Coin);
-        // pad 1 appears and vanishes repeatedly
-        for (int i = 0; i < 10; i++) { var g = m.Update(Pad(), i % 2 == 0 ? Pad(buttons: Buttons.Start) : None); Assert.False(g.Start2); }
+    }
+
+    [Theory]
+    [InlineData(0.10f, 0.12f, true)]
+    [InlineData(0.35f, 0.30f, false)]
+    [InlineData(0.60f, 0.59f, false)]
+    [InlineData(0.60f, 0.61f, true)]
+    public void DeadZoneIsConfigurable(float deadzone, float stick, bool turns)
+    {
+        var m = new PadMapper { StickDeadzone = deadzone };
+        Assert.Equal(turns, m.Update(Pad(stickX: stick)).P1.Right);
+        Assert.Equal(turns, PadMapper.MapPlayer(Pad(stickX: -stick), deadzone).Left);
     }
 
     [Fact]
-    public void KeyboardAndPadAreOred()
+    public void NoCoinOrStartInGameplayControls()
     {
-        var k = new FrameInput { P1 = new PlayerInput { Left = true }, P2 = new PlayerInput { Fire = true }, Coin = true };
-        var p = new PadFrame { P1 = new PlayerInput { Thrust = true }, P2 = new PlayerInput { Right = true }, Start2 = true };
-        var c = PadMapper.Combine(k, p);
-        Assert.True(c.P1.Left && c.P1.Thrust && !c.P1.Right && !c.P1.Fire);
-        Assert.True(c.P2.Fire && c.P2.Right && !c.P2.Left);
-        Assert.True(c.Coin && c.Start2 && !c.Start1);
+        // Back/View and Start map to nothing in play (no credits; Start opens the pause menu via InputReader).
+        Assert.Equal(default(PlayerInput), PadMapper.MapPlayer(Pad(buttons: Buttons.Back | Buttons.Start | Buttons.B | Buttons.Y)));
     }
 }
 

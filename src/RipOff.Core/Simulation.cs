@@ -43,22 +43,17 @@ namespace RipOff.Core
         // ---------------------------------------------------------------- game start / credits
 
         /// <summary>
-        /// Coin and start handling (lst:197-255, GR §2). UNCHECKED: coinage DIPs are not
-        /// modelled; one coin gives one credit.
-        /// </summary>
-        private void HandleCredits(in FrameInput input)
-        {
-            var s = State;
-            if (input.Coin) s.Credits = Math.Min(s.Credits + 1, 99); // UNCHECKED: credit cap
-            if (s.Mode != GameMode.Attract) return;
-            if (input.Start1 && s.Credits >= 1) { s.Credits -= 1; StartGame(onePlayer: true); }
-            else if (input.Start2 && s.Credits >= 2) { s.Credits -= 2; StartGame(onePlayer: false); }
-        }
-
-        /// <summary>
         /// Game start (lst:236-255, GR §2): scores 0, type 1, level 1, kill/theft counters 0,
         /// wave counter 0, canister table rebuilt ($0C1E, lst:2900-2958).
         /// </summary>
+        /// <summary>Applies <paramref name="config"/> (canisters, auto-fire) and starts a game: the front end's
+        /// "Start 1 Player" / "Start 2 Players", and the online session start.</summary>
+        public void StartGame(bool onePlayer, in GameConfig config)
+        {
+            config.ApplyTo(State);
+            StartGame(onePlayer);
+        }
+
         public void StartGame(bool onePlayer)
         {
             var s = State;
@@ -73,6 +68,8 @@ namespace RipOff.Core
             s.WaveCounter = 0;
             s.BonusFlag = false;
             s.MotorOff = true;
+            s.AutoFireTimer[0] = s.AutoFireTimer[1] = 0;
+            s.ShotsFired[0] = s.ShotsFired[1] = 0;
             int n = GameData.CanistersForDip[s.CanisterDip];
             for (int i = 0; i < GameData.CanisterSlots; i++)
             {
@@ -119,7 +116,8 @@ namespace RipOff.Core
             bool playingAtPassStart = State.Mode == GameMode.Playing;
             if (State.Mode == GameMode.Playing) GameOverCheck();
 
-            HandleCredits(input);
+            // Coin/start handling (lst:197-255) is not modelled: the remake has no credits and the front end
+            // calls StartGame directly (NOTES §23). Attract mode just idles.
 
             // Command byte RAM[$FC] (GR §9, NOTES §15/§19.3): built and shifted out by the sound routine at the
             // start of the pass (lst:283-384), so it reflects the state left by the previous pass. Bits 2-4 and 7-5
@@ -661,19 +659,33 @@ namespace RipOff.Core
             if (level != r.Word2)
             {
                 r.Word2 = level;
-                if (inp.Fire)
-                {
-                    int first = p * GameData.ShotSlotsPerPlayer;
-                    for (int k = first; k < first + GameData.ShotSlotsPerPlayer; k++)
-                    {
-                        if (s.Shots[k].Live) continue;
-                        s.TorpedoTimer = GameData.TorpedoPasses;              // lst:2606-2609
-                        var (vx, vy, _) = Trig.Displacement(r.Heading, r.Speed + GameData.ShotSpeedBonus);
-                        s.Shots[k] = new Shot { Live = true, X = r.X, Y = r.Y, Vx = vx, Vy = vy };
-                        break;
-                    }
-                }
+                if (inp.Fire) { TryFire(p, r); s.AutoFireTimer[p] = 0; }
             }
+            else if (inp.Fire && s.AutoFire)
+            {
+                // Auto-fire (remake option, NOTES §23): while held, another shot every AutoFireInterval passes. With
+                // all 4 slots busy the timer stays due, so the next shot leaves as soon as a slot frees up.
+                if (s.AutoFireTimer[p] < GameData.AutoFireInterval) s.AutoFireTimer[p]++;
+                if (s.AutoFireTimer[p] >= GameData.AutoFireInterval && TryFire(p, r)) s.AutoFireTimer[p] = 0;
+            }
+            if (!inp.Fire) s.AutoFireTimer[p] = 0;
+        }
+
+        /// <summary>Puts a shot in the player's first free slot (lst:2584-2656). False when all 4 are live.</summary>
+        private bool TryFire(int p, TankRecord r)
+        {
+            var s = State;
+            int first = p * GameData.ShotSlotsPerPlayer;
+            for (int k = first; k < first + GameData.ShotSlotsPerPlayer; k++)
+            {
+                if (s.Shots[k].Live) continue;
+                s.TorpedoTimer = GameData.TorpedoPasses;              // lst:2606-2609
+                var (vx, vy, _) = Trig.Displacement(r.Heading, r.Speed + GameData.ShotSpeedBonus);
+                s.Shots[k] = new Shot { Live = true, X = r.X, Y = r.Y, Vx = vx, Vy = vy };
+                s.ShotsFired[p]++;
+                return true;
+            }
+            return false;
         }
 
         // ---------------------------------------------------------------- shots

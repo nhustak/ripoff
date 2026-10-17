@@ -97,9 +97,9 @@ namespace RipOff.Net
         public static Simulation CreateSimulation(in Protocol.StartConfig c)
         {
             var sim = new Simulation(); var s = sim.State;
-            c.Game.ApplyTo(s); s.PassCounter = c.PassCounter;
+            s.PassCounter = c.PassCounter;
             for (int i = 0; i < 5 && i < c.Seeds.Length; i++) s.Record(i).B = c.Seeds[i];
-            sim.StartGame(onePlayer: false);
+            sim.StartGame(onePlayer: false, c.Game);
             return sim;
         }
 

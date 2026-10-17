@@ -5,118 +5,6 @@ using RipOff.Net;
 
 namespace RipOff.Game.Tests;
 
-public class MenuTests
-{
-    static MenuInput Down => new() { Down = true };
-    static MenuInput Up => new() { Up = true };
-    static MenuInput Select => new() { Select = true };
-    static MenuInput Back => new() { Back = true };
-    static MenuInput Type(string s) => new() { Typed = s };
-
-    [Fact]
-    public void MainMenuHasTheRequiredItems()
-    {
-        var m = new Menu();
-        Assert.Equal(new[] { "LOCAL PLAY", "HOST ONLINE (STEAM)", "JOIN BY CODE (STEAM)", "HOST DIRECT IP (LAN)", "JOIN DIRECT IP", "QUIT" }, m.MainLabels);
-    }
-
-    [Fact]
-    public void NavigationWrapsAndSelects()
-    {
-        var m = new Menu { SteamAvailable = true };
-        Assert.Equal(MenuAction.LocalPlay, m.Update(Select));
-        m.Update(Up); // wraps to QUIT
-        Assert.Equal(MenuAction.Quit, m.Update(Select));
-        m.Update(Down); m.Update(Down); // LOCAL → HOST ONLINE
-        Assert.Equal(MenuAction.HostSteam, m.Update(Select));
-        m.Update(Down); m.Update(Down);
-        Assert.Equal(MenuAction.HostLan, m.Update(Select));
-    }
-
-    [Fact]
-    public void SteamItemsAreDisabledWithoutSteam()
-    {
-        var m = new Menu { SteamAvailable = false };
-        m.Update(Down);
-        Assert.Equal(MenuAction.None, m.Update(Select));
-        m.Update(Down);
-        Assert.Equal(MenuAction.None, m.Update(Select));
-        Assert.Equal(Menu.Screen.Main, m.Current);
-    }
-
-    [Fact]
-    public void CodeEntryByKeyboardUppercasesFiltersAndNeedsSixChars()
-    {
-        var m = new Menu { SteamAvailable = true };
-        m.Update(Down); m.Update(Down); m.Update(Select);
-        Assert.Equal(Menu.Screen.EnterCode, m.Current);
-        m.Update(Type("ab0c"));                     // 0 is not in the code alphabet
-        Assert.Equal("ABC", m.Text);
-        Assert.Equal(MenuAction.None, m.Update(Select)); // too short
-        m.Update(Type("defghij"));                  // capped at 6
-        Assert.Equal("ABCDEF", m.Text);
-        m.Update(new MenuInput { Backspace = true });
-        m.Update(Type("z"));
-        Assert.Equal(MenuAction.JoinSteamCode, m.Update(Select));
-        Assert.Equal("ABCDEZ", m.EnteredText);
-    }
-
-    [Fact]
-    public void CodeEntryByPad()
-    {
-        var m = new Menu { SteamAvailable = true };
-        m.Update(Down); m.Update(Down); m.Update(Select);
-        m.Update(Up);                                // first char 'A'
-        m.Update(Up);                                // 'B'
-        for (int i = 0; i < 5; i++) m.Update(new MenuInput { Right = true }); // add five 'A'
-        m.Update(Down);                              // last one back-cycles to '9'
-        Assert.Equal("BAAAA9", m.Text);
-        m.Update(new MenuInput { Left = true });     // delete
-        Assert.Equal("BAAAA", m.Text);
-        m.Update(Back);
-        Assert.Equal(Menu.Screen.Main, m.Current);
-    }
-
-    [Fact]
-    public void AddressEntry()
-    {
-        var m = new Menu();
-        for (int i = 0; i < 4; i++) m.Update(Down);
-        m.Update(Select);
-        Assert.Equal(Menu.Screen.EnterAddress, m.Current);
-        Assert.Equal(MenuAction.None, m.Update(Select)); // empty
-        m.Update(Type("192.168.1.20:47815\r"));
-        Assert.Equal(MenuAction.JoinLan, m.Update(Select));
-        Assert.Equal("192.168.1.20:47815", m.EnteredText);
-    }
-
-    [Fact]
-    public void StatusScreenOptions()
-    {
-        var m = new Menu();
-        m.ShowStatus("HOST ONLINE", new[] { "CODE: ABCDEF" }, ("INVITE A STEAM FRIEND", MenuAction.InviteOverlay), ("CANCEL", MenuAction.Cancel));
-        Assert.Equal(MenuAction.InviteOverlay, m.Update(Select));
-        m.Update(Down);
-        m.ShowStatus("HOST ONLINE", new[] { "CODE: ABCDEF", "X joined" }, ("INVITE A STEAM FRIEND", MenuAction.InviteOverlay), ("CANCEL", MenuAction.Cancel));
-        Assert.Equal(MenuAction.Cancel, m.Update(Select)); // selection kept across refreshes
-        Assert.Equal(MenuAction.Cancel, m.Update(Back));
-    }
-
-    [Fact]
-    public void MenuDrawsEveryScreenWithinTheField()
-    {
-        var m = new Menu { SteamAvailable = false, SteamNote = "STEAM NOT AVAILABLE", Footer = "ARROWS" };
-        var lines = new List<Line>();
-        foreach (var screen in new Action[] { () => m.ShowMain(), () => { for (int i = 0; i < 4; i++) m.Update(Down); m.Update(Select); m.Update(Type("10.0.0.1")); },
-                     () => m.ShowStatus("T", new[] { "STEAM NOT AVAILABLE (FAILEDGENERIC: FAILED TO LOAD MODULE /HOME/BOX/.STEAM/SDK64/STEAMCLIENT.SO) - LOCAL AND DIRECT IP PLAY STILL WORK" }, ("OK", MenuAction.Cancel)) })
-        {
-            m.ShowMain(); screen(); lines.Clear(); m.Build(lines);
-            Assert.NotEmpty(lines);
-            Assert.All(lines, l => Assert.True(Math.Min(l.X1, l.X2) >= 0 && Math.Max(l.X1, l.X2) <= Scene.Width && Math.Min(l.Y1, l.Y2) >= 0 && Math.Max(l.Y1, l.Y2) <= Scene.Height, $"{l.X1},{l.Y1} {l.X2},{l.Y2}"));
-        }
-    }
-}
-
 public class BrandingAndSteamTests
 {
     [Fact]
@@ -135,8 +23,8 @@ public class BrandingAndSteamTests
         for (int i = 0; i < 200; i++)
         {
             var c = SteamPlatform.NewCode();
-            Assert.Equal(Menu.CodeLength, c.Length);
-            Assert.All(c, ch => Assert.Contains(ch, Menu.CodeAlphabet));
+            Assert.Equal(OnScreenKeyboard.CodeLength, c.Length);
+            Assert.All(c, ch => Assert.Contains(ch, OnScreenKeyboard.CodeAlphabet));
         }
     }
 

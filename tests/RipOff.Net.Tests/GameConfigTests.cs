@@ -55,7 +55,7 @@ public class GameConfigTests
                 Assert.Equal(g, GameConfig.Decode(g.Encode()));
             }
         Assert.NotNull(new GameConfig(5).Validate());
-        Assert.Contains("auto-fire", new GameConfig(8, AutoFire: true).Validate()); // reserved, not implemented yet
+        Assert.Null(new GameConfig(8, AutoFire: true).Validate()); // auto-fire is implemented since M4
         Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 9, 8, 0 }));    // unknown schema
         Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 1, 8, 0x80 })); // reserved flag bit
     }
@@ -83,13 +83,39 @@ public class GameConfigTests
     }
 
     [Fact]
-    public void GuestRefusesOptionsItCannotRun()
+    public void GuestRefusesAConfigItCannotRun()
     {
-        var (host, guest) = Run(LockstepSession.DefaultConfig(3), p => p[5] = 1); // auto-fire on
+        var (host, guest) = Run(LockstepSession.DefaultConfig(3), p => p[4] = 7); // 7 canisters: no such setting
         Assert.Equal(SessionPhase.Failed, guest.Phase);
-        Assert.Contains("auto-fire", guest.Status);
+        Assert.Contains("canister", guest.Status);
         Assert.Equal(SessionPhase.Failed, host.Phase);
         Assert.Contains("rejected by peer", host.Status);
+    }
+
+    [Fact]
+    public void AutoFireIsSyncedAndBothPeersStayIdentical()
+    {
+        var net = new LoopbackNetwork(9, 40, 30, 0.05);
+        var host = new LockstepSession(net.A, true, Key, LockstepSession.DefaultConfig(8, game: new GameConfig(12, AutoFire: true)), clock: () => net.NowMs / 1000);
+        var guest = new LockstepSession(net.B, false, Key, clock: () => net.NowMs / 1000);
+        var h = new Dictionary<int, uint>(); var g = new Dictionary<int, uint>();
+        host.FrameSimulated = (f, st) => h[f] = StateHash.Compute(st);
+        guest.FrameSimulated = (f, st) => g[f] = StateHash.Compute(st);
+        for (int i = 0; i < 3000; i++)
+        {
+            host.Update(new PlayerInput { Fire = i % 100 < 70, Left = i % 60 < 20 });   // long holds: auto-fire repeats
+            guest.Update(new PlayerInput { Fire = i % 80 < 50, Thrust = i % 9 < 4 });
+            net.Advance(1000.0 / 38);
+        }
+        Assert.Equal(SessionPhase.Running, host.Phase); Assert.Equal(SessionPhase.Running, guest.Phase);
+        Assert.True(guest.Config!.Value.Game.AutoFire);
+        Assert.True(guest.Sim!.State.AutoFire && host.Sim!.State.AutoFire);
+        int common = 0;
+        foreach (var (f, hash) in h) if (g.TryGetValue(f, out var gh)) { Assert.Equal(hash, gh); common++; }
+        Assert.True(common > 2500, $"{common} common frames");
+        // auto-fire actually fired more than one shot per press for both players
+        Assert.True(host.Sim.State.ShotsFired[0] > 3000 / 100 && host.Sim.State.ShotsFired[1] > 3000 / 80);
+        Assert.True(host.ChecksumsCompared > 100);
     }
 
     [Fact]

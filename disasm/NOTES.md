@@ -1016,3 +1016,91 @@ UNCHECKED: everything with a real Steam client and Steam Input on Windows, inclu
 - whether Spacewar's live configuration binds these actions for Nick's controller type;
 - which physical buttons they use;
 - whether `bActive` reports true.
+
+## 26. Pass 9: difficulty escalation, arcade vs remake ("seems like it's escalating quicker than I remember")
+
+Status: done 2026-10-17. New MAME runs (MAME 0.276, driver `ripoff`, headless, default DIPs = 8 canisters, one-player).
+- Scripts:
+  - `disasm/trace/scripts/trace3.lua` with `run3.sh` (observation only, no RAM writes);
+  - `tools/remake/Waves` (per-wave tables and frame-by-frame lockstep);
+  - `tools/padtest` `rate:` (the remake's pass rate in the real game).
+- Excerpt: `trace:excerpts/p9_escalation.txt`. Test data: `tests/RipOff.Core.Tests/Data/w3_hunt.esc`, `w3_back.esc` (RAM words only).
+
+**Rules on record (static):** GAME_RULES §4-5, NOTES §14.1, §14.3.
+- Up to 3 enemies per wave; 2 in a one-player game at level 1.
+- Type +1 for each fully cleared wave in one-player.
+- After type 6: type 1, level +1, BONUS screen.
+- Step-back of one type when 3 or more canisters are carried off in a wave.
+- Max speed v = type + ⌊type/2⌋ + level + 1; turn step ⌊v/2⌋ + 1.
+- 50-pass gap between waves.
+- Enemy fire uses a fixed window from RAM[$A8] (§18.4); type and level reach it only through the turn step (the kill test runs when the heading snaps).
+- Whether the ROM reads RAM[$F5]/[$FB] anywhere else is UNCHECKED statically (the listing has no RAM cross-reference). But any such use that changed play would have broken the frame-by-frame lockstep below, on the paths those runs exercised.
+- The only DIPs are canister count, coinage, demo sounds and score display (`trace:excerpts/mame_discover.txt`, NOTES §3).
+
+**Method.**
+- `trace3.lua` plays a one-player game with a closed-loop "hunt" bot:
+  - it picks a live enemy, towing or at-canister first;
+  - it leads the target by its velocity, turns onto it, and fires every 4 frames when within FT degrees;
+  - it never thrusts.
+- The bot logs all 256 data-RAM words per frame.
+- `Waves mame` builds the per-wave table from the log.
+- `Waves lock` runs the remake from the log's frame-201 seeds, driven by a line-for-line C# port of the same bot (inputs 2 passes late, as in ReplayTests). Every frame it compares:
+  - RAM[$F5] type, [$FB] level, [$F8] kills, [$F9] thefts, [$EC] wave gap, [$F1] score and [$A8];
+  - word A and words 0/1/3/5/6 of all five records;
+  - the canister table.
+
+**Results (VERIFIED by measurement).**
+
+| run | bot | MAME waves | levels reached | lockstep remake vs MAME |
+|---|---|---|---|---|
+| w3_hunt | FT 8 | 28 (game over f6902) | L2 f2425 (58.5 s), L3 f3747 (93.3 s), L4 f5270 (133.4 s) | identical f202-f6902, game over on the same frame |
+| w3_b | FT 4, lead /15 | 25 (f5941) | L2 60.6 s, L3 106.9 s | identical f202-f5941 |
+| w3_weak | FT 1.5, no lead/priority | 15 (f4854) | L2 77.7 s | identical f202-f4854 |
+| w3_back | FT 8, idle at type ≥ 3 | 9 (f2714) | type 3 → 2 step-back 4 times (F9 = 3) | identical f202-f2714 |
+
+Per-wave tables for all runs are in the excerpt. The first 15 waves of w3_hunt (ROM = remake on every column):
+
+| wave | start f | type | level | enemies | max speed / turn | spawn → first pick-up | spawn → end | F8 / F9 at end | gap |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 252 | 1 | 1 | 2 | 3/2 | - | 96 | 3/1 | 50 |
+| 2 | 398 | 2 | 1 | 2 | 5/3 | 88 | 148 | 3/1 | 50 |
+| 3 | 596 | 3 | 1 | 2 | 6/4 | 109 | 228 | 2/2 | 50 |
+| 4 | 874 | 3 | 1 | 2 | 6/4 | 80 | 178 | 2/2 | 50 |
+| 5 | 1102 | 3 | 1 | 2 | 6/4 | - | 138 | 3/1 | 50 |
+| 6 | 1290 | 4 | 1 | 2 | 8/5 | 48 | 104 | 3/1 | 50 |
+| 7 | 1444 | 5 | 1 | 2 | 9/5 | 67 | 158 | 3/1 | 50 |
+| 8 | 1652 | 6 | 1 | 2 | 11/6 | 54 | 235 | 2/2 | 50 |
+| 9 | 1937 | 6 | 1 | 2 | 11/6 | 70 | 191 | 2/2 | 50 |
+| 10 | 2178 | 6 | 1 | 2 | 11/6 | 113 | 148 | 3/1 | 99 (BONUS) |
+| 11 | 2425 | 1 | 2 | 3 | 4/3 | - | 258 | 3/0 | 50 |
+| 12 | 2733 | 2 | 2 | 3 | 6/4 | - | 119 | 3/0 | 50 |
+| 13 | 2902 | 3 | 2 | 3 | 7/4 | 88 | 132 | 3/0 | 50 |
+| 14 | 3084 | 4 | 2 | 3 | 9/5 | 186 | 215 | 3/0 | 50 |
+| 15 | 3349 | 5 | 2 | 3 | 10/6 | 22 | 152 | 3/0 | 50 |
+
+Reading the table:
+- Times are in frames at 38 Hz.
+- At level 1, F8 and F9 include the +1 of the one-player handicap.
+- The arcade itself escalates this fast: one type per cleared wave, so a player who clears every wave meets the fastest type-6 tanks (speed 11) about 38 s in (w3_hunt wave 8, f1652) and reaches level 2 in about 1 minute.
+- Every observed spawn speed matched v = type + ⌊type/2⌋ + level + 1 (`EscalationTests.EnemySpeedTableMatchesArcade`).
+- **Inter-wave timing:** 50 frames (1.32 s) from the wave end to the next spawn, 99 frames after a BONUS screen. Identical in both.
+
+**Wall-clock rate.**
+- **Arcade:** MAME's refresh is the crystal divider chain 19.923 MHz/4/16/16/16/16/2 = 37.9997 Hz (cinemat.cpp:1042). RAM[$A8] rose by exactly 1 every frame of all four runs, through level 4, so one pass per frame does not slow down with difficulty.
+- **Remake:**
+  - `GameData.PassesPerSecond` = 38 (GameData.cs:11) and a MonoGame fixed step (RipOffGame.cs:53-54);
+  - one `Simulation.Step` per tick, only while the local game is on top (FrontEnd.cs:173-181);
+  - measured in the real game on the box: 1141 passes in 30.03 s = 37.99 passes/s (`tools/padtest` `rate:30`).
+
+**Verdict: the remake matches the ROM.** Same waves, types, levels, speeds, turn steps, kills, thefts, step-backs, wave gaps and game-over frame, frame for frame, over 28 waves and 4 levels, at the same 38 passes per second.
+- **Nothing was changed in the simulation.**
+- `EscalationTests` replays w3_hunt and w3_back against 50-frame RAM checkpoints, so any future drift in escalation fails the build. A mutation (step-back at 4 thefts) fails it at w3_back f950.
+
+**UNCHECKED:**
+1. The remake's pass rate on Windows (measured on Linux/Xvfb only; same MonoGame fixed-step code).
+2. That a real cabinet runs at MAME's 38 Hz. MAME derives it from the crystal; no hardware measurement here.
+3. Human-side factors outside the rules:
+   - auto-fire (remake option, default off; when on, holding fire shoots every 6 passes, `GameData.AutoFireInterval`), which raises the kill rate and so the escalation rate, since escalation is driven only by cleared waves;
+   - pad versus the cabinet's buttons.
+4. Which version Nick remembers (cabinet, MAME, or a home port).
+5. Two-player escalation in these runs (needs 6 kills, i.e. two clears per step: lst:500-573, replayed in pass 7 but not measured per wave here).

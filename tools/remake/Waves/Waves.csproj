@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Difficulty-escalation measurement (NOTES §26; dev tool, not part of RipOff.sln).
+       bin/Release/net10.0/Waves sim <frames> [bot]          : remake only, seeds = arcade power-on seeds
+       bin/Release/net10.0/Waves mame <ram.log>              : per-wave table from a MAME trace3.lua RAM log
+       bin/Release/net10.0/Waves lock <ram.log> [bot]        : remake driven by the same closed-loop bot from the log's
+                                                              frame-201 seeds, compared word by word every frame -->
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../../src/RipOff.Core/RipOff.Core.csproj" /></ItemGroup>
+</Project>

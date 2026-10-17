@@ -22,6 +22,7 @@
     <Using Include="Xunit" />
     <None Include="Data\*.chk" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Data\*.fc" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Data\*.esc" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

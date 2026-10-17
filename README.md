@@ -93,6 +93,8 @@ GAME OVER (when all canisters are gone)
 └─ MAIN MENU                 (online: LEAVE ONLINE GAME)
 ```
 
+**Scores** are at the top of the screen in both modes: P1 flush left and P2 flush right (one-player: P1 only), 16 field units from the edges of the 4:3 play field. In fullscreen on a wide monitor they sit at the corners of the letterboxed field. The arcade drew them mid-field, with P1 on the right (disasm/NOTES.md §13).
+
 There are no coins, credits or start buttons: picking a game in the menu starts it. Nothing quits the game except **EXIT** and **EXIT TO DESKTOP** (or closing the window). Auto fire and canisters apply when a game starts; online, the host's values are used for both players.
 
 Settings are saved as JSON in `%APPDATA%\RipOffRemake\settings.json` on Windows (`~/.config/RipOffRemake/settings.json` on Linux), after every change. A missing file means defaults. An unreadable file is renamed to `settings.json.corrupt`, and the game starts with defaults and says so at the bottom of the screen.

@@ -12,10 +12,11 @@ namespace RipOff.Core
     /// <param name="Canisters">Canister count, one of the arcade DIP values 12/16/4/8 (GameData.CanistersForDip).</param>
     /// <param name="AutoFire">Remake option (default off = arcade one shot per press): holding fire repeats a shot
     /// every <see cref="GameData.AutoFireInterval"/> passes, within the 4-shot cap (NOTES §23).</param>
-    public readonly record struct GameConfig(int Canisters, bool AutoFire = false)
+    /// <param name="Mode">Rule set (<see cref="PlayMode"/>, default Arcade). Online the guest adopts the host's mode.</param>
+    public readonly record struct GameConfig(int Canisters, bool AutoFire = false, PlayMode Mode = PlayMode.Arcade)
     {
         /// <summary>Layout version of <see cref="Encode"/>; bump when fields are added.</summary>
-        public const byte SchemaVersion = 1;
+        public const byte SchemaVersion = 2; // 2: play mode byte added
 
         private const byte FlagAutoFire = 1;
 
@@ -28,6 +29,7 @@ namespace RipOff.Core
         public string? Validate()
         {
             if (CanisterDip < 0) return $"unsupported canister count {Canisters} (allowed: {string.Join("/", GameData.CanistersForDip)})";
+            if (!GameRules.IsDefined(Mode)) return $"unknown play mode {(int)Mode}";
             return null;
         }
 
@@ -37,17 +39,19 @@ namespace RipOff.Core
             if (Validate() is { } err) throw new ArgumentException(err);
             s.CanisterDip = CanisterDip;
             s.AutoFire = AutoFire;
+            s.PlayMode = Mode;
         }
 
-        /// <summary>Wire form: schema, canisters, flags (bit 0 auto-fire; other bits reserved, must be 0).</summary>
-        public byte[] Encode() => new[] { SchemaVersion, (byte)Canisters, (byte)(AutoFire ? FlagAutoFire : 0) };
+        /// <summary>Wire form: schema, canisters, flags (bit 0 auto-fire; other bits reserved, must be 0), play mode.</summary>
+        public byte[] Encode() => new[] { SchemaVersion, (byte)Canisters, (byte)(AutoFire ? FlagAutoFire : 0), (byte)Mode };
 
         public static GameConfig Decode(ReadOnlySpan<byte> b)
         {
-            if (b.Length < 3) throw new FormatException("game config too short");
+            if (b.Length < 4) throw new FormatException("game config too short");
             if (b[0] != SchemaVersion) throw new FormatException($"game config schema {b[0]}, this build reads {SchemaVersion}");
             if ((b[2] & ~FlagAutoFire) != 0) throw new FormatException($"unknown game config flags 0x{b[2]:X2}");
-            return new GameConfig(b[1], (b[2] & FlagAutoFire) != 0);
+            // An unknown mode decodes as is: Validate() then refuses it with a reason the host is told (like canisters).
+            return new GameConfig(b[1], (b[2] & FlagAutoFire) != 0, (PlayMode)b[3]);
         }
     }
 }

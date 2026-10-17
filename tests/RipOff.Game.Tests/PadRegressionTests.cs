@@ -28,6 +28,8 @@ public class PadRegressionTests
         r.Tick(Fake.Pad(stickY: 1f)); r.Tick(); r.Press(Buttons.DPadUp);
         Assert.Equal(0, r.F.Selected);
         r.Press(Buttons.A);
+        Assert.Equal(Screen.ModeSelect, r.F.Top);
+        r.Press(Buttons.A);                                     // ARCADE (highlighted by default)
         Assert.Equal(Screen.LocalGame, r.F.Top);
         var st = r.F.LocalSim!.State;
         r.Ticks(5);
@@ -44,7 +46,7 @@ public class PadRegressionTests
     public void HotPlugMidGameIntoAnotherSlot()
     {
         using var r = new Rig(padIndex: 0);
-        r.Choose("START 1 PLAYER");
+        r.Choose("START 1 PLAYER"); r.Choose("ARCADE");
         var st = r.F.LocalSim!.State;
         r.Ticks(10, default(Microsoft.Xna.Framework.Input.GamePadState)); // unplugged: game keeps running
         Assert.Equal(Screen.LocalGame, r.F.Top);
@@ -75,7 +77,7 @@ public class PadRegressionTests
         var s = new SettingsStore(dir).Load(out _);
         Assert.InRange(s.StickDeadzone, Settings.DeadzoneMin, Settings.DeadzoneMax);
         using var r = new Rig(s);
-        r.Choose("START 1 PLAYER");
+        r.Choose("START 1 PLAYER"); r.Choose("ARCADE");
         var st = r.F.LocalSim!.State;
         r.Ticks(5);
         int h0 = st.Players[0].Heading;
@@ -106,7 +108,7 @@ public class PadRegressionTests
     {
         var steam = new FakeSteam { Initialized = false, Available = true };
         using var r = new Rig(steam: steam);
-        r.Choose("START 1 PLAYER");
+        r.Choose("START 1 PLAYER"); r.Choose("ARCADE");
         var st = r.F.LocalSim!.State;
         r.Ticks(5);
         int x0 = st.Players[0].X, y0 = st.Players[0].Y;
@@ -116,10 +118,10 @@ public class PadRegressionTests
         r.Choose("OPTIONS"); r.Press(Buttons.B);
         r.Choose("ONLINE");
         Assert.Equal(new[] { true, true, true, true, true }, r.F.CurrentEnabled); // Steam items pickable (lazy)
-        r.Choose("HOST DIRECT IP"); r.Choose("CANCEL");
+        r.Choose("HOST DIRECT IP"); r.Choose("ARCADE"); r.Choose("CANCEL");
         Assert.Equal(0, steam.Inits);                           // local play, menus and direct IP never start Steam
         Assert.False(steam.Initialized);
-        r.Choose("HOST ONLINE (STEAM)");                         // only picking a Steam option starts it
+        r.Choose("HOST ONLINE (STEAM)"); r.Choose("ARCADE");                         // only picking a Steam option starts it
         Assert.Equal(1, steam.Inits);
         Assert.Equal(Screen.Connecting, r.F.Top);
     }
@@ -140,7 +142,7 @@ public class PadRegressionTests
     public void WithoutAnySteamLocalPlayWorks()
     {
         using var r = new Rig(steam: null, padIndex: 2);
-        r.Choose("START 2 PLAYERS");
+        r.Choose("START 2 PLAYERS"); r.Choose("ARCADE");
         Assert.Equal(Screen.LocalGame, r.F.Top);
         var st = r.F.LocalSim!.State;
         r.Ticks(5);

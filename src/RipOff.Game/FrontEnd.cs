@@ -16,7 +16,7 @@ namespace RipOff.Game
     /// </summary>
     public sealed class FrontEnd
     {
-        public enum Screen { Splash, Main, Online, Options, Keyboard, Connecting, LocalGame, OnlineGame, Pause, GameOver, InputTest }
+        public enum Screen { Splash, Main, Online, Options, Keyboard, Connecting, LocalGame, OnlineGame, Pause, GameOver, InputTest, ModeSelect }
         public enum GameKind { None, OnePlayer, TwoPlayer, Online }
 
         /// <summary>Splash auto-advance (any key or button skips it sooner).</summary>
@@ -35,6 +35,8 @@ namespace RipOff.Game
         private OnScreenKeyboard? _kb;
         private string _kbTitle = "";
         private Action<string>? _kbDone;
+        /// <summary>What MODE SELECT starts once a mode is picked (local game or hosting).</summary>
+        private Action? _modeDone;
         private int _ticks, _splashTicks, _gameOverTicks, _waitingTicks, _explosions;
         private bool _startPulse;
         private string? _notice;
@@ -218,19 +220,24 @@ namespace RipOff.Game
             switch (Top)
             {
                 case Screen.Main:
-                    l.Add(new("START 1 PLAYER", () => StartLocal(true)));
-                    l.Add(new("START 2 PLAYERS", () => StartLocal(false)));
+                    l.Add(new("START 1 PLAYER", () => ChooseMode(() => StartLocal(true))));
+                    l.Add(new("START 2 PLAYERS", () => ChooseMode(() => StartLocal(false))));
                     l.Add(new("ONLINE", () => Push(Screen.Online)));
                     l.Add(new("OPTIONS", () => Push(Screen.Options)));
                     l.Add(new("EXIT", () => ExitRequested = true));
                     break;
                 case Screen.Online:
-                    l.Add(new("HOST ONLINE (STEAM)", () => { if (!SteamReady()) return; Online.HostSteam(Settings.GameConfig); Push(Screen.Connecting); }, Enabled: SteamSelectable));
+                    l.Add(new("HOST ONLINE (STEAM)", () => { if (!SteamReady()) return; ChooseMode(() => { Online.HostSteam(Settings.GameConfig); Push(Screen.Connecting); }); }, Enabled: SteamSelectable));
                     l.Add(new("JOIN BY CODE (STEAM)", () => { if (!SteamReady()) return; OpenKeyboard(OnScreenKeyboard.Mode.LobbyCode, "ENTER LOBBY CODE",
                         code => { Online.JoinSteamCode(code); Push(Screen.Connecting); }); }, Enabled: SteamSelectable));
-                    l.Add(new("HOST DIRECT IP", () => { Online.HostLan(Settings.GameConfig, LanPort); Push(Screen.Connecting); }));
+                    l.Add(new("HOST DIRECT IP", () => ChooseMode(() => { Online.HostLan(Settings.GameConfig, LanPort); Push(Screen.Connecting); })));
                     l.Add(new("JOIN DIRECT IP", () => OpenKeyboard(OnScreenKeyboard.Mode.Address, "HOST ADDRESS (IP OR IP:PORT)",
                         addr => { Online.JoinLan(addr); Push(Screen.Connecting); })));
+                    l.Add(new("BACK", Pop));
+                    break;
+                case Screen.ModeSelect:
+                    foreach (var m in new[] { PlayMode.Arcade, PlayMode.Enhanced })
+                        l.Add(new(Branding.ModeName(m), () => PickMode(m)));
                     l.Add(new("BACK", Pop));
                     break;
                 case Screen.Connecting:
@@ -307,6 +314,22 @@ namespace RipOff.Game
             Settings.Canisters = order[(i + d + order.Length) % order.Length];
         }
 
+        /// <summary>Opens MODE SELECT with the last mode highlighted; <paramref name="then"/> runs after a pick.</summary>
+        private void ChooseMode(Action then)
+        {
+            _modeDone = then;
+            Push(Screen.ModeSelect);
+            _sel[Screen.ModeSelect] = Settings.Mode == PlayMode.Enhanced ? 1 : 0;
+        }
+
+        private void PickMode(PlayMode m)
+        {
+            Change(() => Settings.Mode = m); // remembered in settings.json
+            Pop();
+            var then = _modeDone; _modeDone = null;
+            then?.Invoke();
+        }
+
         private void OpenKeyboard(OnScreenKeyboard.Mode mode, string title, Action<string> done)
         {
             _kb = new OnScreenKeyboard(mode); _kbTitle = title; _kbDone = done;
@@ -356,7 +379,7 @@ namespace RipOff.Game
             {
                 Scene.Build(online!.Sim!.State, o);
                 if (Top != Screen.OnlineGame) for (int i = 0; i < o.Count; i++) o[i] = o[i] with { Bright = false }; // overlay: game dimmed, still running
-                VectorFont.Draw(online.IsHost ? "YOU: P1" : "YOU: P2", 8, 8, 12, o, false);
+                VectorFont.Draw((online.IsHost ? "YOU: P1  " : "YOU: P2  ") + Branding.ModeName(online.Sim!.State.PlayMode), 8, 8, 12, o, false);
                 if (Top == Screen.OnlineGame && _waitingTicks > Tps / 2)
                     VectorFont.DrawCentered("WAITING FOR OTHER PLAYER...", cx, 400, 24, o);
             }
@@ -452,7 +475,14 @@ namespace RipOff.Game
                     if (_steam == null || (_steam.Initialized && !_steam.Available)) n.Add(PadText.ForFont("STEAM: " + (_steam?.Status ?? "off")));
                     else if (!_steam.Initialized) n.Add("STEAM STARTS WHEN YOU PICK A STEAM OPTION");
                     n.Add($"YOUR RULES WHEN HOSTING: {Settings.Canisters} CANISTERS, AUTO FIRE {(Settings.AutoFire ? "ON" : "OFF")}");
+                    n.Add("HOSTS PICK THE MODE; JOINING PLAYERS USE THE HOST'S MODE");
                     return ("ONLINE", n);
+                case Screen.ModeSelect:
+                {
+                    if (Selected <= 1) n.Add(Branding.ModeInfo(Selected == 1 ? PlayMode.Enhanced : PlayMode.Arcade));
+                    n.Add("LAST PLAYED: " + Branding.ModeName(Settings.Mode));
+                    return (Branding.ModeSelectTitle, n);
+                }
                 case Screen.Connecting:
                 {
                     var s = Online.Session;
@@ -465,6 +495,7 @@ namespace RipOff.Game
                     }
                     if (s?.Phase == SessionPhase.Closed) { n.Add(s.Status.ToUpperInvariant()); return ("GAME ENDED", n); }
                     n.AddRange(Online.Describe());
+                    if (Online.ModeText() is { } mt) n.Add(mt);
                     if (Online.Error != null) return ("DISCONNECTED", n);
                     return (Online.Mode switch
                     {

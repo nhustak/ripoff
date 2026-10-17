@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using RipOff.Core;
 using RipOff.Net;
 using Steamworks;
 
@@ -17,7 +18,7 @@ namespace RipOff.Game.Steam
     {
         public enum LobbyPhase { None, Creating, Hosting, Searching, Joining, Joined, Failed }
 
-        public const string KeyGame = "game", KeyVersion = "ver", KeyCode = "code";
+        public const string KeyGame = "game", KeyVersion = "ver", KeyCode = "code", KeyMode = "mode";
 
         public bool Available { get; private set; }
         public string Status { get; private set; } = "Steam not initialized";
@@ -117,10 +118,15 @@ namespace RipOff.Game.Steam
 
         // ------------------------------------------------------------------ hosting
 
-        public void Host()
+        /// <summary>Play mode advertised by the lobby (host: its own; guest: read on entering). Informational: the
+        /// guest adopts the mode from the session's verified game config (LockstepSession), not from here.</summary>
+        public PlayMode? LobbyMode { get; private set; }
+
+        public void Host(PlayMode mode = PlayMode.Arcade)
         {
             if (!Available) return;
             Leave();
+            LobbyMode = mode;
             Phase = LobbyPhase.Creating; LobbyMessage = "creating lobby...";
             // Public so the code search can find it; every search filters on game key + version (below).
             _crCreate!.Set(SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypePublic, 2));
@@ -135,6 +141,7 @@ namespace RipOff.Game.Steam
             SteamMatchmaking.SetLobbyData(Lobby, KeyGame, Branding.LobbyGameKey);
             SteamMatchmaking.SetLobbyData(Lobby, KeyVersion, Protocol.Version.ToString());
             SteamMatchmaking.SetLobbyData(Lobby, KeyCode, Code);
+            SteamMatchmaking.SetLobbyData(Lobby, KeyMode, ((int)(LobbyMode ?? PlayMode.Arcade)).ToString());
             SteamFriends.SetRichPresence("connect", "+connect_lobby " + Lobby.m_SteamID);
             SteamFriends.SetRichPresence("status", Branding.GameName + " - waiting for a player");
             Phase = LobbyPhase.Hosting; LobbyMessage = "waiting for a friend";
@@ -211,6 +218,7 @@ namespace RipOff.Game.Steam
             if (ver != Protocol.Version.ToString()) { Fail("version mismatch: host v" + ver + ", this build v" + Protocol.Version); return; }
             Peer = SteamMatchmaking.GetLobbyOwner(lobby); PeerLeft = false;
             Code = SteamMatchmaking.GetLobbyData(lobby, KeyCode);
+            LobbyMode = int.TryParse(SteamMatchmaking.GetLobbyData(lobby, KeyMode), out var lm) && GameRules.IsDefined((PlayMode)lm) ? (PlayMode)lm : null;
             Phase = LobbyPhase.Joined; LobbyMessage = "joined " + SteamFriends.GetFriendPersonaName(Peer);
         }
 
@@ -248,7 +256,7 @@ namespace RipOff.Game.Steam
             if (!Available) return;
             if (Lobby != CSteamID.Nil) SteamMatchmaking.LeaveLobby(Lobby);
             Lobby = CSteamID.Nil; Peer = CSteamID.Nil; Code = null; PeerLeft = false; FailedSessionWith = CSteamID.Nil;
-            Phase = LobbyPhase.None; LobbyMessage = "";
+            Phase = LobbyPhase.None; LobbyMessage = ""; LobbyMode = null;
             SteamFriends.ClearRichPresence();
         }
 

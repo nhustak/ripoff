@@ -65,7 +65,7 @@ public class FrontEndTests
     public void StartOnePlayerStartsAtOnceWithTheSettings()
     {
         using var r = new Rig(new Settings { Canisters = 16, AutoFire = true });
-        r.Choose("START 1 PLAYER");
+        r.Choose("START 1 PLAYER"); r.Choose("ARCADE");
         Assert.Equal(Screen.LocalGame, r.F.Top);
         Assert.Equal(FrontEnd.GameKind.OnePlayer, r.F.Game);
         var st = r.F.LocalSim!.State;
@@ -85,7 +85,7 @@ public class FrontEndTests
     {
         using var r = new Rig();
         r.Others[1] = Fake.Pad(); r.Tick(); // second pad connects
-        r.Choose("START 2 PLAYERS");
+        r.Choose("START 2 PLAYERS"); r.Choose("ARCADE");
         var st = r.F.LocalSim!.State;
         Assert.False(st.OnePlayer);
         r.Ticks(5);
@@ -100,7 +100,7 @@ public class FrontEndTests
     public void PauseWithStartOrEscFreezesTheLocalGame()
     {
         using var r = new Rig();
-        r.Choose("START 1 PLAYER");
+        r.Choose("START 1 PLAYER"); r.Choose("ARCADE");
         r.Ticks(10);
         r.Press(Buttons.B); // B is not pause in a game
         Assert.Equal(Screen.LocalGame, r.F.Top);
@@ -127,7 +127,7 @@ public class FrontEndTests
     public void PauseOptionsAndQuitToMainMenu()
     {
         using var r = new Rig();
-        r.Choose("START 2 PLAYERS");
+        r.Choose("START 2 PLAYERS"); r.Choose("ARCADE");
         r.Press(Buttons.Start); r.Choose("OPTIONS");
         Assert.Equal(new[] { Screen.Main, Screen.LocalGame, Screen.Pause, Screen.Options }, r.F.Stack);
         r.Press(Buttons.B);
@@ -142,7 +142,7 @@ public class FrontEndTests
     public void ExitToDesktopFromPause()
     {
         using var r = new Rig();
-        r.Choose("START 1 PLAYER"); r.Press(Buttons.Start);
+        r.Choose("START 1 PLAYER"); r.Choose("ARCADE"); r.Press(Buttons.Start);
         r.Choose("EXIT TO DESKTOP");
         Assert.True(r.F.ExitRequested);
     }
@@ -246,7 +246,7 @@ public class FrontEndTests
     public void LocalGameOverOffersPlayAgainAndMainMenu()
     {
         using var r = new Rig();
-        r.Choose("START 1 PLAYER");
+        r.Choose("START 1 PLAYER"); r.Choose("ARCADE");
         var st = r.F.LocalSim!.State;
         Fake.AllCanistersGone(st); // game over on the next pass
         r.Tick();
@@ -337,7 +337,7 @@ public class FrontEndTests
     {
         var steam = new FakeSteam { Available = true, Code = "ABCDEF" };
         using var r = new Rig(steam: steam);
-        r.Choose("ONLINE"); r.Choose("HOST ONLINE");
+        r.Choose("ONLINE"); r.Choose("HOST ONLINE"); r.Choose("ARCADE");
         Assert.Equal(Screen.Connecting, r.F.Top);
         // the fake has no SteamPlatform behind OnlineController, so it ends with "Steam is not available"
         r.Tick();
@@ -353,7 +353,7 @@ public class FrontEndTests
     {
         using var host = new Rig(new Settings { AutoFire = true, Canisters = 4 });
         using var guest = new Rig(new Settings { AutoFire = false, Canisters = 16 });
-        host.Choose("ONLINE"); host.Choose("HOST DIRECT IP");
+        host.Choose("ONLINE"); host.Choose("HOST DIRECT IP"); host.Choose("ARCADE");
         Assert.Equal(Screen.Connecting, host.F.Top);
         host.Tick();
         string portLine = host.F.Online.Describe()[0];
@@ -405,6 +405,7 @@ public class FrontEndTests
         r.Choose("JOIN DIRECT IP"); r.Type("192.168.100.200:47815"); Check(); r.Press(Buttons.B);
         r.Choose("JOIN BY CODE"); Check(); r.Press(Buttons.B);
         r.Press(Buttons.B);
+        r.Choose("START 1 PLAYER"); Check(); r.Press(Buttons.B);   // MODE SELECT
         r.F.StartLocal(true); Check(); r.Press(Buttons.Start); Check();
         Fake.AllCanistersGone(r.F.LocalSim!.State);
         r.Press(Buttons.Start); r.Tick(); Check();

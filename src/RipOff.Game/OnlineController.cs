@@ -50,7 +50,7 @@ namespace RipOff.Game
         /// <summary>Game rules used when this machine hosts (the guest receives and verifies them).</summary>
         public GameConfig HostConfig { get; private set; } = GameConfig.Default;
 
-        public void HostSteam(GameConfig? config = null) { Stop(); HostConfig = config ?? GameConfig.Default; Mode = Kind.SteamHost; _steam?.Host(); }
+        public void HostSteam(GameConfig? config = null) { Stop(); HostConfig = config ?? GameConfig.Default; Mode = Kind.SteamHost; _steam?.Host(HostConfig.Mode); }
         public void JoinSteamCode(string code) { Stop(); Mode = Kind.SteamJoin; _steam?.JoinByCode(code); }
         public void JoinSteamLobby(ulong lobby) { Stop(); Mode = Kind.SteamJoin; _steam?.Join(lobby); }
 
@@ -123,6 +123,17 @@ namespace RipOff.Game
         }
 
         /// <summary>Lines describing the connection for the status screen.</summary>
+        /// <summary>The play mode of this session for status screens: the host's own choice, the received (verified)
+        /// config on the guest, or the Steam lobby's advertised mode before that. Null when not online.</summary>
+        public string? ModeText()
+        {
+            if (Mode is Kind.SteamHost or Kind.LanHost) return "MODE: " + Branding.ModeName(HostConfig.Mode);
+            if (Mode is not (Kind.SteamJoin or Kind.LanJoin)) return null;
+            if (Session?.Config is { } c) return "MODE: " + Branding.ModeName(c.Game.Mode) + " (HOST'S CHOICE)";
+            if (Mode == Kind.SteamJoin && _steam?.LobbyMode is { } lm) return "MODE: " + Branding.ModeName(lm) + " (HOST'S CHOICE)";
+            return "MODE: SET BY THE HOST";
+        }
+
         public List<string> Describe()
         {
             var l = new List<string>();

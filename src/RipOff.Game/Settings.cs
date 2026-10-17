@@ -15,7 +15,7 @@ namespace RipOff.Game
         public const double VolumeStep = 0.1;
         public const float DeadzoneMin = 0.10f, DeadzoneMax = 0.60f, DeadzoneStep = 0.05f;
 
-        public int Version { get; set; } = 1;
+        public int Version { get; set; } = 2;
         /// <summary>Default off = the arcade's one shot per press.</summary>
         public bool AutoFire { get; set; }
         /// <summary>Default 8 = the arcade's default DIP.</summary>
@@ -24,15 +24,17 @@ namespace RipOff.Game
         public bool Muted { get; set; }
         public bool Fullscreen { get; set; }
         public float StickDeadzone { get; set; } = PadMapper.DefaultStickDeadzone;
-        /// <summary>Initialize Steam at launch (takes effect on the next start). Off avoids Steam entirely, e.g. when
-        /// Steam Input takes over the controller under App ID 480 (README).</summary>
-        public bool SteamEnabled { get; set; } = true;
+        /// <summary>Initialize Steam at launch, before the window (takes effect on the next start), so the Steam overlay
+        /// and its invite dialog work. Default OFF (NOTES §24): Steam then starts only when a Steam online option is
+        /// picked, because an initialized Steam client under App ID 480 can take the controller away (Steam Input).
+        /// Replaces v1's "SteamEnabled" (default on), which is ignored when an old file is read.</summary>
+        public bool SteamAtLaunch { get; set; }
 
         public GameConfig GameConfig => new(Canisters, AutoFire);
 
         public Settings Normalize()
         {
-            Version = 1;
+            Version = 2;
             if (Array.IndexOf(GameData.CanistersForDip, Canisters) < 0) Canisters = GameConfig.Default.Canisters;
             Volume = double.IsFinite(Volume) ? Math.Round(Math.Clamp(Volume, 0, 1) / VolumeStep) * VolumeStep : 1.0;
             StickDeadzone = float.IsFinite(StickDeadzone) ? MathF.Round(Math.Clamp(StickDeadzone, DeadzoneMin, DeadzoneMax) / DeadzoneStep) * DeadzoneStep : PadMapper.DefaultStickDeadzone;

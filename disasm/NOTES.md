@@ -890,3 +890,44 @@ Code: `src/RipOff.Game/FrontEnd.cs` (state machine), `InputReader.cs`, `PadMappe
    - **Steam Input:** with App ID 480, Steam treats the game as Spacewar and redirects controller input to Steam Input (Valve engineer, Steamworks.NET issue #380). The workarounds are documented in the README, plus the STEAM AT LAUNCH option. UNCHECKED: which of the two it was on Nick's machine.
 
 UNCHECKED: the MonoGame window itself (fullscreen switching, TextInput, real pads through SDL) has not run on the box (no OpenGL). The front end is tested through `InputReader` + `FrontEnd` with fake states, and the screens were checked by rendering their line lists to PNG.
+
+## 24. Pad regression on main 97a8b73 ("controller doesn't work at all") and lazy Steam
+
+**What changed between "pad works" and "pad broken".** PR #9/#10 (a621869/6997594, pad worked in game) never called Steam. From PR #11 (1f9a1ab) on, `Program.cs` called `SteamPlatform.Init` → `SteamAPI.InitEx` at every launch, before the window (1f9a1ab `src/RipOff.Game/Program.cs`; 97a8b73 `Program.cs:27-31`, `settings.SteamEnabled` default true in `Settings.cs:29`), and `RipOffGame.Update` called `SteamAPI.RunCallbacks` every tick (97a8b73 `RipOffGame.cs`, `_steam?.RunCallbacks()`). `steam_appid.txt` = 480 (Spacewar). Nick tests with Steam running.
+
+**Pad code reviewed (candidate a), no defect found:**
+- 97a8b73 reads `GamePad.GetState(i, GamePadDeadZone.None)` for i < min(4, `GamePad.MaximumGamePadCount`), the same call as a621869 `RipOffGame.cs:62`, only for more slots.
+- `PadMapper.Update` maps the first connected slot to P1.
+- In a 1-player game the sim gets `play.All`, which ORs every pad (`FrontEnd.TickGames`).
+- Menu edges need two consecutive connected ticks (`InputReader.Read`), and `_prevPads` is updated every tick, so the edge logic re-arms.
+- The dead zone is clamped to 0.10-0.60 on load (`Settings.Normalize`).
+- Nothing filters on capabilities or GamePadType.
+- The menu layer (candidate c) only replaces input with neutral for *online* games under a menu. Local games step only while the game is the top screen, with the real input.
+
+The 84 front-end tests (fake pad states through the real `InputReader`) passed on 97a8b73. So no code path explains "no pad at all" while MonoGame reports the pad.
+
+**Steam (candidate b), sourced:**
+- A Valve input engineer: with 480 in `steam_appid.txt`, "controller input is redirected to Steam Input instead of XInput" (https://github.com/rlabrecque/Steamworks.NET/issues/380).
+- The same symptom under 480 is reported for Unreal (https://forums.unrealengine.com/t/gamepad-not-working-when-connected-to-steam/448003) and GodotSteam. GodotSteam: "I can see inputs immediately after a scene loads; once Steam.run_callbacks() kicks in it stops… disabling steam input [for Spacewar] works", https://github.com/GodotSteam/GodotSteam/discussions/568. Also Godot: https://forum.godotengine.org/t/disabling-steam-input-in-godotsteam/118350.
+
+This is the only change on the input path shared by PR #11 and PR #12 that PR #10 did not have. **Status: most likely cause, UNCHECKED on Nick's PC.** The input log and INPUT TEST screen (below) are there to confirm or refute it.
+
+**Fixes (this PR):**
+1. **Lazy Steam (`Steam/SteamGate.cs`).** `SteamAPI_Init` runs only when a Steam online item is picked, or at launch when **STEAM AT LAUNCH** is on (new default **OFF**) or Steam passed `+connect_lobby`. `RunCallbacks` runs only once Steam is initialized. Local play, menus and direct IP never touch Steam.
+   - The old `SteamEnabled` (default true) is ignored, and the settings version is now 2.
+   - **Trade-off (flagged):** the overlay hooks the graphics device only if `SteamAPI_Init` ran before the device was created (Steamworks overlay docs). After a lazy init, Shift+Tab and INVITE A STEAM FRIEND may do nothing; codes and the friends list still work. Players who want overlay invites set STEAM AT LAUNCH: ON.
+   - Once Steam is initialized it stays initialized until exit (re-init after `SteamAPI_Shutdown` was not tried). If Steam Input then takes the pad, the README Spacewar fix applies.
+2. **Pad reading:** every slot 0-3 every tick with `GamePad.GetState(i)` (MonoGame's default dead zone, IndependentAxes), with no assumption about which slot is which. `PadMapper.StickDeadzone` is now guarded too: NaN or extremes fall back to or are clamped into 0.05-0.90, so no setting can switch the stick off.
+3. **Diagnostics:**
+   - **Options → INPUT TEST:** all 4 slots live, with name and type from `GetCapabilities`, buttons, sticks, triggers, what the game sees, and the Steam state. Leave by holding B for 1 s or pressing Esc.
+   - **`%APPDATA%\RipOffRemake\input-log.txt`:** rewritten each launch, with a snapshot 2 s after start (SDL adds pads from its event loop), then connect/disconnect and Steam-init events. It records environment variables Steam sets for SDL (`SDL_GAMECONTROLLER_IGNORE_DEVICES`, `SteamAppId`; see https://github.com/ValveSoftware/steam-for-linux/issues/13217) and contains no IDs or tokens.
+4. **Regression tests** (`PadRegressionTests`):
+   - a pad in each slot 0-3 drives the menus and the game;
+   - hot-plug into another slot mid-game, with a held button on connect ignored;
+   - dead-zone values 0, 1, -5, 1000, 1e30 and "abc" in `settings.json`, plus NaN/∞ on `PadMapper`, still steer;
+   - the game, the menus and direct IP never initialize a lazy Steam, and only a Steam item does; a failed lazy init greys the Steam items out;
+   - no Steam at all;
+   - the INPUT TEST screen and the input log;
+   - an old settings file.
+
+UNCHECKED: everything on real Windows with a real pad and Steam client.

@@ -8,8 +8,8 @@ namespace RipOff.Game.Tests;
 public class PadMapperTests
 {
     /// <summary>A connected pad with the given stick X, right trigger, buttons and D-pad.</summary>
-    static GamePadState Pad(float stickX = 0, float rt = 0, Buttons buttons = 0, bool dLeft = false, bool dRight = false) =>
-        new GamePadState(new GamePadThumbSticks(new Vector2(stickX, 0), Vector2.Zero), new GamePadTriggers(0, rt),
+    static GamePadState Pad(float stickX = 0, float rt = 0, Buttons buttons = 0, bool dLeft = false, bool dRight = false, float lt = 0) =>
+        new GamePadState(new GamePadThumbSticks(new Vector2(stickX, 0), Vector2.Zero), new GamePadTriggers(lt, rt),
             new GamePadButtons(buttons),
             new GamePadDPad(ButtonState.Released, ButtonState.Released, dLeft ? ButtonState.Pressed : ButtonState.Released, dRight ? ButtonState.Pressed : ButtonState.Released));
 
@@ -51,8 +51,16 @@ public class PadMapperTests
     public void ThrustAndFireButtons()
     {
         Assert.True(PadMapper.MapPlayer(Pad(buttons: Buttons.A)).Thrust);
-        Assert.False(PadMapper.MapPlayer(Pad(rt: 0.3f)).Thrust);
-        Assert.True(PadMapper.MapPlayer(Pad(rt: 0.31f)).Thrust);
+        // left trigger = thrust past 0.3, held = thrust
+        Assert.False(PadMapper.MapPlayer(Pad(lt: 0.3f)).Thrust);
+        Assert.True(PadMapper.MapPlayer(Pad(lt: 0.31f)).Thrust);
+        Assert.True(PadMapper.MapPlayer(Pad(lt: 1f)).Thrust);
+        Assert.False(PadMapper.MapPlayer(Pad(lt: 1f)).Fire);
+        // right trigger = fire past 0.3, and no longer thrust
+        Assert.False(PadMapper.MapPlayer(Pad(rt: 1f)).Thrust);
+        Assert.False(PadMapper.MapPlayer(Pad(rt: 0.3f)).Fire);
+        Assert.True(PadMapper.MapPlayer(Pad(rt: 0.31f)).Fire);
+        Assert.True(PadMapper.MapPlayer(Pad(rt: 1f)).Fire);
         Assert.True(PadMapper.MapPlayer(Pad(buttons: Buttons.X)).Fire);
         Assert.True(PadMapper.MapPlayer(Pad(buttons: Buttons.RightShoulder)).Fire);
         Assert.False(PadMapper.MapPlayer(Pad(buttons: Buttons.B | Buttons.Y | Buttons.LeftShoulder)).Fire);
@@ -75,6 +83,62 @@ public class PadMapperTests
             Assert.Equal(fromKey.State.Sound.Torpedo, fromPad.State.Sound.Torpedo);
         }
         Assert.Equal(fromKey.State.Players[0].X, fromPad.State.Players[0].X);
+    }
+
+    [Fact]
+    public void RightTriggerFiresExactlyLikeXAndRb()
+    {
+        // Same signal, same code path: games driven by RT, X, RB and the keyboard are identical, held or pumped.
+        Simulation Play(Func<bool, GamePadState> pad)
+        {
+            var m = new PadMapper(); var sim = new Simulation();
+            sim.State.CanisterDip = 3; sim.State.Credits = 1; sim.StartGame(true);
+            for (int i = 0; i < 300; i++)
+            {
+                bool down = i >= 40 && (i < 140 || (i / 7) % 2 == 0); // held for 100 passes, then pumped
+                sim.Step(PadMapper.Combine(default, m.Update(pad(down), None)));
+            }
+            return sim;
+        }
+        var rt = Play(d => Pad(rt: d ? 1f : 0f));
+        var x = Play(d => Pad(buttons: d ? Buttons.X : 0));
+        var rb = Play(d => Pad(buttons: d ? Buttons.RightShoulder : 0));
+        var key = new Simulation(); key.State.CanisterDip = 3; key.State.Credits = 1; key.StartGame(true);
+        for (int i = 0; i < 300; i++) key.Step(new FrameInput { P1 = new PlayerInput { Fire = i >= 40 && (i < 140 || (i / 7) % 2 == 0) } });
+        foreach (var other in new[] { x, rb, key })
+        {
+            Assert.Equal(other.State.Score[0], rt.State.Score[0]);
+            for (int k = 0; k < rt.State.Shots.Length; k++) Assert.Equal(other.State.Shots[k], rt.State.Shots[k]);
+            Assert.Equal(other.State.TorpedoTimer, rt.State.TorpedoTimer);
+        }
+        // while held every pass maps to "fire", for RT as for X
+        var m2 = new PadMapper();
+        for (int i = 0; i < 5; i++) Assert.True(m2.Update(Pad(rt: 0.8f), None).P1.Fire);
+    }
+
+    [Fact]
+    public void HeldFireGivesOneShotInTheSimulation()
+    {
+        // Documents the existing behaviour (Simulation.cs fire block, lst:2578-2582): a held fire input fires once.
+        var sim = new Simulation(); sim.State.CanisterDip = 3; sim.State.Credits = 1; sim.StartGame(true);
+        for (int i = 0; i < 60; i++) sim.Step(default);
+        int newShots = 0; var m = new PadMapper();
+        for (int i = 0; i < 200; i++)
+        {
+            int before = sim.State.Shots.Count(s => s.Live);
+            sim.Step(PadMapper.Combine(default, m.Update(Pad(rt: 1f), None)));
+            if (sim.State.Shots.Count(s => s.Live) > before) newShots++;
+        }
+        Assert.Equal(1, newShots);
+    }
+
+    [Fact]
+    public void TriggerHeldOnConnectReadsAsHeld()
+    {
+        // Triggers are levels like X/RB: connecting with RT pulled gives the same "fire held" level a held X gives;
+        // whether that fires is the simulation's fire edge (same as plugging in with X held).
+        var m = new PadMapper();
+        Assert.Equal(new PadMapper().Update(Pad(buttons: Buttons.X), None).P1.Fire, m.Update(Pad(rt: 1f), None).P1.Fire);
     }
 
     [Fact]

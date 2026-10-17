@@ -128,8 +128,10 @@ namespace RipOff.Core
         /// <summary>Rule set of this game (GameConfig.Mode). Arcade by default; the hash includes it only when it is
         /// not Arcade, so Arcade checksums are unchanged from arcade-v1.0.</summary>
         public PlayMode PlayMode = PlayMode.Arcade;
-        /// <summary>The rules the simulation reads for <see cref="PlayMode"/>.</summary>
-        public GameRules Rules => GameRules.For(PlayMode);
+        /// <summary>Enhanced variations that are on (GameConfig.Options). Arcade ignores them; hashed only outside Arcade.</summary>
+        public EnhancedOption Options = EnhancedOption.All;
+        /// <summary>The rules the simulation reads for <see cref="PlayMode"/> and <see cref="Options"/>.</summary>
+        public GameRules Rules => GameRules.For(PlayMode, Options);
 
         // ---- Enhanced-mode state (never changed in Arcade; hashed only when PlayMode is not Arcade) ----
         /// <summary>Cleared waves since the last type step (GameRules.ClearsPerTypeStep).</summary>
@@ -139,6 +141,10 @@ namespace RipOff.Core
         /// <summary>xorshift32 state for Enhanced randomness (aim error). Seeded at StartGame from the start seeds
         /// (record words B and the pass counter), so both online peers draw the same numbers. 0 in Arcade.</summary>
         public uint EnhancedRng;
+        /// <summary>Warp-in passes left per player (0 = not warping). While it counts, the player record stays free.</summary>
+        public readonly int[] WarpTimer = new int[2];
+        /// <summary>Where each player's current warp-in materializes (chosen when it starts, GameRules.WarpLocation).</summary>
+        public readonly int[] WarpX = new int[2], WarpY = new int[2], WarpHeading = new int[2];
 
         // ---- statistics (not part of the simulation, not hashed) ----
         /// <summary>Enemy fire tests that found a live player in reach this game (Arcade: every one is a kill).</summary>

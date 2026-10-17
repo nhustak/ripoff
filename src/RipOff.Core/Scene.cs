@@ -27,6 +27,7 @@ namespace RipOff.Core
             {
                 DrawTank(s.Players[0], 0, o);
                 if (!s.OnePlayer) DrawTank(s.Players[1], 1, o);
+                for (int p = 0; p < (s.OnePlayer ? 1 : 2); p++) if (s.WarpTimer[p] > 0) DrawWarp(s, p, o);
             }
             foreach (var fl in s.FireLines)
             {
@@ -65,6 +66,43 @@ namespace RipOff.Core
             // UNCHECKED: tread animation advance rule; frame 0 of both tread lists is drawn.
             AddShape(ShapeData.Anim8[set][0], r.X, r.Y, r.Heading, r.Scale, o);
             AddShape(ShapeData.Anim9[set][0], r.X, r.Y, r.Heading, r.Scale, o);
+        }
+
+        /// <summary>Warp-in radius at the start of the effect (field units).</summary>
+        public const float WarpRadius = 120;
+
+        /// <summary>Enhanced warp-in effect (remake art, NOTES §28). Over the warp, t goes 0 → 1:
+        /// - 12 spokes spiral in from <see cref="WarpRadius"/> to the warp point (bright);
+        /// - a dim 16-sided ring shrinks with them;
+        /// - from halfway on, the ship outline grows from nothing to full size (dim until it materializes).</summary>
+        public static void DrawWarp(GameState s, int p, List<Line> o)
+        {
+            int total = Math.Max(1, s.Rules.WarpInPasses);
+            float t = 1f - Math.Clamp(s.WarpTimer[p], 0, total) / (float)total;
+            float x = s.WarpX[p], y = s.WarpY[p];
+            float r = WarpRadius * (1 - t), len = 10 + 26 * (1 - t);
+            double spin = t * Math.PI / 2;
+            for (int k = 0; k < 12; k++)
+            {
+                double a = spin + k * Math.PI / 6;
+                float c = (float)Math.Cos(a), sn = (float)Math.Sin(a);
+                o.Add(new Line(x + c * (r + len), y + sn * (r + len), x + c * r, y + sn * r, true));
+            }
+            if (r > 2)
+            {
+                for (int k = 0; k < 16; k++)
+                {
+                    double a0 = -spin + k * Math.PI / 8, a1 = a0 + Math.PI / 8;
+                    o.Add(new Line(x + r * (float)Math.Cos(a0), y + r * (float)Math.Sin(a0), x + r * (float)Math.Cos(a1), y + r * (float)Math.Sin(a1), false));
+                }
+            }
+            if (t >= 0.5f)
+            {
+                int scale = (int)(GameData.PlayerScale * (t - 0.5f) * 2);
+                int start = o.Count;
+                AddShape(ShapeData.Body[Math.Clamp(p, 0, ShapeData.Body.Length - 1)], x, y, s.WarpHeading[p], scale, o);
+                for (int i = start; i < o.Count; i++) o[i] = o[i] with { Bright = false };
+            }
         }
 
         static void AddShape(Seg[] segs, float ox, float oy, int heading, int scale, List<Line> o)

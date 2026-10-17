@@ -9,7 +9,7 @@ namespace RipOff.Net
     public static class Protocol
     {
         /// <summary>Protocol version; peers with a different value are rejected (Hello).</summary>
-        public const ushort Version = 3; // 2: auto-fire accepted (M4); 3: play mode (Arcade/Enhanced) in the game config
+        public const ushort Version = 4; // 2: auto-fire accepted (M4); 3: play mode (Arcade/Enhanced) in the game config; 4: Enhanced options byte
 
         public const byte MsgHello = 1, MsgReject = 2, MsgStart = 3, MsgInput = 4, MsgBye = 5, MsgStartAck = 6;
 

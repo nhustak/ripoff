@@ -85,6 +85,7 @@ namespace RipOff.Core
             s.ClearsTowardStep = 0;
             s.EnemyFireCooldown[0] = s.EnemyFireCooldown[1] = s.EnemyFireCooldown[2] = 0;
             s.EnemyFireEvents = s.EnemyFireHits = 0;
+            for (int p = 0; p < 2; p++) s.WarpTimer[p] = s.WarpX[p] = s.WarpY[p] = s.WarpHeading[p] = 0;
             s.SeedEnhancedRng();
             int n = GameData.CanistersForDip[s.CanisterDip];
             for (int i = 0; i < GameData.CanisterSlots; i++)
@@ -303,7 +304,11 @@ namespace RipOff.Core
             }
         }
 
-        /// <summary>Player respawn (lst:862-932, §19.2, GR §7 "Player respawn").</summary>
+        /// <summary>Player respawn (lst:862-932, §19.2, GR §7 "Player respawn").
+        /// Arcade: once word 3 has counted the respawn delay, the tank appears at its start on the field edge at
+        /// RespawnSpeed and drives in. Enhanced warp-in (GameRules.WarpInPasses &gt; 0, NOTES §28): after the delay,
+        /// a warp of WarpInPasses passes starts at <see cref="WarpInPoint"/>. The record stays free until the warp
+        /// ends, so the player can't be hit, doesn't collide and can't fire. Then it materializes there at WarpInSpeed.</summary>
         private void RespawnPlayers()
         {
             var s = State;
@@ -312,17 +317,51 @@ namespace RipOff.Core
                 if (p == 1 && s.OnePlayer) break;
                 var r = s.Players[p];
                 if (!EnemyState.IsFree(r.A)) continue;
+                if (s.WarpTimer[p] > 0)
+                {
+                    if (--s.WarpTimer[p] > 0) continue;
+                    Materialize(r, s.WarpX[p], s.WarpY[p], s.WarpHeading[p], Rules.WarpInSpeed);
+                    continue;
+                }
                 r.Word3 += 1;
-                if (r.Word3 < Rules.RespawnDelay) continue;
+                if (r.Word3 < RespawnDelayFor(p)) continue;
                 r.Word3 = 0;
-                r.TurnStep = 0;
-                r.A = EnemyState.PlayerAlive;      // lst:890
-                r.Speed = Rules.RespawnSpeed;   // lst:891-893
+                if (Rules.WarpInPasses > 0)
+                {
+                    var (wx, wy, wh) = WarpInPoint(p);
+                    s.WarpX[p] = wx; s.WarpY[p] = wy; s.WarpHeading[p] = wh;
+                    s.WarpTimer[p] = Rules.WarpInPasses;
+                    continue;
+                }
                 var st = GameData.PlayerStarts[p]; // lst:899-906, lst:924-932
-                r.X = st.X; r.Y = st.Y; r.Heading = st.Heading;
-                r.Scale = GameData.PlayerScale;
+                Materialize(r, st.X, st.Y, st.Heading, Rules.RespawnSpeed); // lst:890-893
             }
         }
+
+        /// <summary>The respawn itself (lst:887-932): word A := $01C, turn step 0, speed, position, heading, scale.</summary>
+        private static void Materialize(TankRecord r, int x, int y, int heading, int speed)
+        {
+            r.TurnStep = 0;
+            r.A = EnemyState.PlayerAlive;      // lst:890
+            r.Speed = speed;                   // lst:891-893
+            r.X = x; r.Y = y; r.Heading = heading;
+            r.Scale = GameData.PlayerScale;
+        }
+
+        /// <summary>Respawn delay strategy hook (GameRules.DelayRule). Fixed = RespawnDelay, the arcade's 25 passes.
+        /// A cause-of-death rule would read the player record's word C here (1 = ram, 2 = enemy fire; it keeps that
+        /// value until the respawn), and a time-since-last-death rule would need a new per-player pass stamp in the state.</summary>
+        private int RespawnDelayFor(int p) => Rules.DelayRule switch
+        {
+            _ => Rules.RespawnDelay,
+        };
+
+        /// <summary>Warp-in location strategy hook (GameRules.WarpLocation). Fixed = GameData.WarpInPoints. A random rule
+        /// must draw from <see cref="GameState.NextEnhancedRandom"/>, so online peers pick the same point.</summary>
+        private (int X, int Y, int Heading) WarpInPoint(int p) => Rules.WarpLocation switch
+        {
+            _ => GameData.WarpInPoints[p],
+        };
 
         /// <summary>Game over when no canister slot has y bit 0 clear (lst:1452-1481, GR §2).</summary>
         private void GameOverCheck()

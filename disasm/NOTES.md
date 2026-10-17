@@ -1177,3 +1177,101 @@ Reading:
 1. Feel with a human player. The bots never thrust, so they sit still and hunt. A moving human meets chasers at other ranges, and the hit rate may differ.
 2. Two-player Enhanced (the same knobs apply; `ClearsPerTypeStep` also applies to the 6-kill advance) was not measured.
 3. The fire line is still drawn along the enemy's heading on a miss (cosmetic; no visual miss offset).
+
+## 28. Enhanced warp-in and the ENHANCED OPTIONS page
+
+Status: done 2026-10-17 (Nick approved warp-in and a toggles page). Remake design, not arcade behaviour. Arcade is unchanged: `ArcadeDeterminismTests` and `EscalationTests` pass with the same checksums.
+
+### 28.1 The arcade respawn path (before this change)
+
+- `Simulation.RespawnPlayers` runs every pass after the wave check (Simulation.cs:164; lst:862-932). A player record that is free counts word 3 up.
+- When word 3 reaches `GameRules.RespawnDelay` (25 passes, `GameData.RespawnDelay`, GameData.cs:72; lst:882-886) the record becomes `$01C` (alive) at `GameData.PlayerStarts` (GameData.cs:68).
+  - P1 starts at (1024, 320), heading 270; P2 at (0, 448), heading 90. Both are on the field edge.
+  - Speed is `GameRules.RespawnSpeed` = 5 (lst:891-893). The tank coasts in (speed −1 every 4th pass) and stops about 60 units inside.
+- `StartGame` sets word 3 to the delay, so the first spawn happens in the first pass (Simulation.cs:114).
+- From that pass on the tank can be shot, rammed and can fire. There is no spawn protection.
+
+### 28.2 Warp-in (Enhanced, toggle WARP-IN)
+
+Knobs (GameRules.cs:66 on): `WarpInPasses` (Arcade 0, Enhanced 30 = 0.79 s at 38 Hz, GameRules.cs:106), `WarpInSpeed` (0), `WarpLocation`, `DelayRule`.
+
+Path (`RespawnPlayers`, Simulation.cs:312-339):
+1. The respawn delay is counted exactly as in the arcade.
+2. When it ends, Arcade (`WarpInPasses = 0`) materializes at once, as before. Enhanced instead picks the point from `WarpInPoint(p)` (Simulation.cs:361) and stores it in `GameState.WarpX/WarpY/WarpHeading`.
+3. `GameState.WarpTimer[p] = WarpInPasses`.
+4. Each later pass decrements the timer. When it reaches 0, `Materialize` (Simulation.cs:342) does what the arcade respawn did, at the warp point with `WarpInSpeed` (0: standing still).
+
+**While warping, the player record stays free (`A = $000`).** This is the main design choice. The alternative was an "alive but protected" flag checked in every hit, ram and fire path. Keeping the record free reuses the arcade's own rules:
+- Enemy fire tests find no live victim (`FireTest`, lst:4058-4064), so the player can't be hit.
+- `PlayerPass` returns at once (no movement, no ram test, no fire), so no collisions and no firing. Shots already in flight keep flying.
+- The ram loop of the other player skips it (`IsAlive`).
+- Chasing enemies keep the target they had, as in the arcade (`ChooseChaseTarget` doesn't exclude dead players).
+
+The player becomes vulnerable and can fire on the pass it materializes. Fire is edge-triggered, so a button held through the warp needs a fresh press. An enemy standing on the warp point at that moment is rammed on the same pass (both explode, the player scores), like an arcade spawn into an enemy. That's UNCHECKED for feel.
+
+**Warp point:** `GameData.WarpInPoints` (GameData.cs:71) is each start moved 64 units inward along its heading: P1 (960, 320), P2 (64, 448). That's about where the arcade drive-in stops.
+
+**Timing:** the warp follows the delay (dead 25 passes + warp 30 passes), rather than overlapping it.
+- Overlapping keeps total downtime, but splits the delay rule from the warp, and the delay hook (cause of death / time since death) wants to own "how long until the warp starts".
+- So with warp-in on, a respawn takes 30 passes longer than in Arcade (`RespawnAfterDeathWaitsTheDelayThenWarpsIn`).
+
+**Effect** (`Scene.DrawWarp`, Scene.cs:78):
+- 12 bright spokes spiral in from radius 120 to the warp point.
+- A dim 16-sided ring shrinks with them.
+- From halfway, a dim ship outline grows to full size.
+- It's purely visual: Scene reads `WarpTimer`/`WarpX`/`WarpY`. There's no warp sound (UNCHECKED: maybe later).
+
+**Hooks for later ideas (not implemented):**
+- `GameRules.WarpLocation` (`WarpInLocation.Fixed` only) is switched in `WarpInPoint`. A random location must draw from `GameState.NextEnhancedRandom()` so online peers agree.
+- `GameRules.DelayRule` (`RespawnDelayRule.Fixed` only) is switched in `RespawnDelayFor` (Simulation.cs:354).
+  - Cause of death is already in the dead player's word C until the respawn: 1 = ram, 2 = enemy fire.
+  - Time since the previous death would need a new per-player pass stamp in `GameState` (hashed only outside Arcade).
+
+**Determinism:** the warp uses no randomness today. `WarpTimer/WarpX/WarpY/WarpHeading` are in `StateHash` only outside Arcade (StateHash.cs:44).
+
+### 28.3 ENHANCED OPTIONS (toggles)
+
+- `EnhancedOption` (GameRules.cs:165) has one bit per variation: WarpIn, EnemyAimError, SlowerRamp, SlowerTowing. All are ON by default.
+- `GameRules.Variations` (GameRules.cs:114) has one row per bit: label, one-line description, and an `Off` function that sets the knobs the row owns back to their `GameRules.Arcade` values.
+- `GameRules.For(mode, options)` / `EnhancedWith` (GameRules.cs:139) apply the rows that are off (cached per combination). Arcade ignores the options.
+- A future variation = one new bit + one row. The page and settings pick it up by themselves.
+
+Which knobs each toggle owns (choices):
+- **WARP-IN:** `WarpInPasses`, `WarpInSpeed`.
+- **ENEMY AIM ERROR:** aim spread, per-level tightening and minimum, `EnemyHitRadius`, `EnemyMissCooldown`, `ChaseReactionPasses`.
+  - The miss cooldown only matters when shots can miss, so it belongs here.
+  - The chase reaction delay is the other half of "enemies are less deadly". A separate row would be a toggle whose only effect is a 0.5 s first-shot delay.
+- **SLOWER RAMP:** `ClearsPerTypeStep`, `FullWaveFromLevel`, `EnemySpeedCapBase`, as one toggle.
+  - They were tuned together as one escalation curve (§27.3), and the 2-2.5× game length comes from all three.
+  - Separate rows would let players build untested curves for little gain. Splitting later is just new rows.
+- **SLOWER TOWING:** `TowSpeedPercent`.
+- `ChaseTurnPercent` stays 100 in both modes (§27.2), so no toggle owns it.
+
+`EnhancedOptionsTests` check every knob that differs between Enhanced and Arcade is owned by exactly one row, and that turning a row off restores exactly its knobs to the Arcade values.
+
+**Checks against the previous rules:**
+- WARP-IN off reproduces the Enhanced of 2026.10.17.2: core state hashes of the 5 scripted 6,000-pass games recorded on main at bcd902b (`WarpInTests.WarpInOffIsTheEnhancedOfBeforeWarpIn`).
+- All toggles off plays exactly like Arcade on those games (`AllOptionsOffPlaysLikeArcade`; `GameRules.For(Enhanced, None) == Arcade with { Mode = Enhanced }`).
+
+**Where the page lives:** OPTIONS → ENHANCED OPTIONS (FrontEnd.cs:268 items, :541 notes). It's also reachable from the pause menu's OPTIONS. MODE SELECT shows a summary line under ENHANCED ("ENHANCED OPTIONS: ALL ON (CHANGE IN OPTIONS)").
+- The alternative was a page that opens after picking ENHANCED on MODE SELECT. That puts an extra screen between the player and every Enhanced game, and MODE SELECT also runs before hosting.
+- With the page in Options, all persistent settings stay in one place, and MODE SELECT stays a single press.
+- The page always says "ENHANCED MODE ONLY - ARCADE IGNORES THESE". In an Arcade game it adds "NOT USED IN THIS ARCADE GAME", and online it adds "ONLINE GAMES USE THE HOST'S ENHANCED OPTIONS".
+
+**Saved** in settings.json as `"EnhancedOff": ["WarpIn", ...]` (Settings.cs:42), the list of variations switched off.
+- A file without the key (older builds) and any variation added later read as ON.
+- Unknown names are ignored.
+- The settings file version stays 2 (the key is additive).
+
+**Online:**
+- `GameConfig.Options` is a new byte in the config (schema 3, GameConfig.cs:22). The guest adopts it with the mode. The config hash echo catches tampering (`OptionsAlteredInTransitAreCaughtAndUnknownOptionsRefused`), and unknown bits are refused with a reason.
+- `GameState.Options` is in `StateHash` only outside Arcade.
+- The start message changed shape, so **protocol v4** (Protocol.cs:12). v3 builds (2026.10.17.1/.2, enhanced-preview-1) are refused at Hello with the usual version-mismatch message naming both builds.
+- The connecting screen shows "ENHANCED OPTIONS: …" for Enhanced sessions.
+
+### 28.4 UNCHECKED
+
+1. Feel: whether 0.79 s of warp plus the arcade delay feels right, and whether materializing at speed 0 (instead of the arcade's coasting entry) is better with a pad.
+2. Spawning into an enemy that sits on the warp point (ram on the materialize pass) was not tuned, for example by holding the warp until the point is clear.
+3. The effect is clipped by the field edge on P1's side (the warp point is 64 units from the right edge). It reads fine in the screenshots but wasn't checked on Windows.
+4. Online warp-in was tested in the loopback lockstep tests only, not between two machines.

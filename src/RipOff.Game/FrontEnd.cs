@@ -16,7 +16,7 @@ namespace RipOff.Game
     /// </summary>
     public sealed class FrontEnd
     {
-        public enum Screen { Splash, Main, Online, Options, Keyboard, Connecting, LocalGame, OnlineGame, Pause, GameOver, InputTest, ModeSelect }
+        public enum Screen { Splash, Main, Online, Options, Keyboard, Connecting, LocalGame, OnlineGame, Pause, GameOver, InputTest, ModeSelect, EnhancedOptions }
         public enum GameKind { None, OnePlayer, TwoPlayer, Online }
 
         /// <summary>Splash auto-advance (any key or button skips it sooner).</summary>
@@ -57,6 +57,8 @@ namespace RipOff.Game
         public int LanPort { get; set; } = RipOff.Net.LiteNetTransport.DefaultPort;
         /// <summary>Labels of the menu on top (empty for non-menu screens).</summary>
         public List<string> CurrentLabels => Items().ConvertAll(i => i.Label);
+        /// <summary>The notes under the current screen title (tests).</summary>
+        public List<string> Notes => Header().notes;
         /// <summary>Whether each item of the menu on top can be chosen.</summary>
         public List<bool> CurrentEnabled => Items().ConvertAll(i => i.Enabled);
 
@@ -115,7 +117,7 @@ namespace RipOff.Game
                 SetStack(Screen.Main, Screen.Online, Screen.Connecting);
             }
 
-            if (ui.Options && Top is not (Screen.Options or Screen.Keyboard))
+            if (ui.Options && Top is not (Screen.Options or Screen.EnhancedOptions or Screen.Keyboard))
             {
                 if (Top == Screen.Splash) SetStack(Screen.Main);
                 Push(Screen.Options);
@@ -259,7 +261,19 @@ namespace RipOff.Game
                         d => Change(() => Settings.StickDeadzone = Math.Clamp(Settings.StickDeadzone + d * Settings.DeadzoneStep, Settings.DeadzoneMin, Settings.DeadzoneMax))));
                     l.Add(new("STEAM AT LAUNCH: " + (Settings.SteamAtLaunch ? "ON" : "OFF"), () => Change(() => Settings.SteamAtLaunch = !Settings.SteamAtLaunch),
                         d => Change(() => Settings.SteamAtLaunch = !Settings.SteamAtLaunch)));
+                    l.Add(new("ENHANCED OPTIONS: " + EnhancedSummary(Settings.EnhancedOptions), () => Push(Screen.EnhancedOptions)));
                     l.Add(new("INPUT TEST", () => { _bHeld = 0; Push(Screen.InputTest); }));
+                    l.Add(new("BACK", Pop));
+                    break;
+                case Screen.EnhancedOptions:
+                    foreach (var v in GameRules.Variations)
+                    {
+                        var opt = v.Option;
+                        bool on = (Settings.EnhancedOptions & opt) != 0;
+                        void Toggle() => Change(() => Settings.EnhancedOptions ^= opt);
+                        l.Add(new(v.Label + ": " + (on ? "ON" : "OFF"), Toggle, _ => Toggle()));
+                    }
+                    l.Add(new("ALL ON", () => Change(() => Settings.EnhancedOptions = EnhancedOption.All), Enabled: Settings.EnhancedOptions != EnhancedOption.All));
                     l.Add(new("BACK", Pop));
                     break;
                 case Screen.Pause:
@@ -375,7 +389,7 @@ namespace RipOff.Game
             bool onlineScene = Game == GameKind.Online && online?.Sim != null;
 
             if (Top == Screen.LocalGame && LocalSim != null) { Scene.Build(LocalSim.State, o); }
-            else if (onlineScene && (Top is Screen.OnlineGame or Screen.Pause or Screen.Options or Screen.GameOver))
+            else if (onlineScene && (Top is Screen.OnlineGame or Screen.Pause or Screen.Options or Screen.EnhancedOptions or Screen.GameOver))
             {
                 Scene.Build(online!.Sim!.State, o);
                 if (Top != Screen.OnlineGame) for (int i = 0; i < o.Count; i++) o[i] = o[i] with { Bright = false }; // overlay: game dimmed, still running
@@ -428,7 +442,7 @@ namespace RipOff.Game
                 string label = (i == Selected ? "> " : "  ") + items[i].Label + (i == Selected ? " <" : "  ");
                 VectorFont.DrawCentered(label, cx, y, Fit(label, 26), o, items[i].Enabled);
             }
-            string hint = Top == Screen.Options ? "UP/DOWN CHOOSE   LEFT/RIGHT OR A CHANGE   B/ESC BACK"
+            string hint = Top is Screen.Options or Screen.EnhancedOptions ? "UP/DOWN CHOOSE   LEFT/RIGHT OR A CHANGE   B/ESC BACK"
                 : Top == Screen.Main ? "UP/DOWN CHOOSE   A/ENTER SELECT   F10 OPTIONS"
                 : "UP/DOWN CHOOSE   A/ENTER SELECT   B/ESC BACK";
             VectorFont.DrawCentered(hint, cx, 50, 14, o, false);
@@ -491,6 +505,7 @@ namespace RipOff.Game
                 case Screen.ModeSelect:
                 {
                     if (Selected <= 1) n.Add(Branding.ModeInfo(Selected == 1 ? PlayMode.Enhanced : PlayMode.Arcade));
+                    if (Selected == 1) n.Add("ENHANCED OPTIONS: " + EnhancedSummary(Settings.EnhancedOptions) + " (CHANGE IN OPTIONS)");
                     n.Add("LAST PLAYED: " + Branding.ModeName(Settings.Mode));
                     return (Branding.ModeSelectTitle, n);
                 }
@@ -507,6 +522,7 @@ namespace RipOff.Game
                     if (s?.Phase == SessionPhase.Closed) { n.Add(s.Status.ToUpperInvariant()); return ("GAME ENDED", n); }
                     n.AddRange(Online.Describe());
                     if (Online.ModeText() is { } mt) n.Add(mt);
+                    if (Online.OptionsText() is { } ot) n.Add(ot);
                     if (Online.PeerBuildText() is { } pb) n.Add(pb);
                     if (Online.Error != null) return ("DISCONNECTED", n);
                     return (Online.Mode switch
@@ -522,6 +538,17 @@ namespace RipOff.Game
                     if (Game == GameKind.Online) n.Add("ONLINE GAMES USE THE HOST RULES FOR AUTO FIRE AND CANISTERS");
                     else if (Game != GameKind.None) n.Add("AUTO FIRE AND CANISTERS APPLY FROM THE NEXT GAME");
                     return ("OPTIONS", n);
+                case Screen.EnhancedOptions:
+                {
+                    var vs = GameRules.Variations;
+                    if (Selected < vs.Length) n.Add(vs[Selected].Info);
+                    n.Add("ENHANCED MODE ONLY - ARCADE IGNORES THESE");
+                    var mode = Game == GameKind.Online ? Online.Session?.Sim?.State.PlayMode : LocalSim?.State.PlayMode;
+                    if (Game == GameKind.Online) n.Add("ONLINE GAMES USE THE HOST'S ENHANCED OPTIONS");
+                    else if (Game != GameKind.None && mode == PlayMode.Arcade) n.Add("NOT USED IN THIS ARCADE GAME");
+                    else if (Game != GameKind.None) n.Add("CHANGES APPLY FROM THE NEXT GAME");
+                    return ("ENHANCED OPTIONS", n);
+                }
                 case Screen.Pause:
                     if (Game == GameKind.Online) n.Add("THE ONLINE GAME KEEPS RUNNING");
                     return ("PAUSED", n);
@@ -538,6 +565,15 @@ namespace RipOff.Game
                 }
             }
             return ("", n);
+        }
+
+        /// <summary>"ALL ON", "ALL OFF" or "OFF: WARP-IN, SLOWER TOWING".</summary>
+        public static string EnhancedSummary(EnhancedOption o)
+        {
+            if ((o & EnhancedOption.All) == EnhancedOption.All) return "ALL ON";
+            var off = new List<string>();
+            foreach (var v in GameRules.Variations) if ((o & v.Option) == 0) off.Add(v.Label);
+            return off.Count == GameRules.Variations.Length ? "ALL OFF" : "OFF: " + string.Join(", ", off);
         }
 
         /// <summary>Score as shown in game: tens plus the trailing 0, thousands word in front.</summary>

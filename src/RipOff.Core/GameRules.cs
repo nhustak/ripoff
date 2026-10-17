@@ -59,6 +59,19 @@ namespace RipOff.Core
         /// <summary>Towing speed, percent of the normal move (min 2). 100 = arcade.</summary>
         public int TowSpeedPercent { get; init; } = 100;
 
+        // ---- player (re)spawn (Simulation.RespawnPlayers, NOTES §28) ----
+        /// <summary>Passes of the warp-in effect after the respawn delay (0 = arcade: the tank drives in from the
+        /// field edge at <see cref="RespawnSpeed"/>). While warping in, the player record stays free: it can't be hit,
+        /// doesn't collide and can't fire, and it materializes at the end at the <see cref="WarpLocation"/> point.</summary>
+        public int WarpInPasses { get; init; }
+        /// <summary>Speed when a warp-in materializes (the arcade's drive-in uses <see cref="RespawnSpeed"/>).</summary>
+        public int WarpInSpeed { get; init; }
+        /// <summary>Where a warp-in happens (hook: only <see cref="WarpInLocation.Fixed"/> exists today).</summary>
+        public WarpInLocation WarpLocation { get; init; } = WarpInLocation.Fixed;
+        /// <summary>How long a dead player waits before (re)spawning (hook: only <see cref="RespawnDelayRule.Fixed"/>
+        /// exists today, = <see cref="RespawnDelay"/>).</summary>
+        public RespawnDelayRule DelayRule { get; init; } = RespawnDelayRule.Fixed;
+
         /// <summary>Aim spread at <paramref name="level"/>.</summary>
         public int AimErrorAt(int level) => EnemyAimErrorDeg <= 0 ? 0 : Math.Max(EnemyAimErrorMin, EnemyAimErrorDeg - EnemyAimErrorPerLevel * Math.Max(0, level - 1));
 
@@ -89,15 +102,83 @@ namespace RipOff.Core
             EnemySpeedCapBase = 8,      // type 6: 9 at level 1 (arcade 11), 10 at level 2 (arcade 12)
             // Canisters: towing enemies move at 75 % (min 2).
             TowSpeedPercent = 75,
+            // Respawn: warp in at the spawn point instead of driving in from the edge (NOTES §28). 30 passes = 0.79 s.
+            WarpInPasses = 30, WarpInSpeed = 0,
         };
+
+        /// <summary>
+        /// The Enhanced variations a player can switch off (ENHANCED OPTIONS page, GameConfig.Options). Each row
+        /// names the knobs it owns; switching it off sets those knobs back to their <see cref="Arcade"/> values.
+        /// A future variation = one new <see cref="EnhancedOption"/> bit + one row here.
+        /// </summary>
+        public static readonly EnhancedVariation[] Variations =
+        {
+            new(EnhancedOption.WarpIn, "WARP-IN", "PLAYERS WARP IN INSTEAD OF DRIVING IN FROM THE EDGE",
+                r => r with { WarpInPasses = Arcade.WarpInPasses, WarpInSpeed = Arcade.WarpInSpeed }),
+            new(EnhancedOption.EnemyAimError, "ENEMY AIM ERROR", "ENEMY SHOTS CAN MISS - ENEMIES RELOAD AFTER A MISS AND REACT LATER",
+                r => r with
+                {
+                    EnemyAimErrorDeg = Arcade.EnemyAimErrorDeg, EnemyAimErrorPerLevel = Arcade.EnemyAimErrorPerLevel,
+                    EnemyAimErrorMin = Arcade.EnemyAimErrorMin, EnemyHitRadius = Arcade.EnemyHitRadius,
+                    EnemyMissCooldown = Arcade.EnemyMissCooldown, ChaseReactionPasses = Arcade.ChaseReactionPasses,
+                }),
+            new(EnhancedOption.SlowerRamp, "SLOWER RAMP", "TWO CLEARS PER ENEMY TYPE, 3-ENEMY WAVES FROM LEVEL 3, SPEED CAP",
+                r => r with
+                {
+                    ClearsPerTypeStep = Arcade.ClearsPerTypeStep, FullWaveFromLevel = Arcade.FullWaveFromLevel,
+                    EnemySpeedCapBase = Arcade.EnemySpeedCapBase,
+                }),
+            new(EnhancedOption.SlowerTowing, "SLOWER TOWING", "ENEMIES TOWING A CANISTER MOVE AT 75 %",
+                r => r with { TowSpeedPercent = Arcade.TowSpeedPercent }),
+        };
+
+        private static readonly GameRules?[] EnhancedByOptions = new GameRules?[(int)EnhancedOption.All + 1];
+
+        /// <summary>Enhanced with the variations not in <paramref name="options"/> switched off (cached; options outside
+        /// <see cref="EnhancedOption.All"/> are ignored).</summary>
+        public static GameRules EnhancedWith(EnhancedOption options)
+        {
+            int k = (int)(options & EnhancedOption.All);
+            var cached = EnhancedByOptions[k];
+            if (cached != null) return cached;
+            var r = Enhanced;
+            foreach (var v in Variations) if ((options & v.Option) == 0) r = v.Off(r);
+            return EnhancedByOptions[k] = r;
+        }
 
         public static bool IsDefined(PlayMode m) => m is PlayMode.Arcade or PlayMode.Enhanced;
 
-        public static GameRules For(PlayMode m) => m switch
+        public static GameRules For(PlayMode m) => For(m, EnhancedOption.All);
+
+        /// <summary>Rules for a mode and its Enhanced options. Arcade ignores the options.</summary>
+        public static GameRules For(PlayMode m, EnhancedOption options) => m switch
         {
             PlayMode.Arcade => Arcade,
-            PlayMode.Enhanced => Enhanced,
+            PlayMode.Enhanced => options == EnhancedOption.All ? Enhanced : EnhancedWith(options),
             _ => throw new ArgumentOutOfRangeException(nameof(m), m, "unknown play mode"),
         };
     }
+
+    /// <summary>Enhanced variations that can be switched off (bit set = on). Saved in settings.json and sent in the
+    /// online game config (one byte), so new bits must be appended and <see cref="All"/> widened.</summary>
+    [Flags]
+    public enum EnhancedOption : byte
+    {
+        None = 0,
+        WarpIn = 1,
+        EnemyAimError = 2,
+        SlowerRamp = 4,
+        SlowerTowing = 8,
+        All = WarpIn | EnemyAimError | SlowerRamp | SlowerTowing,
+    }
+
+    /// <summary>One row of the ENHANCED OPTIONS page: its bit, label, one-line description, and what "off" does to the rules.</summary>
+    public sealed record EnhancedVariation(EnhancedOption Option, string Label, string Info, Func<GameRules, GameRules> Off);
+
+    /// <summary>Warp-in location strategy (Simulation.WarpInPoint). Later: e.g. Random (from the Enhanced RNG).</summary>
+    public enum WarpInLocation : byte { Fixed = 0 }
+
+    /// <summary>Respawn delay strategy (Simulation.RespawnDelayFor). Later: e.g. by cause of death (the player record's
+    /// word C: 1 = ram, 2 = enemy fire) and time since the previous death.</summary>
+    public enum RespawnDelayRule : byte { Fixed = 0 }
 }

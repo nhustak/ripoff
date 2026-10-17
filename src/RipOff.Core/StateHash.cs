@@ -40,6 +40,8 @@ namespace RipOff.Core
                 Add(0x4D0D0000 | (int)s.PlayMode);
                 Add(s.ClearsTowardStep); Add((int)s.EnhancedRng);
                 foreach (var c in s.EnemyFireCooldown) Add(c);
+                Add(0x0F7E0000 | (int)s.Options);
+                for (int p = 0; p < 2; p++) { Add(s.WarpTimer[p]); Add(s.WarpX[p]); Add(s.WarpY[p]); Add(s.WarpHeading[p]); }
             }
             return h;
         }

@@ -41,4 +41,10 @@ Status: idea / planned / in progress / done. Source: Nick or bot-suggested.
 |---|---|---|
 | Ship select: each player chooses which ship they play, and both players can't pick the same ship (there are currently two ship shapes) | idea | Nick |
 | Additional ships beyond the current two | idea | Nick |
-| Ships have different abilities | idea | Nick |
+| Ships have different abilities (examples below) | idea | Nick |
+
+Ability examples from Nick for "Ships have different abilities":
+- Speed
+- Damage
+- Armor. This means ships can take more than one hit, unlike the arcade, where one hit kills.
+- Other abilities to be decided.

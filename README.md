@@ -77,6 +77,8 @@ The last mode picked is highlighted next time and saved in settings.json (`"Mode
 - Two cleared waves per enemy-type step. Three-enemy waves start at level 3. Enemy speed is capped at 8 + level.
 - Towing enemies move at 75 %.
 
+Enhanced changes done so far, and the ideas backlog: [ENHANCEMENTS.md](ENHANCEMENTS.md).
+
 All randomness comes from a seeded generator in the game state, so online games stay in lockstep. Measure with `tools/remake/Waves stats [seeds] [minutes]`.
 
 ```

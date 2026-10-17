@@ -81,18 +81,18 @@ public class SettingsTests
         var s = store.Load(out var warn);
         Assert.Null(warn);
         Assert.False(s.AutoFire); Assert.Equal(8, s.Canisters); Assert.Equal(1.0, s.Volume); Assert.False(s.Muted);
-        Assert.False(s.Fullscreen); Assert.Equal(PadMapper.DefaultStickDeadzone, s.StickDeadzone); Assert.True(s.SteamEnabled);
+        Assert.False(s.Fullscreen); Assert.Equal(PadMapper.DefaultStickDeadzone, s.StickDeadzone); Assert.False(s.SteamAtLaunch);
     }
 
     [Fact]
     public void SaveAndLoadRoundTrip()
     {
         var store = new SettingsStore(TempDir());
-        var s = new Settings { AutoFire = true, Canisters = 12, Volume = 0.3, Muted = true, Fullscreen = true, StickDeadzone = 0.5f, SteamEnabled = false };
+        var s = new Settings { AutoFire = true, Canisters = 12, Volume = 0.3, Muted = true, Fullscreen = true, StickDeadzone = 0.5f, SteamAtLaunch = true };
         Assert.Null(store.Save(s));
         var t = new SettingsStore(Path.GetDirectoryName(store.FilePath)).Load(out var warn);
         Assert.Null(warn);
-        Assert.Equal((true, 12, 0.3, true, true, 0.5f, false), (t.AutoFire, t.Canisters, Math.Round(t.Volume, 3), t.Muted, t.Fullscreen, t.StickDeadzone, t.SteamEnabled));
+        Assert.Equal((true, 12, 0.3, true, true, 0.5f, true), (t.AutoFire, t.Canisters, Math.Round(t.Volume, 3), t.Muted, t.Fullscreen, t.StickDeadzone, t.SteamAtLaunch));
         Assert.Equal(new GameConfig(12, true), t.GameConfig);
         Assert.Contains("\"AutoFire\": true", File.ReadAllText(store.FilePath));
     }
@@ -114,7 +114,7 @@ public class SettingsTests
         Assert.False(File.Exists(store.FilePath));
         Assert.Equal(content, File.ReadAllText(store.FilePath + ".corrupt"));
         Assert.Null(store.Save(s));                         // and the next save works
-        Assert.Null(new SettingsStore(dir).Load(out var w2).Version == 1 ? null : "bad");
+        Assert.Equal(2, new SettingsStore(dir).Load(out var w2).Version);
         Assert.Null(w2);
     }
 

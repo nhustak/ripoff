@@ -31,6 +31,8 @@ namespace RipOff.Game.Steam
         /// <summary>A lobby the user asked to join from Steam (invite, friends list, or command line).</summary>
         public ulong? PendingJoin { get; set; }
         public ulong? TakePendingJoin() { var p = PendingJoin; PendingJoin = null; return p; }
+        public bool Initialized => true;
+        public bool EnsureInit() => Available;
         public string PersonaName { get; private set; } = "";
 
         private Callback<GameLobbyJoinRequested_t>? _cbLobbyJoin;
@@ -44,8 +46,8 @@ namespace RipOff.Game.Steam
         private string _searchCode = "";
         internal CSteamID FailedSessionWith = CSteamID.Nil;
 
-        /// <summary>Must run before the graphics device exists so the overlay can hook it (Steamworks "Steam Overlay"
-        /// docs: call SteamAPI_Init prior to initializing the OpenGL/D3D device).</summary>
+        /// <summary>SteamAPI_Init. Called through <see cref="SteamGate"/> (lazy by default). The overlay hooks the graphics
+        /// device only if this ran before the device was created (Steamworks "Steam Overlay" docs).</summary>
         public static SteamPlatform Init(string[] args)
         {
             var p = new SteamPlatform();

@@ -56,7 +56,8 @@ MAIN MENU
 │  ├─ MUTE: OFF/ON
 │  ├─ DISPLAY: WINDOWED/FULLSCREEN
 │  ├─ STICK DEAD ZONE: 10-60%     (default 35%, steps of 5)
-│  ├─ STEAM AT LAUNCH: ON/OFF     (applies on the next start)
+│  ├─ STEAM AT LAUNCH: OFF/ON     (default OFF; applies on the next start; see Controller troubleshooting)
+│  ├─ INPUT TEST                  all 4 pad slots live (hold B or press Esc to leave)
 │  └─ BACK
 └─ EXIT                      the only way out, with EXIT TO DESKTOP below
 
@@ -109,18 +110,40 @@ The on-screen keyboard (lobby code, IP address): move with the D-pad/stick and p
 
 The window title shows the volume (or why there is no audio), how many pads are connected, and whether Steam is on.
 
-**If the controller does nothing while Steam is running** (Nick's report on M3): with `steam_appid.txt` = 480, Steam treats the game as Spacewar. A Valve input engineer [explains](https://github.com/rlabrecque/Steamworks.NET/issues/380) that this redirects controller input to Steam Input instead of XInput. There are three fixes:
+### Controller troubleshooting
 
-- In Steam, open Library → Spacewar → Properties → Controller and set Steam Input to "Disable Steam Input". You may need to install Spacewar first with `steam://run/480`.
+**Steam starts only when you need it.** Nick's controller stopped working once the game initialized Steam: in M3/M4 that happened at every launch, before the window. With `steam_appid.txt` = 480, an initialized Steam client treats the game as Spacewar, and its Steam Input can redirect the controller away from XInput. Sources:
+
+- A Valve input engineer in [Steamworks.NET #380](https://github.com/rlabrecque/Steamworks.NET/issues/380).
+- Reports from [Unreal](https://forums.unrealengine.com/t/gamepad-not-working-when-connected-to-steam/448003), [GodotSteam](https://github.com/GodotSteam/GodotSteam/discussions/568) ("inputs work until Steam.run_callbacks() kicks in") and [Godot](https://forum.godotengine.org/t/disabling-steam-input-in-godotsteam/118350), all under App ID 480.
+
+So by default the game never touches Steam for local play, the menus or direct IP. Steam is initialized only when you pick **HOST ONLINE (STEAM)** or **JOIN BY CODE (STEAM)**.
+
+Trade-off: the Steam overlay (Shift+Tab, **INVITE A STEAM FRIEND**) works only if Steam was initialized before the window was created. To get the overlay, set **Options → STEAM AT LAUNCH: ON** and restart, or let Steam start the game with an invite (`+connect_lobby`). Lobby codes work either way. `--no-steam` never starts Steam.
+
+If the pad still stops after Steam starts (online via Steam, or STEAM AT LAUNCH on), use either fix:
+
+- In Steam, open Library → Spacewar → Properties → Controller and set Steam Input to "Disable Steam Input" (install Spacewar first with `steam://run/480`).
 - In Steam's controller settings, turn off "Xbox Configuration Support".
-- In Options, set **STEAM AT LAUNCH: OFF** (or start with `--no-steam`). This turns off Steam online play for that run.
 
-UNCHECKED: whether this, or the pad-index fix above, was the cause on Nick's machine. Both are addressed.
+**What Windows sees:**
+
+- **Options → INPUT TEST** lists pad slots 0-3. For each it shows connected or not, the controller name and type, the buttons held, both sticks and both triggers. It also shows what the game makes of it ("GAME SEES: LEFT THRUST FIRE") and the Steam state. Every button can be tested, so leave by holding **B** for 1 s or pressing **Esc**.
+- **`%APPDATA%\RipOffRemake\input-log.txt`** is rewritten at every launch, 2 s after the window opens (SDL reports pads only once the window runs). It records:
+  - Windows and .NET version, arguments, settings path, dead zone and STEAM AT LAUNCH.
+  - Steam-related environment variables (`SteamAppId`, `SDL_GAMECONTROLLER_IGNORE_DEVICES`, …).
+  - All 4 slots with name, type, buttons and axes.
+  - Later events: pads connecting or disconnecting, and Steam starting with its result.
+  - It contains no Steam IDs or tokens.
+
+UNCHECKED: whether Steam Input is the cause on Nick's PC. The log and INPUT TEST will show it: a pad that is listed before Steam starts and disappears after would confirm it.
 
 ### Testing on Windows
 
 1. `dotnet test RipOff.sln` (all three test projects; no window, audio device or Steam needed).
 2. `dotnet run --project src/RipOff.Game` (or `RipOff.exe` from the zip). The splash appears; press any button.
+   - The window title should end in "N pad(s), Steam not started".
+   - If a pad does nothing: open **Options → INPUT TEST** with the keyboard (arrows, Enter) and check which slot shows the pad and whether its buttons light up. Then send `%APPDATA%\RipOffRemake\input-log.txt`.
 3. Controller only, keyboard untouched:
    1. On the main menu, move with the D-pad and the stick and open **OPTIONS** with A.
    2. Change every option with left/right and A. **DISPLAY** switches the window to fullscreen and back. Go back with B.
@@ -147,7 +170,7 @@ UNCHECKED: whether this, or the pad-index fix above, was the cause on Nick's mac
 
 ### Online play
 
-Main menu → **ONLINE** (tree above). The Steam items are greyed out, with the reason, when Steam is not running; direct IP still works. **STEAM AT LAUNCH: OFF** or `--no-steam` skips Steam entirely.
+Main menu → **ONLINE** (tree above). Steam starts the first time you pick a Steam item. If it cannot start, the reason is shown and the Steam items are greyed out; direct IP still works. `--no-steam` skips Steam entirely.
 
 - **Pausing online:** the shared game never pauses (a choice; it is flagged in NOTES §23). Esc or Start opens the menu as an overlay. The game keeps running, dimmed, behind it, and your tank gets no input until you close the menu.
 - **Rules:** the host's **AUTO FIRE** and **CANISTERS** settings are sent to the guest and checked by both sides before the first frame.
@@ -204,7 +227,7 @@ Steam (each person needs their own Steam account):
 1. Both: start Steam and log in (two different accounts; you do not need to own Spacewar). Unzip `RipOff-win-x64.zip` anywhere and run `RipOff.exe` directly (not through Steam). Steam should then show you as playing "Spacewar". That is App ID 480.
 2. Host: **ONLINE → HOST ONLINE (STEAM)**. The screen shows a code such as `K7QX2M`.
 3. Invite in one of these ways:
-   - Overlay: press **Shift+Tab** or pick **INVITE A STEAM FRIEND**, then invite the friend.
+   - Overlay (needs **STEAM AT LAUNCH: ON** and a restart): press **Shift+Tab** or pick **INVITE A STEAM FRIEND**, then invite the friend.
    - Steam friends list: invite them or have them join you.
    - Code: tell them the code. They pick **ONLINE → JOIN BY CODE (STEAM)** and enter it on the on-screen keyboard (or type it).
 4. **The friend must already have `RipOff.exe` running before accepting an invite.** With App ID 480, accepting an invite while the game is closed starts Spacewar instead ([Unreal forum](https://forums.unrealengine.com/t/steam-session-invite-starts-spacewar/500975), [Unity forum](https://discussions.unity.com/t/steamworks-implementation-launches-spacewar/829009)). If that happens, close Spacewar, start `RipOff.exe`, and use the code.
@@ -213,7 +236,7 @@ Steam (each person needs their own Steam account):
 480 caveats:
 
 - The game appears as "Spacewar" in Steam.
-- Outside the Steam client the overlay is loaded by `SteamAPI_Init`, which must run before the graphics device exists. The game does this (`Program.cs`). If the overlay still doesn't open, Valve's advice is to launch through Steam ([Steamworks overlay docs](https://partner.steamgames.com/doc/features/overlay)). Here, use the code or the friends list instead.
+- Outside the Steam client the overlay is loaded by `SteamAPI_Init`, which must run before the graphics device exists. The game does that only with **Options → STEAM AT LAUNCH: ON** (default OFF, see Controller troubleshooting). If the overlay still doesn't open, Valve's advice is to launch through Steam ([Steamworks overlay docs](https://partner.steamgames.com/doc/features/overlay)). Here, use the code or the friends list instead.
 - Do not add `SteamAPI.RestartAppIfNecessary(480)`: it would relaunch as Spacewar.
 - `steam_appid.txt` must stay next to the exe, and Steam must be running ([Steamworks API example](https://partner.steamgames.com/doc/sdk/api/example)).
 

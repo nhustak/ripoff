@@ -24,7 +24,8 @@ namespace RipOff.Game
     {
         public enum Kind { None, SteamHost, SteamJoin, LanHost, LanJoin }
 
-        private readonly SteamPlatform? _steam;
+        private readonly Func<SteamPlatform?> _steamSource;
+        private SteamPlatform? _steam => _steamSource();
         private ITransport? _transport;
         private bool _desyncReported;
 
@@ -37,7 +38,10 @@ namespace RipOff.Game
         public string ReportDirectory { get; set; } = AppContext.BaseDirectory;
         public Action<int, GameState>? FrameSimulated;
 
-        public OnlineController(SteamPlatform? steam) { _steam = steam; }
+        public OnlineController(SteamPlatform? steam) : this(() => steam) { }
+        private OnlineController(Func<SteamPlatform?> source) { _steamSource = source; }
+        /// <summary>Steam looked up on use (lazy init through <see cref="SteamGate"/>).</summary>
+        public static OnlineController WithSteamSource(Func<SteamPlatform?> source) => new(source);
 
         public bool Active => Mode != Kind.None;
         public bool Running => Session?.Phase == SessionPhase.Running;

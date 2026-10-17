@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Microsoft.Xna.Framework.Input;
 using RipOff.Core;
 using RipOff.Net;
 
@@ -15,7 +16,7 @@ namespace RipOff.Game
     /// </summary>
     public sealed class FrontEnd
     {
-        public enum Screen { Splash, Main, Online, Options, Keyboard, Connecting, LocalGame, OnlineGame, Pause, GameOver }
+        public enum Screen { Splash, Main, Online, Options, Keyboard, Connecting, LocalGame, OnlineGame, Pause, GameOver, InputTest }
         public enum GameKind { None, OnePlayer, TwoPlayer, Online }
 
         /// <summary>Splash auto-advance (any key or button skips it sooner).</summary>
@@ -65,6 +66,27 @@ namespace RipOff.Game
         }
 
         public bool SteamAvailable => _steam?.Available == true;
+        /// <summary>Steam options can be picked: Steam not tried yet (starts lazily on pick) or tried and working.</summary>
+        public bool SteamSelectable => _steam != null && (!_steam.Initialized || _steam.Available);
+
+        /// <summary>Raw pad slots 0-3 as the host read them this tick (INPUT TEST screen). Filled by the host / tests.</summary>
+        public readonly PadSlot[] Pads = new PadSlot[InputReader.MaxPads];
+        /// <summary>Gameplay controls seen this tick (INPUT TEST screen).</summary>
+        public PlayInput LastPlay { get; private set; }
+        /// <summary>Ticks the INPUT TEST screen needs B held (or Esc) to leave, so B itself can be tested.</summary>
+        public const int InputTestHoldTicks = Tps;
+        private int _bHeld;
+
+        /// <summary>Starts Steam on first use (lazy, NOTES §24). False (with a notice) when it cannot start.</summary>
+        private bool SteamReady()
+        {
+            if (_steam == null) return false;
+            bool first = !_steam.Initialized;
+            bool ok = _steam.EnsureInit();
+            if (!ok) Notify(_steam.Status);
+            else if (first) Notify("Steam started. If the controller stops responding, see README: Steam Input");
+            return ok;
+        }
 
         public void Notify(string text, int seconds = 6) { _notice = text; _noticeTicks = seconds * Tps; }
 
@@ -76,10 +98,11 @@ namespace RipOff.Game
             if (_noticeTicks > 0 && --_noticeTicks == 0) _notice = null;
             Sound = Silence;
             _startPulse = false;
+            LastPlay = play;
 
             if (Top != Screen.Keyboard) Shortcuts(ui);
 
-            if (_steam?.TakePendingJoin() is ulong lobby) // Steam invite / friends list "Join game" / +connect_lobby
+            if (_steam?.Initialized == true && _steam.TakePendingJoin() is ulong lobby) // Steam invite / friends list "Join game" / +connect_lobby
             {
                 EndGame();
                 Online.JoinSteamLobby(lobby);
@@ -108,6 +131,13 @@ namespace RipOff.Game
                             case OnScreenKeyboard.Result.Ok: Pop(); _kbDone?.Invoke(_kb.Text); break;
                             case OnScreenKeyboard.Result.Cancel: Pop(); break;
                         }
+                        break;
+                    case Screen.InputTest:
+                        // Every button is being tested here, so B only leaves when held; Esc leaves at once.
+                        bool bDown = false;
+                        foreach (var p in Pads) bDown |= p.Connected && p.State.Buttons.B == ButtonState.Pressed;
+                        _bHeld = bDown ? _bHeld + 1 : 0;
+                        if (ui.Escape || _bHeld >= InputTestHoldTicks) { _bHeld = 0; Pop(); }
                         break;
                     case Screen.Pause:
                         if (ui.Back || ui.Start) { Pop(); break; }
@@ -191,9 +221,9 @@ namespace RipOff.Game
                     l.Add(new("EXIT", () => ExitRequested = true));
                     break;
                 case Screen.Online:
-                    l.Add(new("HOST ONLINE (STEAM)", () => { Online.HostSteam(Settings.GameConfig); Push(Screen.Connecting); }, Enabled: SteamAvailable));
-                    l.Add(new("JOIN BY CODE (STEAM)", () => OpenKeyboard(OnScreenKeyboard.Mode.LobbyCode, "ENTER LOBBY CODE",
-                        code => { Online.JoinSteamCode(code); Push(Screen.Connecting); }), Enabled: SteamAvailable));
+                    l.Add(new("HOST ONLINE (STEAM)", () => { if (!SteamReady()) return; Online.HostSteam(Settings.GameConfig); Push(Screen.Connecting); }, Enabled: SteamSelectable));
+                    l.Add(new("JOIN BY CODE (STEAM)", () => { if (!SteamReady()) return; OpenKeyboard(OnScreenKeyboard.Mode.LobbyCode, "ENTER LOBBY CODE",
+                        code => { Online.JoinSteamCode(code); Push(Screen.Connecting); }); }, Enabled: SteamSelectable));
                     l.Add(new("HOST DIRECT IP", () => { Online.HostLan(Settings.GameConfig, LanPort); Push(Screen.Connecting); }));
                     l.Add(new("JOIN DIRECT IP", () => OpenKeyboard(OnScreenKeyboard.Mode.Address, "HOST ADDRESS (IP OR IP:PORT)",
                         addr => { Online.JoinLan(addr); Push(Screen.Connecting); })));
@@ -216,8 +246,9 @@ namespace RipOff.Game
                         d => Change(() => Settings.Fullscreen = !Settings.Fullscreen)));
                     l.Add(new($"STICK DEAD ZONE: {Math.Round(Settings.StickDeadzone * 100)}%", () => Change(() => Settings.StickDeadzone = Settings.StickDeadzone >= Settings.DeadzoneMax - 0.001f ? Settings.DeadzoneMin : Settings.StickDeadzone + Settings.DeadzoneStep),
                         d => Change(() => Settings.StickDeadzone = Math.Clamp(Settings.StickDeadzone + d * Settings.DeadzoneStep, Settings.DeadzoneMin, Settings.DeadzoneMax))));
-                    l.Add(new("STEAM AT LAUNCH: " + (Settings.SteamEnabled ? "ON" : "OFF"), () => Change(() => Settings.SteamEnabled = !Settings.SteamEnabled),
-                        d => Change(() => Settings.SteamEnabled = !Settings.SteamEnabled)));
+                    l.Add(new("STEAM AT LAUNCH: " + (Settings.SteamAtLaunch ? "ON" : "OFF"), () => Change(() => Settings.SteamAtLaunch = !Settings.SteamAtLaunch),
+                        d => Change(() => Settings.SteamAtLaunch = !Settings.SteamAtLaunch)));
+                    l.Add(new("INPUT TEST", () => { _bHeld = 0; Push(Screen.InputTest); }));
                     l.Add(new("BACK", Pop));
                     break;
                 case Screen.Pause:
@@ -331,6 +362,7 @@ namespace RipOff.Game
                 case Screen.Splash: BuildSplash(o); break;
                 case Screen.LocalGame: case Screen.OnlineGame: break;
                 case Screen.Keyboard: _kb!.Build(o, _kbTitle); break;
+                case Screen.InputTest: BuildInputTest(o); break;
                 default: BuildMenu(o); break;
             }
             if (_notice != null) VectorFont.DrawCentered(_notice.ToUpperInvariant(), cx, 20, Fit(_notice, 13), o, false);
@@ -375,6 +407,34 @@ namespace RipOff.Game
             VectorFont.DrawCentered(hint, cx, 50, 14, o, false);
         }
 
+        private void BuildInputTest(List<Line> o)
+        {
+            const float cx = Scene.Width / 2f;
+            VectorFont.DrawCentered("INPUT TEST", cx, 700, 30, o);
+            float y = 640;
+            for (int i = 0; i < Pads.Length; i++)
+            {
+                var p = Pads[i];
+                string head = $"PAD SLOT {i}: " + (p.Connected ? PadText.ForFont(p.Name.Length > 0 ? p.Name : "CONNECTED") + (p.Type.Length > 0 ? " (" + PadText.ForFont(p.Type) + ")" : "") : "NOT CONNECTED");
+                VectorFont.Draw(head, 40, y, Fit(head, 18, 940), o, p.Connected);
+                if (p.Connected)
+                {
+                    string b = "BUTTONS: " + PadText.ForFont(PadText.Pressed(p.State));
+                    string a = PadText.ForFont(PadText.Axes(p.State));
+                    VectorFont.Draw(b, 70, y - 30, Fit(b, 15, 900), o);
+                    VectorFont.Draw(a, 70, y - 56, Fit(a, 15, 900), o);
+                }
+                y -= p.Connected ? 110 : 50;
+            }
+            var all = LastPlay.All;
+            string game = "GAME SEES: " + (all.Left ? "LEFT " : "") + (all.Right ? "RIGHT " : "") + (all.Thrust ? "THRUST " : "") + (all.Fire ? "FIRE" : "")
+                + (all.Left || all.Right || all.Thrust || all.Fire ? "" : "NOTHING");
+            VectorFont.DrawCentered(game, cx, 150, 18, o);
+            string st = "STEAM: " + PadText.ForFont(_steam?.Status ?? "off");
+            VectorFont.DrawCentered(st, cx, 110, Fit(st, 14), o, false);
+            VectorFont.DrawCentered("HOLD B OR PRESS ESC TO GO BACK", cx, 50, 14, o, false);
+        }
+
         private (string title, List<string> notes) Header()
         {
             var n = new List<string>();
@@ -383,7 +443,8 @@ namespace RipOff.Game
                 case Screen.Main:
                     return ("", n);
                 case Screen.Online:
-                    if (!SteamAvailable) n.Add(("STEAM: " + (_steam?.Status ?? "off")).ToUpperInvariant());
+                    if (_steam == null || (_steam.Initialized && !_steam.Available)) n.Add(PadText.ForFont("STEAM: " + (_steam?.Status ?? "off")));
+                    else if (!_steam.Initialized) n.Add("STEAM STARTS WHEN YOU PICK A STEAM OPTION");
                     n.Add($"YOUR RULES WHEN HOSTING: {Settings.Canisters} CANISTERS, AUTO FIRE {(Settings.AutoFire ? "ON" : "OFF")}");
                     return ("ONLINE", n);
                 case Screen.Connecting:

@@ -23,7 +23,9 @@ namespace RipOff.Game
         readonly InputReader _input = new InputReader();
         readonly GamePadState[] _pads = new GamePadState[InputReader.MaxPads];
         readonly StringBuilder _typed = new StringBuilder();
-        readonly SteamPlatform? _steam;
+        readonly SteamGate? _steam;
+        readonly InputLog? _log;
+        readonly PadSlot[] _slots = new PadSlot[InputReader.MaxPads];
         readonly FrontEnd? _front;
         readonly SettingsStore? _store;
         SoundOutput? _sound;
@@ -33,10 +35,10 @@ namespace RipOff.Game
         bool _fullscreenApplied;
         string _title = "";
 
-        public RipOffGame(string? shotPath = null, int shotPasses = 400, SteamPlatform? steam = null,
-            Settings? settings = null, SettingsStore? store = null, string? notice = null)
+        public RipOffGame(string? shotPath = null, int shotPasses = 400, SteamGate? steam = null,
+            Settings? settings = null, SettingsStore? store = null, string? notice = null, InputLog? log = null)
         {
-            _shotPath = shotPath; _shotPasses = shotPasses; _steam = steam; _store = store;
+            _shotPath = shotPath; _shotPasses = shotPasses; _steam = steam; _store = store; _log = log;
             _gfx = new GraphicsDeviceManager(this)
             {
                 PreferredBackBufferWidth = 1024,
@@ -53,7 +55,7 @@ namespace RipOff.Game
             if (shotPath == null)
             {
                 var s = settings ?? new Settings();
-                _front = new FrontEnd(s, new OnlineController(steam), steam, st => { if (_store?.Save(st) is { } err) _front?.Notify(err); }, notice);
+                _front = new FrontEnd(s, OnlineController.WithSteamSource(() => steam?.Platform), steam, st => { if (_store?.Save(st) is { } err) _front?.Notify(err); }, notice);
             }
         }
 
@@ -90,11 +92,30 @@ namespace RipOff.Game
             b.Volume = _front.Settings.Volume; b.Muted = _front.Settings.Muted;
         }
 
-        /// <summary>GamePad.GetState never takes the game down: a failing or absent pad reads as disconnected.</summary>
-        static GamePadState ReadPad(int index)
+        /// <summary>
+        /// Reads every slot 0-3 with GamePad.GetState(i) and MonoGame's default dead zone (IndependentAxes), making
+        /// no assumption about which slot a pad lands in. A failing or absent pad reads as disconnected. The name and
+        /// type (GetCapabilities) are refreshed when a slot's connection changes.
+        /// </summary>
+        void ReadPads()
         {
-            try { return GamePad.GetState(index, GamePadDeadZone.None); }
-            catch (Exception) { return default; }
+            for (int i = 0; i < _slots.Length; i++)
+            {
+                GamePadState st;
+                try { st = GamePad.GetState(i); }
+                catch (Exception) { st = default; }
+                if (st.IsConnected != _slots[i].Connected || (st.IsConnected && _slots[i].Name == null))
+                {
+                    string name = "", type = "";
+                    if (st.IsConnected)
+                        try { var c = GamePad.GetCapabilities(i); name = c.DisplayName ?? ""; type = c.GamePadType.ToString(); }
+                        catch (Exception) { }
+                    _slots[i].Name = name; _slots[i].Type = type;
+                }
+                _slots[i].Name ??= ""; _slots[i].Type ??= "";
+                _slots[i].State = st;
+                _pads[i] = st;
+            }
         }
 
         protected override void Update(GameTime gameTime)
@@ -102,8 +123,9 @@ namespace RipOff.Game
             if (_shotPath != null) { RunShot(); Exit(); return; }
             var front = _front!;
             _steam?.RunCallbacks();
-            int padCount = Math.Min(InputReader.MaxPads, GamePad.MaximumGamePadCount);
-            for (int i = 0; i < _pads.Length; i++) _pads[i] = i < padCount ? ReadPad(i) : default;
+            ReadPads();
+            Array.Copy(_slots, front.Pads, _slots.Length);
+            _log?.Tick(_slots, _steam?.Status ?? "Steam off");
             _input.Pads.StickDeadzone = front.Settings.StickDeadzone;
             var (ui, play) = _input.Read(Keyboard.GetState(), _pads, _typed.ToString());
             _typed.Clear();
@@ -124,7 +146,7 @@ namespace RipOff.Game
             string audio = _sound == null || _sound.Available ? (s.Muted ? "muted" : $"volume {Math.Round(s.Volume * 100)}%") : _sound.Status;
             int pads = _input.Pads.ConnectedCount;
             string padText = pads == 0 ? "no pad" : pads == 1 ? "1 pad" : pads + " pads";
-            string steam = _steam == null ? "" : _steam.Available ? ", Steam" : ", no Steam";
+            string steam = _steam == null || !_steam.Initialized ? ", Steam not started" : _steam.Available ? ", Steam" : ", no Steam";
             string t = $"{Branding.WindowTitle} - {audio}, {padText}{steam}";
             if (t != _title) { Window.Title = t; _title = t; }
         }

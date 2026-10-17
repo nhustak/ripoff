@@ -29,7 +29,15 @@ namespace RipOff.Game
         public const float TriggerThreshold = 0.3f;
 
         /// <summary>Dead zone in use (Options → STICK DEAD ZONE).</summary>
-        public float StickDeadzone { get; set; } = DefaultStickDeadzone;
+        public float StickDeadzone
+        {
+            get => _deadzone;
+            // Guard (pad regression, NOTES §24): a NaN or extreme value must never switch the stick off or make it
+            // always-on, whatever a settings file says.
+            set => _deadzone = float.IsFinite(value) ? Math.Clamp(value, MinDeadzone, MaxDeadzone) : DefaultStickDeadzone;
+        }
+        private float _deadzone = DefaultStickDeadzone;
+        public const float MinDeadzone = 0.05f, MaxDeadzone = 0.9f;
 
         /// <summary>MonoGame indices of the pads driving P1 and P2 on the last <see cref="Update"/> (-1 = none).</summary>
         public int P1Index { get; private set; } = -1;

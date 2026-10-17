@@ -18,6 +18,10 @@ static class Fake
 
 sealed class FakeSteam : ISteamUi
 {
+    /// <summary>Default true (as if initialized at launch); false = lazy Steam not started yet.</summary>
+    public bool Initialized { get; set; } = true;
+    public int Inits;
+    public bool EnsureInit() { if (!Initialized) { Inits++; Initialized = true; } return Available; }
     public bool Available { get; set; }
     public string Status { get; set; } = "Steam not running";
     public string? Code { get; set; }
@@ -50,6 +54,7 @@ sealed class Rig : IDisposable
     {
         var pads = (GamePadState[])Others.Clone();
         pads[PadIndex] = pad ?? Fake.Pad();
+        for (int i = 0; i < pads.Length; i++) F.Pads[i] = new PadSlot { State = pads[i], Name = pads[i].IsConnected ? "Fake Pad" : "", Type = pads[i].IsConnected ? "GamePad" : "" };
         var (ui, play) = R.Read(keys ?? new KeyboardState(), pads, typed);
         F.Update(ui, play);
     }

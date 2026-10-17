@@ -30,7 +30,7 @@ namespace RipOff.Game
         /// <summary>Menu name of each <see cref="RipOff.Core.PlayMode"/> (also shown in lobbies and online status).</summary>
         public const string ModeArcade = "ARCADE", ModeEnhanced = "ENHANCED";
         /// <summary>One-line description under the MODE SELECT title.</summary>
-        public const string ModeArcadeInfo = "THE ORIGINAL 1980 GAME", ModeEnhancedInfo = "EXPANDED RULES (SAME AS ARCADE FOR NOW)";
+        public const string ModeArcadeInfo = "THE ORIGINAL 1980 GAME", ModeEnhancedInfo = "LONGER GAMES - SLOWER RAMP AND ENEMIES THAT MISS";
 
         public static string ModeName(RipOff.Core.PlayMode m) => m == RipOff.Core.PlayMode.Enhanced ? ModeEnhanced : ModeArcade;
         public static string ModeInfo(RipOff.Core.PlayMode m) => m == RipOff.Core.PlayMode.Enhanced ? ModeEnhancedInfo : ModeArcadeInfo;

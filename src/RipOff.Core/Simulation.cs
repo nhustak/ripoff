@@ -35,6 +35,15 @@ namespace RipOff.Core
         /// <summary>Enemy max speed v = type + ⌊type/2⌋ + level + 1 (lst:666-674, GR §5).</summary>
         public static int EnemyMaxSpeed(int type, int level) => type + (type >> 1) + level + 1;
 
+        /// <summary>Spawn speed for this mode: <see cref="EnemyMaxSpeed"/>, capped at EnemySpeedCapBase + level when
+        /// the rules set a cap (Enhanced). Arcade has no cap.</summary>
+        private int SpawnSpeed(int type, int level)
+        {
+            int v = EnemyMaxSpeed(type, level);
+            if (Rules.EnemySpeedCapBase > 0) v = Math.Min(v, Rules.EnemySpeedCapBase + level);
+            return v;
+        }
+
         /// <summary>Enemy turn step ⌊v/2⌋ + 1 (lst:675-677, GR §5).</summary>
         public static int EnemyTurnStep(int v) => (v >> 1) + 1;
 
@@ -73,6 +82,10 @@ namespace RipOff.Core
             s.MotorOff = true;
             s.AutoFireTimer[0] = s.AutoFireTimer[1] = 0;
             s.ShotsFired[0] = s.ShotsFired[1] = 0;
+            s.ClearsTowardStep = 0;
+            s.EnemyFireCooldown[0] = s.EnemyFireCooldown[1] = s.EnemyFireCooldown[2] = 0;
+            s.EnemyFireEvents = s.EnemyFireHits = 0;
+            s.SeedEnhancedRng();
             int n = GameData.CanistersForDip[s.CanisterDip];
             for (int i = 0; i < GameData.CanisterSlots; i++)
             {
@@ -202,15 +215,25 @@ namespace RipOff.Core
             if (k < 3) s.KillsThisWave = 0;                  // lst:500-507 → $0247
             else if (k == 3)
             {
-                if (s.OnePlayer) Advance();                  // $0225-$0229 → $0232
+                if (s.OnePlayer) StepUp();                   // $0225-$0229 → $0232
                 // two-player: kept ($024E)
             }
             else if (k < 6) s.KillsThisWave = 3;             // $022D-$0231 → $024B
-            else Advance();                                  // k ≥ 6
+            else StepUp();                                   // k ≥ 6
 
             // Step-back (lst:558-571): type ≠ 1 and thefts ≥ 3 → type −1; thefts reset.
-            if (s.EnemyType != 1 && s.TheftsThisWave >= 3) s.EnemyType -= 1;
+            if (s.EnemyType != 1 && s.TheftsThisWave >= 3) { s.EnemyType -= 1; s.ClearsTowardStep = 0; }
             s.TheftsThisWave = 0;
+        }
+
+        /// <summary>A cleared wave. Arcade: <see cref="Advance"/> at once. Enhanced: only every
+        /// GameRules.ClearsPerTypeStep-th cleared wave; the others just reset the kill count like an advance does.</summary>
+        private void StepUp()
+        {
+            var s = State;
+            if (Rules.ClearsPerTypeStep > 1 && ++s.ClearsTowardStep < Rules.ClearsPerTypeStep) { s.KillsThisWave = 0; return; }
+            s.ClearsTowardStep = 0;
+            Advance();
         }
 
         /// <summary>Advance (lst:529-547): type +1; after 6 → type 1, level +1, BONUS flag. Kills := 0.</summary>
@@ -254,7 +277,7 @@ namespace RipOff.Core
                 e.Word2 = target;
                 e.F = 0;
                 e.A = EnemyState.Approach;                      // lst:661-665
-                int v = EnemyMaxSpeed(s.EnemyType, s.Level);    // lst:666-674
+                int v = SpawnSpeed(s.EnemyType, s.Level);       // lst:666-674 (Enhanced: capped, GameRules)
                 e.Speed = v;
                 e.Word3 = v;
                 e.TurnStep = EnemyTurnStep(v);                  // lst:675-677
@@ -271,8 +294,8 @@ namespace RipOff.Core
                 e.Y = e.D = sp.Y;
                 e.Heading = sp.Heading;
             }
-            // One-player handicap at level 1 (lst:843-861, GR §4).
-            if (s.OnePlayer && s.Level <= 1)
+            // One-player handicap at level 1 (lst:843-861, GR §4). Enhanced keeps it longer (GameRules.FullWaveFromLevel).
+            if (s.OnePlayer && s.Level < Rules.FullWaveFromLevel)
             {
                 s.TheftsThisWave = 1;
                 s.Enemies[2].A = EnemyState.Free;
@@ -321,6 +344,7 @@ namespace RipOff.Core
 
             e.Scale = GameData.EnemyScale; // word 4 := $50 (lst:1526-1527)
             int fAtPassStart = e.F;
+            if (s.EnemyFireCooldown[i] > 0) s.EnemyFireCooldown[i]--; // Enhanced only (always 0 in Arcade)
 
             // Target canister gone → first slot neither gone nor taken, F := 0 (lst:1528-1573, GR §6).
             if (s.Canisters[e.Word2].Gone)
@@ -391,6 +415,7 @@ namespace RipOff.Core
 
             // Movement: speed − word F, minimum 2 (lst:1813-1830); heading formula (lst:1795-1841).
             int eff = Math.Max(2, e.Speed - e.F);
+            if ((e.A & EnemyState.BitTow) != 0 && Rules.TowSpeedPercent != 100) eff = Math.Max(2, eff * Rules.TowSpeedPercent / 100); // Enhanced
             var (mx, my, _) = Trig.Displacement(e.Heading, eff);
             e.X += mx; e.Y += my;
 
@@ -457,7 +482,10 @@ namespace RipOff.Core
             int d = h - bearing;
             int ad = Math.Abs(d);
             int m = ad < 360 - ad ? ad : 360 - ad;   // lst:3880-3909
-            if (m < e.TurnStep)
+            int step = e.TurnStep;
+            // Enhanced: a chasing enemy turns slower (GameRules.ChaseTurnPercent; Arcade 100 = unchanged).
+            if (Rules.ChaseTurnPercent != 100 && e.A == EnemyState.Chase) step = Math.Max(1, step * Rules.ChaseTurnPercent / 100);
+            if (m < step)
             {
                 // Snap (lst:3910-3921). The tow starts on the next pass (equal path above).
                 e.Heading = bearing;
@@ -465,7 +493,7 @@ namespace RipOff.Core
                 return;
             }
             if (!(ad < 180)) d = -d;                 // lst:3922-3929
-            h = d < 0 ? h + e.TurnStep : h - e.TurnStep; // lst:3930-3943
+            h = d < 0 ? h + step : h - step;         // lst:3930-3943
             if (h < 0) h += 360; else if (h >= 360) h -= 360; // lst:3944-3965
             e.Heading = h;
         }
@@ -485,11 +513,34 @@ namespace RipOff.Core
             var p1 = s.Players[0];
             var victim = (p1.X == e.C && p1.Y == e.D) ? p1 : s.Players[1]; // lst:4038-4057
             if (!EnemyState.IsAlive(victim.A)) return;                     // lst:4058-4064
+            if (s.EnemyFireCooldown[i] > 0) return;                        // Enhanced: reloading / reacting
+            s.EnemyFireEvents++;
+            if (Rules.EnemyAimErrorDeg > 0 && !AimHits(e))
+            {
+                // Enhanced miss: the enemy keeps chasing, but cannot fire again for EnemyMissCooldown passes.
+                s.EnemyFireCooldown[i] = Rules.EnemyMissCooldown;
+                return;
+            }
+            s.EnemyFireHits++;
             victim.A &= 0xF;
             victim.Scale = GameData.ExplosionRam;
             victim.C = 2;
             s.Sound.Explosions++;
             AllEnemiesAim(); // lst:4074-4107
+        }
+
+        /// <summary>Enhanced aim error: the shot leaves at a random angle within ±<see cref="GameRules.AimErrorAt"/> of the
+        /// exact bearing (deterministic: <see cref="GameState.EnhancedRng"/>), and hits when it passes within
+        /// EnemyHitRadius of the player at this range (Chebyshev distance, integer sine table).</summary>
+        private bool AimHits(TankRecord e)
+        {
+            var s = State;
+            int spread = Rules.AimErrorAt(s.Level);
+            if (spread <= 0) return true;
+            int err = (int)(s.NextEnhancedRandom() % (uint)(2 * spread + 1)) - spread;
+            int dist = Math.Max(Math.Abs(e.X - e.C), Math.Abs(e.Y - e.D));
+            int miss = (Trig.SinTable[Math.Min(90, Math.Abs(err))] * dist + 128) >> 8;
+            return miss <= Rules.EnemyHitRadius;
         }
 
         /// <summary>Every enemy record: F := 0, A := (A &amp; $1B) + 4 (lst:2457-2480, lst:4074-4107).</summary>
@@ -652,6 +703,9 @@ namespace RipOff.Core
                     && Box(ddx, ddy, GameData.ChaseRadius))
                 {
                     // Chase start (lst:2498-2548, GR §6): A &= $1B, F := 0.
+                    // Enhanced: an enemy that only now starts chasing needs ChaseReactionPasses before it can fire.
+                    if (Rules.ChaseReactionPasses > 0 && (o.A & EnemyState.BitAim) != 0)
+                        s.EnemyFireCooldown[idx] = Math.Max(s.EnemyFireCooldown[idx], Rules.ChaseReactionPasses);
                     o.A &= 0x1B; o.F = 0;
                 }
             }

@@ -225,6 +225,17 @@ pwsh tools/publish.ps1
 
 This writes `artifacts/RipOff-win-x64.zip` (about 37 MB): a self-contained win-x64 build, so the other machine needs no .NET install. It works from Windows, Linux or macOS. Without the script: `dotnet publish src/RipOff.Game -p:PublishProfile=win-x64` gives the same folder in `artifacts/publish/win-x64/`. The zip is flat (204 files). Next to `RipOff.exe` are `steam_api64.dll`, `Steamworks.NET.dll` (the Windows build of it), `steam_appid.txt` (`480`), `LiteNetLib.dll`, `SDL2.dll`, `openal.dll`, `MonoGame.Framework.dll`, the `RipOff*.dll` files, and the .NET runtime. The script fails if the exe, the Steam files, or `480` are missing. Checked by cross-publishing on the Linux box; UNCHECKED: running the zip on Windows.
 
+### Releases / distribution
+
+Releases are cut from a tag on `main`; the zip is attached to a GitHub release. The first one is [`arcade-v1.0`](https://github.com/nhustak/ripoff/releases/tag/arcade-v1.0): the faithful Arcade mode, the baseline before expanded modes.
+
+1. On a clean, up-to-date `main` run `dotnet test RipOff.sln`; everything must pass.
+2. Tag the commit: `git tag -a <name> -m "<what it is>"` and `git push origin <name>` (annotated tag, never moved or re-pushed).
+3. Build from that commit: `pwsh tools/publish.ps1` gives `artifacts/RipOff-win-x64.zip`. Check that `RipOff.exe`, `steam_api64.dll` and `steam_appid.txt` (`480`) are in it (`unzip -l`).
+4. `gh release create <name> artifacts/RipOff-win-x64.zip --verify-tag --title "..." --notes-file notes.md`, with notes on how to play locally and online (see Testing with a friend).
+
+The repo is private: a friend can only download a release asset with access to the repo. Otherwise send them the zip directly.
+
 ### Testing with a friend
 
 Steam (each person needs their own Steam account):

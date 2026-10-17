@@ -345,6 +345,7 @@ Comparison semantics used below: `TST $n` + `JLT` branches when RAM[n] < accumul
     - (RAM[$FF], RAM[$F2]) = P2 at origin (`$1A0`, `$176`);
     - then (RAM[$FE], RAM[$F1]) = P1 at (`$260`, `$176`).
     - That puts P1 on the right, matching P1's start at the right edge (10.1).
+    - **Remake (2026-10-17, both modes, HUD only):** the remake doesn't use these positions. P1 is drawn flush left and P2 flush right along the top of the field (16-unit margin, `Scene.DrawScores`), as Nick asked. This is a deliberate change from the arcade: the arcade puts P1 on the right.
   - **Combined** (DIP = 1) (lst:1158-1198): P1 + P2 with the same carry, shown once at (`$200`, `$1CC`).
   - Path `$04B6`: when RAM[$F0] bit 0 is set (one-player game, below), only the `$0505` single display runs. What it shows on that path is **UNCHECKED**.
 - **High scores** (lst:107-188), checked at game over (`$0053` path).

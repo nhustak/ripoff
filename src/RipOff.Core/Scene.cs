@@ -114,14 +114,40 @@ namespace RipOff.Core
             return Glyph(0, x, y, o);
         }
 
-        static void DrawScores(GameState s, List<Line> o)
+        /// <summary>Score row (remake layout, not the arcade's): edge margin in field units, glyph height 20.
+        /// P1 flush left and P2 flush right along the top of the 4:3 field.</summary>
+        public const int ScoreMargin = 16, ScoreGlyphHeight = 20;
+        public const int ScoreY = Height - ScoreMargin - ScoreGlyphHeight; // 732: glyph baseline (y up)
+
+        /// <summary>Digits drawn for a score: thousands word when non-zero, the units, and the trailing 0.</summary>
+        public static int ScoreDigits(int tens, int thousands = 0) =>
+            (thousands > 0 ? thousands.ToString().Length + 3 : (tens > 0 ? tens.ToString().Length : 0)) + 1;
+
+        /// <summary>Left x of a score so that its last digit's ink ends at the right margin (digit ink spans 2..30
+        /// of its 32-unit cell).</summary>
+        public static float ScoreRightAlignedX(int tens, int thousands = 0) =>
+            Width - ScoreMargin + 2 - GlyphAdvance * ScoreDigits(tens, thousands);
+
+        /// <summary>Left x of a score so that its first digit's ink starts at the left margin ("1" is inked at 20..28 of its
+        /// cell, the other digits from 2).</summary>
+        public static float ScoreLeftAlignedX(int tens, int thousands = 0)
+        {
+            string d = thousands > 0 ? thousands.ToString() + tens.ToString("D3") : (tens > 0 ? tens.ToString() : "0");
+            float ink = float.MaxValue;
+            foreach (var sg in ShapeData.Glyphs[d[0] - '0']) ink = Math.Min(ink, Math.Min(sg.X1, sg.X2));
+            return ScoreMargin - ink;
+        }
+
+        public static void DrawScores(GameState s, List<Line> o)
         {
             // No credit display: the remake has no credits (NOTES §23); attract mode shows no score.
             if (s.Mode != GameMode.Playing) return;
-            // Individual scores (Scores DIP 0): P2 at ($1A0,$176), P1 at ($260,$176) (NOTES §13, lst:1112-1156).
+            // Remake layout (Nick, 2026-10-17), both modes: P1 top-left, P2 top-right. This is HUD only and the
+            // simulation doesn't change. The arcade draws individual scores mid-field: P2 at ($1A0,$176), P1 at
+            // ($260,$176) (NOTES §13, lst:1112-1156).
             // UNCHECKED: in a one-player game only P1 is shown (path $04B6 → $0505, NOTES §13).
-            Number(s.Score[0], 0x260, 0x176, o, s.ScoreThousands[0]);
-            if (!s.OnePlayer) Number(s.Score[1], 0x1A0, 0x176, o, s.ScoreThousands[1]);
+            Number(s.Score[0], ScoreLeftAlignedX(s.Score[0], s.ScoreThousands[0]), ScoreY, o, s.ScoreThousands[0]);
+            if (!s.OnePlayer) Number(s.Score[1], ScoreRightAlignedX(s.Score[1], s.ScoreThousands[1]), ScoreY, o, s.ScoreThousands[1]);
         }
 
         static void DrawBonus(GameState s, List<Line> o)

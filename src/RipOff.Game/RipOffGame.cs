@@ -5,17 +5,30 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using RipOff.Core;
+using RipOff.Game.Steam;
+using RipOff.Net;
 
 namespace RipOff.Game
 {
     /// <summary>
     /// MonoGame host: a fixed 38 Hz step (one simulation pass per arcade frame, GAME_RULES §Units / NOTES §18.8),
-    /// keyboard input, and the line renderer. All rules live in RipOff.Core.
+    /// keyboard/pad input, the menu (local play, Steam host/join by code, direct-IP host/join), online lockstep
+    /// play through <see cref="OnlineController"/>, and the line renderer. All rules live in RipOff.Core.
     /// </summary>
     public sealed class RipOffGame : Microsoft.Xna.Framework.Game
     {
         readonly GraphicsDeviceManager _gfx;
-        readonly Simulation _sim = new Simulation();
+        enum AppMode { Menu, Local, Online }
+        Simulation _sim = new Simulation();
+        AppMode _mode = AppMode.Menu;
+        readonly Menu _menu = new Menu();
+        readonly SteamPlatform? _steam;
+        readonly OnlineController _online;
+        readonly System.Text.StringBuilder _typed = new System.Text.StringBuilder();
+        readonly GamePadState[] _menuPadPrev = new GamePadState[2];
+        int _explosionsPending;
+        int _waitingTicks;
+        static readonly SoundState Silence = new SoundState { BackgroundMuted = true };
         readonly List<Line> _lines = new List<Line>();
         readonly PadMapper _pads = new PadMapper();
         SoundOutput? _sound;
@@ -24,9 +37,13 @@ namespace RipOff.Game
         readonly string? _shotPath;
         readonly int _shotPasses;
 
-        public RipOffGame(string? shotPath = null, int shotPasses = 400)
+        public RipOffGame(string? shotPath = null, int shotPasses = 400, SteamPlatform? steam = null)
         {
-            _shotPath = shotPath; _shotPasses = shotPasses;
+            _shotPath = shotPath; _shotPasses = shotPasses; _steam = steam;
+            _online = new OnlineController(steam) { FrameSimulated = (f, st) => _explosionsPending += st.Sound.Explosions };
+            _menu.SteamAvailable = steam?.Available == true;
+            _menu.SteamNote = steam == null ? "STEAM OFF" : steam.Available ? "" : (steam.Status + " - local and direct IP play still work").ToUpperInvariant();
+            _menu.Footer = "ARROWS/D-PAD MOVE   ENTER/A SELECT   ESC/B BACK";
             _gfx = new GraphicsDeviceManager(this)
             {
                 PreferredBackBufferWidth = 1024,
@@ -36,8 +53,9 @@ namespace RipOff.Game
             IsFixedTimeStep = true;
             TargetElapsedTime = TimeSpan.FromSeconds(1.0 / GameData.PassesPerSecond);
             Window.AllowUserResizing = true;
-            Window.Title = "Rip-Off (remake)";
+            Window.Title = Branding.WindowTitle;
             IsMouseVisible = false;
+            Window.TextInput += (_, e) => { if (_typed.Length < 32) _typed.Append(e.Character); };
         }
 
         protected override void LoadContent()
@@ -53,7 +71,8 @@ namespace RipOff.Game
             string vol = b == null ? "" : b.Muted ? "muted" : $"volume {Math.Round(b.Volume * 100)}%";
             string audio = _sound == null || _sound.Available ? vol : _sound.Status;
             string pads = (_pads.IsConnected(0) ? " P1 pad" : "") + (_pads.IsConnected(1) ? " P2 pad" : "");
-            Window.Title = $"Rip-Off (remake) - {audio}{pads}  [M mute, -/+ volume]";
+            string steam = _steam == null ? "" : _steam.Available ? " Steam" : " no Steam";
+            Window.Title = $"{Branding.WindowTitle} - {audio}{pads}{steam}  [M mute, -/+ volume]";
         }
 
         /// <summary>GamePad.GetState never takes the game down: a failing or absent pad reads as disconnected.</summary>
@@ -65,7 +84,7 @@ namespace RipOff.Game
 
         /// <summary>
         /// Keys: P1 ←/→ turn, ↑ thrust, Right Ctrl fire; P2 A/D turn, W thrust, Left Ctrl fire;
-        /// 5 coin, 1 / 2 start, M mute, − / + volume, Esc quit. Game pads 0 and 1 are OR'd in (PadMapper, README).
+        /// 5 coin, 1 / 2 start, M mute, − / + volume, Esc back to the menu. Game pads 0 and 1 are OR'd in (PadMapper, README).
         /// UNCHECKED: RawInput (per-device) keyboard input is deferred; MonoGame's keyboard (SDL2 on DesktopGL) is used.
         /// </summary>
         FrameInput ReadInput()
@@ -80,7 +99,6 @@ namespace RipOff.Game
                 Start1 = Edge(Keys.D1) || Edge(Keys.NumPad1),
                 Start2 = Edge(Keys.D2) || Edge(Keys.NumPad2),
             };
-            if (k.IsKeyDown(Keys.Escape)) Exit();
             var b = _sound?.Board;
             bool title = false;
             if (b != null)
@@ -89,25 +107,157 @@ namespace RipOff.Game
                 if (Edge(Keys.OemMinus) || Edge(Keys.Subtract)) { b.Volume = Math.Max(0, Math.Round(b.Volume * 10 - 1) / 10); b.Muted = false; title = true; }
                 if (Edge(Keys.OemPlus) || Edge(Keys.Add)) { b.Volume = Math.Min(1, Math.Round(b.Volume * 10 + 1) / 10); b.Muted = false; title = true; }
             }
-            _prev = k;
             bool c0 = _pads.IsConnected(0), c1 = _pads.IsConnected(1);
             var pf = _pads.Update(ReadPad(0), ReadPad(1));
             if (title || c0 != _pads.IsConnected(0) || c1 != _pads.IsConnected(1)) UpdateTitle();
             return PadMapper.Combine(f, pf);
         }
 
+        /// <summary>Menu navigation edges: keyboard arrows/Enter/Esc/Backspace and typed text; pads D-pad/left stick, A/Start, B/Back.</summary>
+        MenuInput ReadMenuInput(KeyboardState k)
+        {
+            bool Edge(Keys key) => k.IsKeyDown(key) && !_prev.IsKeyDown(key);
+            var m = new MenuInput
+            {
+                Up = Edge(Keys.Up), Down = Edge(Keys.Down), Left = Edge(Keys.Left), Right = Edge(Keys.Right),
+                Select = Edge(Keys.Enter), Back = Edge(Keys.Escape), Backspace = Edge(Keys.Back),
+                Typed = _typed.ToString(),
+            };
+            _typed.Clear();
+            for (int i = 0; i < 2; i++)
+            {
+                var s = ReadPad(i); var p = _menuPadPrev[i];
+                if (s.IsConnected && p.IsConnected)
+                {
+                    bool B(Buttons b) => s.IsButtonDown(b) && !p.IsButtonDown(b);
+                    m.Up |= B(Buttons.DPadUp) || B(Buttons.LeftThumbstickUp);
+                    m.Down |= B(Buttons.DPadDown) || B(Buttons.LeftThumbstickDown);
+                    m.Left |= B(Buttons.DPadLeft) || B(Buttons.LeftThumbstickLeft);
+                    m.Right |= B(Buttons.DPadRight) || B(Buttons.LeftThumbstickRight);
+                    m.Select |= B(Buttons.A) || B(Buttons.Start);
+                    m.Back |= B(Buttons.B) || B(Buttons.Back);
+                }
+                _menuPadPrev[i] = s;
+            }
+            return m;
+        }
+
         protected override void Update(GameTime gameTime)
         {
             if (_shotPath != null) { RunShot(); Exit(); return; }
-            _sim.Step(ReadInput());
-            _sound?.Update(_sim.State.Sound);
+            var k = Keyboard.GetState();
+            _steam?.RunCallbacks();
+            if (_steam?.PendingJoin is ulong lobby) // Steam invite / "Join game" / +connect_lobby
+            {
+                _steam.PendingJoin = null;
+                _online.JoinSteamLobby(lobby);
+                _mode = AppMode.Online;
+            }
+            switch (_mode)
+            {
+                case AppMode.Menu: UpdateMenu(ReadMenuInput(k)); break;
+                case AppMode.Local:
+                {
+                    var f = ReadInput();
+                    _typed.Clear();
+                    if (k.IsKeyDown(Keys.Escape) && !_prev.IsKeyDown(Keys.Escape)) { _mode = AppMode.Menu; _menu.ShowMain(); break; }
+                    _sim.Step(f);
+                    _sound?.Update(_sim.State.Sound);
+                    break;
+                }
+                case AppMode.Online: UpdateOnline(k); break;
+            }
+            _prev = k;
             base.Update(gameTime);
         }
+
+        void UpdateMenu(in MenuInput mi)
+        {
+            switch (_menu.Update(mi))
+            {
+                case MenuAction.LocalPlay: _sim = new Simulation(); _mode = AppMode.Local; break;
+                case MenuAction.HostSteam: _online.HostSteam(); _mode = AppMode.Online; break;
+                case MenuAction.JoinSteamCode: _online.JoinSteamCode(_menu.EnteredText); _mode = AppMode.Online; break;
+                case MenuAction.HostLan: _online.HostLan(); _mode = AppMode.Online; break;
+                case MenuAction.JoinLan: _online.JoinLan(_menu.EnteredText); _mode = AppMode.Online; break;
+                case MenuAction.Quit: Exit(); break;
+            }
+            _sound?.Update(Silence); // keep the audio stream fed
+        }
+
+        void UpdateOnline(KeyboardState k)
+        {
+            var s = _online.Session;
+            bool inGame = s != null && s.Phase == SessionPhase.Running;
+            // In a game: the local player uses either keyboard set (arrows/RCtrl or WASD/LCtrl) or pad 1.
+            var f = ReadInput();
+            var local = new PlayerInput
+            {
+                Left = f.P1.Left || f.P2.Left, Right = f.P1.Right || f.P2.Right,
+                Thrust = f.P1.Thrust || f.P2.Thrust, Fire = f.P1.Fire || f.P2.Fire,
+            };
+            if (inGame && k.IsKeyDown(Keys.Escape) && !_prev.IsKeyDown(Keys.Escape)) { LeaveOnline(); return; }
+            _explosionsPending = 0;
+            _online.Update(local, f.Start1 || f.Start2);
+            s = _online.Session;
+            if (s?.Sim != null && s.StepsLastUpdate > 0)
+            {
+                var snd = s.Sim.State.Sound; snd.Explosions = _explosionsPending;
+                _sound?.Update(snd);
+            }
+            else if (s?.Sim != null) { var snd = s.Sim.State.Sound; snd.Explosions = 0; _sound?.Update(snd); }
+            else _sound?.Update(Silence);
+            _waitingTicks = s != null && s.Waiting ? _waitingTicks + 1 : 0;
+
+            if (s != null && s.Phase == SessionPhase.Running) { _typed.Clear(); return; }
+            // Not in a game: status screen with options.
+            UpdateStatusScreen();
+            switch (_menu.Update(ReadMenuInput(k)))
+            {
+                case MenuAction.InviteOverlay: _steam?.OpenInviteOverlay(); break;
+                case MenuAction.Cancel: LeaveOnline(); break;
+            }
+        }
+
+        void UpdateStatusScreen()
+        {
+            var s = _online.Session;
+            var lines = _online.Describe();
+            if (s != null && s.Phase == SessionPhase.Desynced)
+            {
+                lines = new List<string> { s.Status.ToUpperInvariant(), "THE TWO GAMES NO LONGER MATCH - THIS ONE HAS BEEN STOPPED" };
+                if (_online.DesyncReportPath != null) lines.Add("REPORT: " + Path.GetFileName(_online.DesyncReportPath).ToUpperInvariant());
+                _menu.ShowStatus("DESYNC", lines, ("BACK TO MENU", MenuAction.Cancel));
+                return;
+            }
+            if (_online.Error != null) { _menu.ShowStatus("DISCONNECTED", lines, ("BACK TO MENU", MenuAction.Cancel)); return; }
+            string title = _online.Mode switch
+            {
+                OnlineController.Kind.SteamHost => "HOST ONLINE",
+                OnlineController.Kind.SteamJoin => "JOIN ONLINE",
+                OnlineController.Kind.LanHost => "HOST DIRECT IP",
+                _ => "JOIN DIRECT IP",
+            };
+            if (_online.Mode == OnlineController.Kind.SteamHost && _steam?.Code != null)
+                _menu.ShowStatus(title, lines, ("INVITE A STEAM FRIEND", MenuAction.InviteOverlay), ("CANCEL", MenuAction.Cancel));
+            else
+                _menu.ShowStatus(title, lines, ("CANCEL", MenuAction.Cancel));
+        }
+
+        void LeaveOnline() { _online.Stop(); _mode = AppMode.Menu; _menu.ShowMain(); }
 
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.Black);
-            Scene.Build(_sim.State, _lines);
+            var s = _online.Session;
+            if (_mode == AppMode.Local) Scene.Build(_sim.State, _lines);
+            else if (_mode == AppMode.Online && s?.Sim != null && s.Phase == SessionPhase.Running)
+            {
+                Scene.Build(s.Sim.State, _lines);
+                VectorFont.Draw(s.IsHost ? "YOU: P1" : "YOU: P2", 8, 8, 12, _lines, false);
+                if (_waitingTicks > GameData.PassesPerSecond / 2) VectorFont.DrawCentered("WAITING FOR OTHER PLAYER...", Scene.Width / 2f, 400, 24, _lines);
+            }
+            else { _lines.Clear(); _menu.Build(_lines); }
             _renderer!.Draw(_lines, GraphicsDevice.Viewport.Bounds);
             base.Draw(gameTime);
         }
@@ -131,6 +281,6 @@ namespace RipOff.Game
             Console.WriteLine($"saved {_shotPath} ({_lines.Count} lines)");
         }
 
-        protected override void UnloadContent() { _renderer?.Dispose(); _sound?.Dispose(); base.UnloadContent(); }
+        protected override void UnloadContent() { _online.Dispose(); _renderer?.Dispose(); _sound?.Dispose(); base.UnloadContent(); }
     }
 }

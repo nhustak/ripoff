@@ -1,0 +1,51 @@
+<Project>
+  <!--
+    Steamworks.NET (standalone build, MIT) and Valve's steam_api redistributable, fetched on first build instead of
+    being committed. Release 2025.164.1 is the latest on https://github.com/rlabrecque/Steamworks.NET/releases
+    (checked 2026-10-16); NuGet only carries 2024.8.0. The zip's SHA-256 is pinned.
+    The Windows-x64 assembly is used for win-* RIDs (and plain builds on Windows), the OSX-Linux-x64 one elsewhere
+    (README-Standalone.md in the zip: the two assemblies differ per platform).
+  -->
+  <PropertyGroup>
+    <SteamworksVersion>2025.164.1</SteamworksVersion>
+    <SteamworksSha256>9412348CC404563BE5A43A28347CFEDA3C679EE044A14D87A507ED2D796A537D</SteamworksSha256>
+    <SteamworksUrl>https://github.com/rlabrecque/Steamworks.NET/releases/download/$(SteamworksVersion)/Steamworks.NET-Standalone_$(SteamworksVersion).zip</SteamworksUrl>
+    <SteamworksCache>$(MSBuildThisFileDirectory)..\.cache\steamworks\$(SteamworksVersion)\</SteamworksCache>
+    <SteamworksZip>$(SteamworksCache)Steamworks.NET-Standalone.zip</SteamworksZip>
+  </PropertyGroup>
+
+  <!-- Platform selection runs as a target, not at evaluation: a RuntimeIdentifier set by a publish profile
+       (-p:PublishProfile=win-x64) is only known after this file has been evaluated. -->
+  <Target Name="SelectSteamworksPlatform" DependsOnTargets="FetchSteamworks"
+          BeforeTargets="ResolveAssemblyReferences;AssignTargetPaths">
+    <PropertyGroup>
+      <SteamworksIsWindows Condition="'$(RuntimeIdentifier)' != '' and $(RuntimeIdentifier.StartsWith('win'))">true</SteamworksIsWindows>
+      <SteamworksIsWindows Condition="'$(RuntimeIdentifier)' == '' and '$(OS)' == 'Windows_NT'">true</SteamworksIsWindows>
+      <SteamworksPlatformDir Condition="'$(SteamworksIsWindows)' == 'true'">$(SteamworksCache)Windows-x64\</SteamworksPlatformDir>
+      <SteamworksPlatformDir Condition="'$(SteamworksIsWindows)' != 'true'">$(SteamworksCache)OSX-Linux-x64\</SteamworksPlatformDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <Reference Include="Steamworks.NET">
+        <HintPath>$(SteamworksPlatformDir)Steamworks.NET.dll</HintPath>
+        <Private>true</Private>
+      </Reference>
+      <!-- Native library next to the exe. steam_appid.txt (480 = Valve's Spacewar test app) lets the game run
+           outside the Steam client; see README "Testing with a friend". -->
+      <None Include="$(SteamworksCache)Windows-x64\steam_api64.dll" Condition="'$(SteamworksIsWindows)' == 'true'"
+            Link="steam_api64.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+      <None Include="$(SteamworksCache)OSX-Linux-x64\libsteam_api.so" Condition="'$(SteamworksIsWindows)' != 'true'"
+            Link="libsteam_api.so" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="FetchSteamworks"
+          Condition="!Exists('$(SteamworksCache)Windows-x64\Steamworks.NET.dll')">
+    <Message Importance="high" Text="Downloading Steamworks.NET $(SteamworksVersion) standalone..." />
+    <DownloadFile SourceUrl="$(SteamworksUrl)" DestinationFolder="$(SteamworksCache)" DestinationFileName="Steamworks.NET-Standalone.zip" />
+    <GetFileHash Files="$(SteamworksZip)" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="_SteamworksHash" />
+    </GetFileHash>
+    <Error Condition="'$(_SteamworksHash)' != '$(SteamworksSha256)'" Text="Steamworks.NET zip hash mismatch: got $(_SteamworksHash)" />
+    <Unzip SourceFiles="$(SteamworksZip)" DestinationFolder="$(SteamworksCache)" />
+  </Target>
+</Project>

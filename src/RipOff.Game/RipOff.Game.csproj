@@ -18,5 +18,11 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\RipOff.Core\RipOff.Core.csproj" />
+    <ProjectReference Include="..\RipOff.Net\RipOff.Net.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- 480 = Valve's Spacewar test App ID (Branding.SteamAppId): lets SteamAPI_Init work outside the Steam client. -->
+    <None Include="steam_appid.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <Import Project="..\..\build\Steamworks.targets" />
 </Project>

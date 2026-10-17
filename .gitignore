@@ -6,3 +6,7 @@ obj/
 *.user
 .vs/
 TestResults/
+# Steamworks.NET download cache (build/Steamworks.targets)
+.cache/
+# publish output (tools/publish.ps1)
+artifacts/

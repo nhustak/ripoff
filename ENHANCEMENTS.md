@@ -35,6 +35,26 @@ Status: idea / planned / in progress / done. Source: Nick or bot-suggested.
 | Chase turn-speed knob (`ChaseTurnPercent`, still 100 in Enhanced). 75 % was tried, but chasers circled a still player until the 30-minute cap (stall) in 1-2 of 20 games. It needs a fix for the circling before it can be used (NOTES §27.2) | idea | bot-suggested |
 | Human playtest feedback on the hit rate. The ~50 % hit rate was measured with bots that never thrust, and a moving human may see a different rate (NOTES §27.4.1) | idea | bot-suggested |
 
+### Respawn / warp-in
+
+| Idea | Status | Source |
+|---|---|---|
+| Players "warp" in instead of coming in from off screen, to allow more options | idea | Nick |
+| Warp-in delay depends on how you were killed and on the time since your last death (for example, a collision death takes longer to warp in from) | idea | Nick |
+| Random warp-in location after death | idea | Nick |
+
+### Feedback
+
+| Idea | Status | Source |
+|---|---|---|
+| Show a quick little "SAVED!!" message when you shoot an enemy that is carting off a canister | idea | Nick |
+
+### Visuals
+
+| Idea | Status | Source |
+|---|---|---|
+| Colorize | idea | Nick |
+
 ### Ships
 
 | Idea | Status | Source |
@@ -42,9 +62,26 @@ Status: idea / planned / in progress / done. Source: Nick or bot-suggested.
 | Ship select: each player chooses which ship they play, and both players can't pick the same ship (there are currently two ship shapes) | idea | Nick |
 | Additional ships beyond the current two | idea | Nick |
 | Ships have different abilities (examples below) | idea | Nick |
+| Ship type: Scout. Fast; one hit kills it (an example of different abilities) | idea | Nick |
+| Ship type: Cruiser. Not as fast; it takes two hits to kill (an example of different abilities, with armor) | idea | Nick |
 
 Ability examples from Nick for "Ships have different abilities":
 - Speed
 - Damage
 - Armor. This means ships can take more than one hit, unlike the arcade, where one hit kills.
 - Other abilities to be decided.
+
+### Ship add-ons
+
+| Idea | Status | Source |
+|---|---|---|
+| Tug: the ship can move a canister, but its speed is cut in half and it can't fire while towing | idea | Nick |
+| Drop a mine | idea | Nick |
+| Drop a turret | idea | Nick |
+
+### Enemy variations
+
+| Idea | Status | Source |
+|---|---|---|
+| Tank: a slower enemy that takes two hits to kill | idea | Nick |
+| Hunter: pursues the players instead of going for a canister. Arcade enemies already switch to chasing when a player comes close, so Hunter means an enemy that targets only the players | idea | Nick |

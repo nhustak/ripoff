@@ -17,7 +17,8 @@ namespace RipOff.Game
         readonly GraphicsDeviceManager _gfx;
         readonly Simulation _sim = new Simulation();
         readonly List<Line> _lines = new List<Line>();
-        readonly SoundStub _sound = new SoundStub();
+        readonly PadMapper _pads = new PadMapper();
+        SoundOutput? _sound;
         LineRenderer? _renderer;
         KeyboardState _prev;
         readonly string? _shotPath;
@@ -39,12 +40,33 @@ namespace RipOff.Game
             IsMouseVisible = false;
         }
 
-        protected override void LoadContent() => _renderer = new LineRenderer(GraphicsDevice);
+        protected override void LoadContent()
+        {
+            _renderer = new LineRenderer(GraphicsDevice);
+            _sound = new SoundOutput(enable: _shotPath == null);
+            UpdateTitle();
+        }
+
+        void UpdateTitle()
+        {
+            var b = _sound?.Board;
+            string vol = b == null ? "" : b.Muted ? "muted" : $"volume {Math.Round(b.Volume * 100)}%";
+            string audio = _sound == null || _sound.Available ? vol : _sound.Status;
+            string pads = (_pads.IsConnected(0) ? " P1 pad" : "") + (_pads.IsConnected(1) ? " P2 pad" : "");
+            Window.Title = $"Rip-Off (remake) - {audio}{pads}  [M mute, -/+ volume]";
+        }
+
+        /// <summary>GamePad.GetState never takes the game down: a failing or absent pad reads as disconnected.</summary>
+        static GamePadState ReadPad(int index)
+        {
+            try { return GamePad.GetState(index, GamePadDeadZone.None); }
+            catch (Exception) { return default; }
+        }
 
         /// <summary>
         /// Keys: P1 ←/→ turn, ↑ thrust, Right Ctrl fire; P2 A/D turn, W thrust, Left Ctrl fire;
-        /// 5 coin, 1 / 2 start, Esc quit. UNCHECKED: RawInput (per-device) input is deferred; MonoGame's keyboard
-        /// (SDL2 on DesktopGL) is used for now.
+        /// 5 coin, 1 / 2 start, M mute, − / + volume, Esc quit. Game pads 0 and 1 are OR'd in (PadMapper, README).
+        /// UNCHECKED: RawInput (per-device) keyboard input is deferred; MonoGame's keyboard (SDL2 on DesktopGL) is used.
         /// </summary>
         FrameInput ReadInput()
         {
@@ -59,15 +81,26 @@ namespace RipOff.Game
                 Start2 = Edge(Keys.D2) || Edge(Keys.NumPad2),
             };
             if (k.IsKeyDown(Keys.Escape)) Exit();
+            var b = _sound?.Board;
+            bool title = false;
+            if (b != null)
+            {
+                if (Edge(Keys.M)) { b.Muted = !b.Muted; title = true; }
+                if (Edge(Keys.OemMinus) || Edge(Keys.Subtract)) { b.Volume = Math.Max(0, Math.Round(b.Volume * 10 - 1) / 10); b.Muted = false; title = true; }
+                if (Edge(Keys.OemPlus) || Edge(Keys.Add)) { b.Volume = Math.Min(1, Math.Round(b.Volume * 10 + 1) / 10); b.Muted = false; title = true; }
+            }
             _prev = k;
-            return f;
+            bool c0 = _pads.IsConnected(0), c1 = _pads.IsConnected(1);
+            var pf = _pads.Update(ReadPad(0), ReadPad(1));
+            if (title || c0 != _pads.IsConnected(0) || c1 != _pads.IsConnected(1)) UpdateTitle();
+            return PadMapper.Combine(f, pf);
         }
 
         protected override void Update(GameTime gameTime)
         {
             if (_shotPath != null) { RunShot(); Exit(); return; }
             _sim.Step(ReadInput());
-            _sound.Update(_sim.State.Sound);
+            _sound?.Update(_sim.State.Sound);
             base.Update(gameTime);
         }
 
@@ -98,6 +131,6 @@ namespace RipOff.Game
             Console.WriteLine($"saved {_shotPath} ({_lines.Count} lines)");
         }
 
-        protected override void UnloadContent() { _renderer?.Dispose(); base.UnloadContent(); }
+        protected override void UnloadContent() { _renderer?.Dispose(); _sound?.Dispose(); base.UnloadContent(); }
     }
 }

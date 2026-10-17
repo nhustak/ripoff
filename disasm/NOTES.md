@@ -683,7 +683,7 @@ Trace: `trace:excerpts/p6_respawn_timing.txt`.
 | FC bit 4 background enable | bit 4 = 1 frames (attract/pre-game f1-201 and BONUS f3266-3364) are quiet (656). Forcing 0 there: 656 → 1402. Forcing 1 in play: 2585 → 2048 | IC9.9 → IC22.2, the CLR of a 74LS393 (:403, IC22 at :327) | **bit 4 = 0.** Bit 4 = 1 silences the background drone |
 
 - Which serial command bit drives which IC9 output was established by these runs. Each match (bit 4 ↔ IC22 clear, bit 3 ↔ the Beep path, bit 2 ↔ the Motor path) is the only one consistent with both the RMS changes and the game events. The shift order itself was not derived from the netlist.
-- The pitch mapping of background bits 7-5 (IC9.2/.5/.6 → IC10, :404-408) was not tested: **UNCHECKED**.
+- The pitch mapping of background bits 7-5 (IC9.2/.5/.6 → IC10, :404-408) was not tested here: **UNCHECKED** (resolved in 21.3).
 
 ### 19.4 Two-player games (resolved items)
 
@@ -743,7 +743,7 @@ Runs: tp_idle, tp_pvp1, tp_pvp2, tp_shoot2, tp_wander (6,000-12,000 frames each;
 
 1. The condition that refreshes a chaser's C/D every frame (401 frames kept an older point, 19.4).
 2. Whether P1's chase distance is exactly \|dx\| (literal reading of `$074F`) or max(\|dx\|, −dy). Both fit all trace frames.
-3. The pitch mapping of background command bits 7-5.
+3. The pitch mapping of background command bits 7-5. (Resolved in 21.3.)
 4. Completeness of the observed indirect-target sets (19.5).
 5. Other uses of RAM[$A8], beyond bits 0-1 (19.6).
 
@@ -788,7 +788,58 @@ The 16 byte pairs at `$0F9A` (lst:3685-3690), ×4 = field position (×8 in RAM `
 
 1. The chase C/D refresh gate (19.7 item 1). The simulation follows the literal code: C/D are refreshed every chase pass unless separation steers. The replays compare C/D in every frame and match, so in these 9 runs that reading accounts for every frame. Whether the 401 frames of 19.4 all come from these runs was not checked.
 2. P1's chase distance |dx| vs max(|dx|, −dy) (19.7 item 2).
-3. The background drone pitch mapping, the BONUS beep phase.
+3. The background drone pitch mapping, the BONUS beep phase. (Resolved in 21.3/21.4.)
 4. The jitter heading when h ≥ 360: the literal reading of `$0BFB-$0C00` stores 360.
 5. The fire-line frame index (taken as A8 & 3).
 6. Coinage (one coin = one credit assumed), the credit limit, the attract demo, high-score handling, tread and explosion animation, and the exact score/BONUS glyph layout.
+
+## 21. Pass 8 / Milestone 2: sound board model and controller input
+
+Pass 8 adds runtime-synthesized sound (`src/RipOff.Core/Audio`) and game-pad input (`src/RipOff.Game/PadMapper.cs`). No new MAME runs: the pass-6 sound-lab WAVs and RAM logs (19.3) were re-measured by `trace:scripts/p8/sound_measure.py`; the derived numbers are in `trace:excerpts/p8_sound.txt` (sections (1)-(10)). No audio from MAME is committed or shipped; every sample is computed by our code from the parameters below. Netlist = MAME `src/mame/cinematronics/nl_ripoff.cpp` at tag mame0276 (the box copy is identical to the tag); MM5837 = `src/lib/netlist/devices/nld_mm5837.cpp` at mame0276.
+
+### 21.1 Command byte → board
+
+- The sound routine shifts RAM[$FC] out LSB first (`SHRB` loop `$017D-$0193`, lst:364-384) into IC8 74LS164 and strobes IC9 74LS377 (lst:356). After 8 clocks QA..QF hold bits 7..2, so IC9.2 = bit 7, IC9.5 = bit 6, IC9.6 = bit 5, IC9.9 = bit 4 (IC22 CLR), IC9.12 = bit 3 (beep), IC9.15 = bit 2 (motor) (netlist :380-408, and IC9.12 / IC9.15 in the Beep / Motor blocks). This agrees with the forced-bit results of 19.3, which established bits 2-4 empirically.
+- Timing: the byte is built and latched at the start of the pass, so a bit written later in the pass by the wave code (bit 2: `$0348`, `$0266`) reaches the board one pass later; in the game-over pass the latch still holds the in-play value (21.4).
+
+### 21.2 Cue models (`SoundBoard`, `Circuits`)
+
+48 kHz mono, one buffer per pass (1263/1264 samples, exact 48000/38 on average). Levels: each cue alone is scaled at start-up (deterministic calibration render) so its rms equals the MAME rms in p8 (6)/(8)/(10) × master 0.6 (MAME full scale 32768 = 0.6); then a soft limiter (unity to 0.8, tanh knee, |y| < 0.99). The MAME base run itself clips at 32767 (p8 (10)).
+
+| Cue | Trigger (sim → board) | Model and source of each parameter |
+|---|---|---|
+| Explosion | `Explosions > 0` (Q7 falling edge) | Noise: MM5837 17-bit register, seed `0x1FFFF`, taps bits 0 and 3, one shift per sample (FREQ default 48 kHz) — exact port. Filters (one-pole approximations of the netlist RC network): R1 47k/C2 0.1 µF low-pass 33.9 Hz; R2 47k + C3 0.1 µF into IC2 high-pass 33.9 Hz; IC2 feedback R3 330k ‖ C4 0.02 µF low-pass 24.1 Hz; R4 10k + C5 0.1 µF + R5 2.7k high-pass 125 Hz. Envelope: IC4 555 monostable T = 1.1·R8·C6 = 1.1·470k·0.68 µF = 0.3516 s hold; a trigger while timing does not extend it; decay τ = 141 ms **measured** (p8 (6) fit; the netlist RC R10·C8 = 20k·4.7 µF = 94 ms is slower in MAME's output — UNCHECKED why); attack 2 ms UNCHECKED |
+| Laser | `Laser` (Q4 = 0; counter IC18 out of CLR) | IC18 2QA..2QD → R65 82k, R64 39k, R62 10k, R63 20k (DAC weights). The netlist's VCO is itself an offline-fitted HLE (`HLE_LASER_VCO`, :568-597) of an unknown control voltage, so the sweep is **measured**: tone period P(t) = 0.279 ms + 0.0189·t (p8 (8), 14 windows 37-107 ms, one in-game burst, max residual 0.035 ms); clock half-period = P/16 (QC, the 10k bit, toggles every 8 clocks). Restarts at each off→on. After 107 ms held (UNCHECKED). |
+| Torpedo | `Torpedo` (Q3 = 0) | IC18 1QA..1QD → R75 82k, R74 39k, R72 10k, R73 20k. Sweep **measured** (p8 (8), 103 bursts): period 2.75 ms at 21 ms → 4.06, 5.42, 6.56, 7.42, 7.94, 8.33 → 8.55 ms (117 Hz plateau, p8 (9)) at 161 ms; linear interpolation; t = 0 value 1.37 ms extrapolated (UNCHECKED). |
+| Background | `!BackgroundMuted` (bit 4 = 0 releases IC22 CLR), `BackgroundLevel` bits 7-5 | Two VARCLOCKs OR'd (AFUNC max, :440-454) clock IC22 (falling edges) → R86 10k (QA), R87 20k, R88 39k, R89 82k. Slow clock half-period HP1 = clamp(−0.0235033·V + 0.0179360, 1e-6, 0.1) (netlist formula). V = −470·10 V·Σ(off bits) (1/2k, 1/4k, 1/8k): ideal open-collector 7406 and a 10 V D1 zener assumed (UNCHECKED). Tone: **measured** f0 for v = 0..6 (p8 (5)), clock half-period = 1/(4 f0); v = 7 from the netlist HP2 at 0 V (975 Hz, UNCHECKED: never seen). |
+| Motor | `Motor` (bit 2 = 0) | IC11 555 astable R31 68k, R32 30k, C14 0.22 µF (51.2 Hz, duty 0.77) + IC13 555 R37 56k, R38 24k, C17 0.1 µF (138.7 Hz, duty 0.77), equal weights (R33 = R39 = 15k, C16 = C19 = 0.1 µF into R34 2.7k), ~90 Hz coupling high-pass; hard gate (Q4/Q5 → R36 bias). D12/D13 zener clamp not modelled (UNCHECKED). |
+| Beep | `Beep` (bit 3 = 0) | IC5 555 astable R13 4.7k, R14 8.2k, C9 0.047 µF: 1455 Hz, duty 0.61 (MAME: 1462 Hz, 0.59, p8 (4)); R15 15k/C11 0.1 µF/R16 2.7k coupling ~90 Hz; hard gate (Q2/Q3 → R18). |
+| Output | — | OUTPUT = R45.1 = R49.2. IC7 path (explosion, beep, motor) → C12 0.1 µF → R45 27k; DAC paths → R48 2.7k (R91 2.7k) → C21 (C32) 0.68 µF → R49 470. With the output node unloaded (UNCHECKED) each capacitor sees the loop ≈ 31k (R45 + R49 + R48 + R47 ‖ DAC): high-pass 51 Hz (C12) and 7.5 Hz (C21/C32). |
+
+Comparison of the synthesized cues with p8 (probe run, not committed): laser 1016 Hz at 37 ms → 462 Hz at 101 ms (MAME 1017 → 454); torpedo 333 → 117 Hz (MAME 363 → 114-117); background v0 158 Hz / 5.1 Hz pulsing (MAME 161 / 5.1; FFT bin 2.9 Hz), v5 378 / 11.0 (MAME 378 / 10.3); motor lines 51, 102, 138-139, 277 Hz (MAME 51-52, 102-103, 139, 278). Explosion: hold then decay as in p8 (6), but the synthesized noise has less energy below 50 Hz (0.33 of the total vs 0.64 in MAME): **UNCHECKED** which part of the network (or the CA3080 bias step) produces MAME's extra low end.
+
+### 21.3 Background pitch (resolves 19.7 item 3, 20.6 item 3)
+
+Bits 7-5 = v, bit 7 most significant. Netlist prediction 1/(4·HP2(V)): 164, 186, 215, 255, 312, 404, 571 Hz for v = 0..6; MAME output 161, 182, 208, 246, 296, 378, 519 Hz (p8 (5)). Pulsing 1/(2·HP1): predicted 5.0, 5.0, 5.75, 6.8, 8.4, 11.0 Hz, measured 5.1, 5.1, 5.9, 6.6, 8.1, 10.3 (v = 6 measured 3.7 Hz, taken as a measurement artifact: UNCHECKED). The remake uses the measured tone and the netlist pulsing rate.
+
+### 21.4 Command byte replay
+
+`ReplayTests.SoundCommandByte` replays sl_base (the pass-6 shoot run: 6 waves and the BONUS screen), shoot1, ram1, tp_wander and tp_pvp1 and compares the simulation's sound flags with frame-end RAM[$FC] in **every** frame (`tests/RipOff.Core.Tests/Data/*.fc`, run-length RAM values only) through game over: motor vs the previous frame's bit 2, beep vs bit 3, background-off vs bit 4, pitch vs bits 7-5. All match after two fixes in `Simulation.Step`:
+
+- the beep, motor and background flags are computed at the sound routine (start of pass) from the previous pass's state: the beep is on when RAM[$A8] bit 1 = 0 **before** the pass increment, and not on the pass that sets BONUS (sl_base f3265; p8 (7): 49 of 49 later BONUS frames);
+- the motor in the game-over pass keeps its in-play value (ram1 f3434, shoot1 f4790, wander1 f4462, tp_wander f5007, tp_shoot2 f4784 in `tools/remake/Replay`).
+
+The laser flag is still set in the pass that draws the fire line; the arcade writes OUT4 early in the pass (`$0168`), from the previous pass's bit 1, so the audible laser may lag the sim flag by one pass (26 ms): UNCHECKED, not compared (Q4 is not in RAM).
+
+### 21.5 Controller input
+
+MonoGame `GamePad` (SDL2 GameController on DesktopGL), pad index 0 → P1, index 1 → P2, read with `GamePadDeadZone.None`. Mapping in `PadMapper` (README "Controller"): turn = left stick X beyond 0.35 or D-pad; thrust = A or right trigger > 0.3; fire = X or RB (level; the sim's fire edge logic is unchanged); coin = Back/View (edge, either pad); start = Start/Menu on pad 0 → 1P, on pad 1 or LB + Start on pad 0 → 2P (edges). Pad and keyboard are OR'd. A disconnected pad reads neutral; a newly connected pad gets no edge on its first pass; `GamePad.GetState` failures read as disconnected. The 0.35 dead zone and 0.3 trigger threshold are design choices.
+
+### 21.6 Still UNCHECKED after pass 8
+
+1. Explosion: decay τ (measured 141 ms vs R10·C8 = 94 ms), the 2 ms attack, the missing low end (21.2), the one-pole approximation of the filter network (loading between stages ignored), 555 retrigger behaviour.
+2. Laser sweep beyond 107 ms and before 37 ms (one measured burst), and the possible one-pass lag of Q4.
+3. Torpedo period at t < 21 ms (extrapolated).
+4. Background: v = 7 tone (never observed), the v = 6 pulsing rate, the ideal-open-collector voltage assumption (only used for the pulsing rate).
+5. Motor zener clamp; relative timing of 555 phases at power-up (all start at phase 0).
+6. Items 1, 2, 4, 5, 6 of 20.6 (unchanged).

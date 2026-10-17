@@ -12,11 +12,12 @@ if (mode.StartsWith("2p:")) { st.Credits=2; sim.StartGame(false); st.Players[1].
 int firstDiff=-1; int reported=0;
 var inp = new FrameInput();
 var q = new Queue<FrameInput>(); q.Enqueue(new FrameInput()); q.Enqueue(new FrameInput());
-string m1 = mode, m2 = "idle"; bool two = false;
+string m1 = mode, m2 = "idle"; bool two = false, alive = false;
+if (mode.StartsWith("t2:")) { m1 = mode.Substring(3); alive = true; } // trace2.lua one-player run (alive check)
 if (mode.StartsWith("2p:")) { var pp = mode.Split(':'); m1 = pp[1]; m2 = pp[2]; two = true; }
 PlayerInput Drive(int frame, int pi_, string md) {
   var pi = new PlayerInput(); var me = st.Players[pi_];
-  if (md=="idle" || (two && (me.A & 0x10)==0)) return pi;
+  if (md=="idle" || ((two || alive) && (me.A & 0x10)==0)) return pi;
   if (md=="wander") { long k = (((long)(frame/40) * 2654435761L) + (pi_==0?0x30:0x40)) % 4294967296L; if(!two) k = ((long)(frame/40) * 2654435761L) % 4294967296L;
      pi.Left=((k>>3)&1)==1; pi.Right=((k>>3)&1)==0 && ((k>>5)&1)==1; pi.Thrust=((k>>7)%4)!=0; return pi; }
   int px=S(me.X&0xFFF), py=S(me.Y&0xFFF); int tx, ty;
@@ -47,6 +48,13 @@ for (int f=startF; f<=maxF; f++) {
     chk("A",r.A,w[b+0xA]); if(!EnemyState.IsFree(r.A)){chk("X",r.X,w[b]);chk("Y",r.Y,w[b+1]);chk("H",r.Heading,w[b+5]);chk("Sp",r.Speed,w[b+6]);} }
   for (int j=0;j<16;j++){ if(st.Canisters[j].X2!=w[0xB0+2*j]||st.Canisters[j].Y2!=w[0xB1+2*j]) diffs.Add($"can{j} sim=({st.Canisters[j].X2},{st.Canisters[j].Y2}) ram=({w[0xB0+2*j]},{w[0xB1+2*j]})"); }
   if (st.WaveCounter!=w[0xEC]) diffs.Add($"EC sim={st.WaveCounter} ram={w[0xEC]}");
+  // Command byte RAM[$FC] (NOTES §21.4): bit 2 = 0 motor, bit 3 = 0 beep, bit 4 = 1 background off, bits 7-5 pitch.
+  //   Bit 2 is written later in the pass (wave code), so the latched value is the previous frame's (lst:283-384).
+  { int fc = w[0xFC]; var snd = st.Sound; int fcPrev = R.TryGetValue(f - 1, out var wp) ? wp[0xFC] : fc;
+    if (snd.Motor != (((fcPrev >> 2) & 1) == 0)) diffs.Add($"FC.motor sim={snd.Motor} fc(prev)={fcPrev:X}");
+    if (snd.Beep != (((fc >> 3) & 1) == 0)) diffs.Add($"FC.beep sim={snd.Beep} fc={fc:X}");
+    if (snd.BackgroundMuted != (((fc >> 4) & 1) == 1)) diffs.Add($"FC.bgoff sim={snd.BackgroundMuted} fc={fc:X}");
+    if (!snd.BackgroundMuted && ((snd.BackgroundLevel >> 5) & 7) != ((fc >> 5) & 7)) diffs.Add($"FC.pitch sim={(snd.BackgroundLevel >> 5) & 7} fc={fc:X}"); }
   if (st.Score[1]!=w[0xF2]) diffs.Add($"score2 sim={st.Score[1]} ram={w[0xF2]}");
   if (st.Score[0]!=w[0xF1]) diffs.Add($"score sim={st.Score[0]} ram={w[0xF1]}");
   if (diffs.Count>0 && reported<int.Parse(args[3])) { Console.WriteLine($"f{f}: "+string.Join("; ",diffs.Take(8))); reported++; if(firstDiff<0) firstDiff=f; }

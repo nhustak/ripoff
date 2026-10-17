@@ -8,4 +8,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RootNamespace>RipOff.Core</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="RipOff.Core.Tests" />
+  </ItemGroup>
 </Project>

@@ -26,11 +26,11 @@ public class ReplayTests
     static int S(int v) { v &= 0xFFF; return v >= 0x800 ? v - 0x1000 : v; }
 
     /// <summary>Port of the trace scripts' autopilot (trace.lua autopilot/wander, trace2.lua drive).</summary>
-    static PlayerInput Drive(GameState st, int frame, int p, string md, bool two)
+    static PlayerInput Drive(GameState st, int frame, int p, string md, bool two, bool alive = false)
     {
         var pi = new PlayerInput();
         var me = st.Players[p];
-        if (md == "idle" || (two && (me.A & 0x10) == 0)) return pi;
+        if (md == "idle" || ((two || alive) && (me.A & 0x10) == 0)) return pi;
         if (md == "wander")
         {
             long k = ((long)(frame / 40) * 2654435761L + (two ? (p == 0 ? 0x30 : 0x40) : 0)) % 4294967296L;
@@ -103,5 +103,61 @@ public class ReplayTests
             Assert.Equal(w[IdxA8], st.PassCounter);
         }
         Assert.True(checkedFrames > 30);
+    }
+
+    /// <summary>
+    /// Sound cues against the arcade's command byte RAM[$FC] on every frame (Data/*.fc, run-length encoded):
+    /// bit 2 = 0 motor (latched one pass late: written by the wave code after the sound routine), bit 3 = 0 beep,
+    /// bit 4 = 1 background off, bits 7-5 = background pitch (NOTES §19.3, §21.4).
+    /// </summary>
+    [Theory]
+    [InlineData("sl_base", "shoot", "idle", false, true)]   // trace2.lua one-player: 6 waves, BONUS screen
+    [InlineData("shoot1", "shoot", "idle", false, false)]
+    [InlineData("ram1", "ram", "idle", false, false)]
+    [InlineData("tp_wander", "wander", "wander", true, false)]
+    [InlineData("tp_pvp1", "pvp", "idle", true, false)]
+    public void SoundCommandByte(string tag, string m1, string m2, bool two, bool alive)
+    {
+        int[] pre = Array.Empty<int>(); var changes = new SortedDictionary<int, int>(); int end = 0;
+        foreach (var l in File.ReadLines(Path.Combine(AppContext.BaseDirectory, "Data", tag + ".fc")))
+        {
+            if (l.StartsWith('#')) continue;
+            var p = l.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (p[0] == "pre") pre = p.Skip(1).Select(x => Convert.ToInt32(x, 16)).ToArray();
+            else if (p[0] == "end") end = int.Parse(p[1]);
+            else changes[int.Parse(p[0])] = Convert.ToInt32(p[1], 16);
+        }
+        int Fc(int f) { int v = 0; foreach (var kv in changes) { if (kv.Key > f) break; v = kv.Value; } return v; }
+
+        var sim = new Simulation(); var st = sim.State;
+        st.CanisterDip = 3; st.Credits = two ? 2 : 1;
+        for (int i = 0; i < 3; i++) st.Enemies[i].B = pre[i];
+        st.Players[0].B = pre[3]; st.Players[1].B = pre[4];
+        st.PassCounter = pre[5];
+        sim.StartGame(!two);
+        var q = new Queue<FrameInput>(); q.Enqueue(default); q.Enqueue(default);
+        int motorOn = 0, beepOn = 0, pitches = 0, seenPitch = 0;
+        for (int f = 202; f <= end; f++)
+        {
+            sim.Step(q.Dequeue());
+            var inp = new FrameInput();
+            if (f > 260) { inp.P1 = Drive(st, f, 0, m1, two, alive); if (two) inp.P2 = Drive(st, f, 1, m2, two); }
+            q.Enqueue(inp);
+            int fc = Fc(f), fcPrev = Fc(f - 1); var snd = st.Sound;
+            Assert.True(snd.Motor == (((fcPrev >> 2) & 1) == 0), $"{tag} f{f} motor sim={snd.Motor} fc(prev)={fcPrev:X2}");
+            Assert.True(snd.Beep == (((fc >> 3) & 1) == 0), $"{tag} f{f} beep sim={snd.Beep} fc={fc:X2}");
+            Assert.True(snd.BackgroundMuted == (((fc >> 4) & 1) == 1), $"{tag} f{f} bg off sim={snd.BackgroundMuted} fc={fc:X2}");
+            if (!snd.BackgroundMuted)
+            {
+                Assert.True(((snd.BackgroundLevel >> 5) & 7) == ((fc >> 5) & 7), $"{tag} f{f} pitch sim={snd.BackgroundLevel:X2} fc={fc:X2}");
+                seenPitch |= 1 << ((fc >> 5) & 7);
+            }
+            if (snd.Motor) motorOn++;
+            if (snd.Beep) beepOn++;
+        }
+        for (int b = 0; b < 8; b++) if ((seenPitch >> b & 1) != 0) pitches++;
+        Assert.True(motorOn > 100, $"{tag}: motor frames {motorOn}");
+        Assert.True(pitches >= 2, $"{tag}: pitch values {pitches}");
+        if (tag == "sl_base") Assert.True(beepOn > 40, $"beep frames {beepOn}");
     }
 }

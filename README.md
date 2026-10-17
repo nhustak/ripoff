@@ -111,6 +111,8 @@ There are no coins, credits or start buttons: picking a game in the menu starts 
 
 Settings are saved as JSON in `%APPDATA%\RipOffRemake\settings.json` on Windows (`~/.config/RipOffRemake/settings.json` on Linux), after every change. A missing file means defaults. An unreadable file is renamed to `settings.json.corrupt`, and the game starts with defaults and says so at the bottom of the screen.
 
+**Window position and size.** In windowed mode the game remembers where its window was and how big it was (`WindowX`, `WindowY`, `WindowWidth`, `WindowHeight` in settings.json, client area in desktop pixels, plus `WindowMaximized`). It saves about a second after you stop moving or resizing, and again on exit. Fullscreen never overwrites these, so leaving fullscreen puts the window back where it was. At start the saved rect is checked against the displays connected now. If it's too small (under 320×240), garbage, or no longer reachable (at least 100 px of its width and the 32 px title-bar strip must be on one display), the game uses the default instead: 1024×768 centered on the primary display, scaled down to fit a small screen. A rect that's partly off the edge, or bigger than the display, is shrunk and moved fully onto the display it overlaps most. To reset, delete those keys from settings.json.
+
 ### Controls
 
 Everything works with a controller alone, and everything works with the keyboard alone.

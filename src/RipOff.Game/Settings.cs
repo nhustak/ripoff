@@ -25,6 +25,20 @@ namespace RipOff.Game
         public double Volume { get; set; } = 1.0;
         public bool Muted { get; set; }
         public bool Fullscreen { get; set; }
+        /// <summary>Last windowed client-area position and size in desktop pixels (never the fullscreen size). Null in
+        /// older files or before the first run: default 1024×768 centered. Validated against the displays at start
+        /// (WindowGeometry.Resolve).</summary>
+        public int? WindowX { get; set; }
+        public int? WindowY { get; set; }
+        public int? WindowWidth { get; set; }
+        public int? WindowHeight { get; set; }
+        /// <summary>The window was maximized when last windowed (the X/Y/Width/Height above stay the un-maximized ones).</summary>
+        public bool WindowMaximized { get; set; }
+
+        /// <summary>The saved windowed rect, or null if any part is missing.</summary>
+        [JsonIgnore]
+        public PixelRect? WindowRect =>
+            WindowX is int x && WindowY is int y && WindowWidth is int w && WindowHeight is int h ? new PixelRect(x, y, w, h) : null;
         public float StickDeadzone { get; set; } = PadMapper.DefaultStickDeadzone;
         /// <summary>Initialize Steam at launch, before the window (takes effect on the next start), so the Steam overlay
         /// and its invite dialog work. Default OFF (NOTES §24): Steam then starts only when a Steam online option is

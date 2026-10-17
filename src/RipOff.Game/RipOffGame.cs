@@ -38,6 +38,10 @@ namespace RipOff.Game
         readonly int _shotPasses;
         bool _fullscreenApplied;
         string _title = "";
+        bool _applyingWindow;      // our own ApplyChanges: ignore the ClientSizeChanged it raises
+        int _geometryQuietTicks = -1; // ticks since the windowed geometry last changed (-1 = saved / nothing pending)
+        /// <summary>Ticks of unchanged geometry before a move/resize is saved (1 s): one save per drag, not per frame.</summary>
+        public const int GeometrySaveDelayTicks = 38;
 
         public RipOffGame(string? shotPath = null, int shotPasses = 400, SteamGate? steam = null,
             Settings? settings = null, SettingsStore? store = null, string? notice = null, InputLog? log = null)
@@ -53,6 +57,7 @@ namespace RipOff.Game
             IsFixedTimeStep = true;
             TargetElapsedTime = TimeSpan.FromSeconds(1.0 / GameData.PassesPerSecond);
             Window.AllowUserResizing = true;
+            Window.ClientSizeChanged += (_, _) => OnClientSizeChanged();
             Window.Title = Branding.WindowTitle + " " + BuildInfo.Display.ToLowerInvariant();
             IsMouseVisible = false;
             Window.TextInput += (_, e) => { if (_typed.Length < 32) _typed.Append(e.Character); };
@@ -65,8 +70,79 @@ namespace RipOff.Game
 
         protected override void Initialize()
         {
-            if (_front != null && _front.Settings.Fullscreen) ApplyFullscreen(true);
+            if (_front != null)
+            {
+                SdlWindow.SetMinimumSize(Window.Handle, WindowGeometry.MinWidth, WindowGeometry.MinHeight);
+                var displays = SdlWindow.Displays();
+                _log?.Header("displays: " + (displays == null ? "unknown (" + SdlWindow.Problem + ")" : string.Join(", ", displays.ConvertAll(d => $"{d.Width}x{d.Height}@{d.X},{d.Y}")))
+                    + $"; saved window: {(_front.Settings.WindowRect is { } r ? $"{r.Width}x{r.Height}@{r.X},{r.Y}" : "none")}{(_front.Settings.WindowMaximized ? " maximized" : "")}");
+                if (_front.Settings.Fullscreen) ApplyFullscreen(true);
+                else ApplyWindowed(displays);
+            }
             base.Initialize();
+        }
+
+        /// <summary>Windowed size and position from the saved geometry, validated against the displays (WindowGeometry).</summary>
+        void ApplyWindowed(List<PixelRect>? displays = null)
+        {
+            var s = _front!.Settings;
+            var pl = WindowGeometry.Resolve(s.WindowRect, displays ?? SdlWindow.Displays());
+            _applyingWindow = true;
+            try
+            {
+                _gfx.IsFullScreen = false;
+                _gfx.PreferredBackBufferWidth = pl.Width; _gfx.PreferredBackBufferHeight = pl.Height;
+                _gfx.ApplyChanges();
+                if (pl.Position is { } p) Window.Position = new Point(p.X, p.Y);
+                if (s.WindowMaximized) SdlWindow.Maximize(Window.Handle);
+            }
+            finally { _applyingWindow = false; }
+            _log?.Event($"window: {pl.Width}x{pl.Height}" + (pl.Position is { } q ? $" at {q.X},{q.Y}" : " (OS placement)") + (pl.FromSaved ? " (saved)" : " (default)") + (s.WindowMaximized ? ", maximized" : ""));
+        }
+
+        /// <summary>User resize: the back buffer follows the client area, so the 4:3 letterbox (LineRenderer) uses the
+        /// whole window. Not while fullscreen, and not for our own ApplyChanges.</summary>
+        void OnClientSizeChanged()
+        {
+            if (_applyingWindow || _front == null || _gfx.IsFullScreen) return;
+            var cb = Window.ClientBounds;
+            if (cb.Width <= 0 || cb.Height <= 0) return; // minimized
+            if (cb.Width != _gfx.PreferredBackBufferWidth || cb.Height != _gfx.PreferredBackBufferHeight)
+            {
+                _applyingWindow = true;
+                try { _gfx.PreferredBackBufferWidth = cb.Width; _gfx.PreferredBackBufferHeight = cb.Height; _gfx.ApplyChanges(); }
+                finally { _applyingWindow = false; }
+            }
+        }
+
+        /// <summary>Copies the current windowed geometry into the settings (only while windowed; a maximized window keeps
+        /// its un-maximized rect and sets WindowMaximized). True if something changed.</summary>
+        bool CaptureWindowed()
+        {
+            if (_front == null || _gfx.IsFullScreen || _fullscreenApplied) return false;
+            var s = _front.Settings;
+            bool max = SdlWindow.IsMaximized(Window.Handle);
+            bool changed = max != s.WindowMaximized;
+            s.WindowMaximized = max;
+            if (max) return changed;
+            var cb = Window.ClientBounds; var pos = Window.Position;
+            if (cb.Width <= 0 || cb.Height <= 0 || !WindowGeometry.IsSaneSize(cb.Width, cb.Height)) return changed; // minimized / odd
+            var r = new PixelRect(pos.X, pos.Y, cb.Width, cb.Height);
+            if (s.WindowRect == r) return changed;
+            s.WindowX = r.X; s.WindowY = r.Y; s.WindowWidth = r.Width; s.WindowHeight = r.Height;
+            return true;
+        }
+
+        /// <summary>Debounced save of window moves/resizes: after <see cref="GeometrySaveDelayTicks"/> quiet ticks.</summary>
+        void TrackWindowGeometry()
+        {
+            if (CaptureWindowed()) { _geometryQuietTicks = 0; return; }
+            if (_geometryQuietTicks < 0) return;
+            if (++_geometryQuietTicks < GeometrySaveDelayTicks) return;
+            _geometryQuietTicks = -1;
+            if (_store?.Save(_front!.Settings) is { } err) _front!.Notify(err);
+            var g = _front!.Settings;
+            _log?.Event($"window saved: {g.WindowWidth}x{g.WindowHeight} at {g.WindowX},{g.WindowY}{(g.WindowMaximized ? ", maximized" : "")}");
         }
 
         protected override void LoadContent()
@@ -78,16 +154,22 @@ namespace RipOff.Game
 
         void ApplyFullscreen(bool on)
         {
+            if (on && !_gfx.IsFullScreen && !_fullscreenApplied) CaptureWindowed(); // remember the windowed geometry first
             _fullscreenApplied = on;
             if (_gfx.IsFullScreen == on) return;
             if (on)
             {
                 var dm = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
-                _gfx.PreferredBackBufferWidth = dm.Width; _gfx.PreferredBackBufferHeight = dm.Height;
+                _applyingWindow = true;
+                try
+                {
+                    _gfx.PreferredBackBufferWidth = dm.Width; _gfx.PreferredBackBufferHeight = dm.Height;
+                    _gfx.IsFullScreen = true;
+                    _gfx.ApplyChanges();
+                }
+                finally { _applyingWindow = false; }
             }
-            else { _gfx.PreferredBackBufferWidth = 1024; _gfx.PreferredBackBufferHeight = 768; }
-            _gfx.IsFullScreen = on;
-            _gfx.ApplyChanges();
+            else ApplyWindowed(); // back to the saved windowed geometry
         }
 
         void ApplyAudio()
@@ -153,9 +235,10 @@ namespace RipOff.Game
             _typed.Clear();
 
             front.Update(ui, play);
-            if (front.ExitRequested) { _store?.Save(front.Settings); Exit(); return; }
+            if (front.ExitRequested) { CaptureWindowed(); _store?.Save(front.Settings); Exit(); return; }
 
             if (front.Settings.Fullscreen != _fullscreenApplied) ApplyFullscreen(front.Settings.Fullscreen);
+            TrackWindowGeometry();
             ApplyAudio();
             _sound?.Update(front.Sound);
             UpdateTitle();
@@ -201,7 +284,7 @@ namespace RipOff.Game
 
         protected override void UnloadContent()
         {
-            if (_front != null) { _store?.Save(_front.Settings); _front.Online.Dispose(); }
+            if (_front != null) { CaptureWindowed(); _store?.Save(_front.Settings); _front.Online.Dispose(); }
             _renderer?.Dispose(); _sound?.Dispose(); base.UnloadContent();
         }
     }

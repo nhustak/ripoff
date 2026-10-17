@@ -14,8 +14,10 @@ namespace RipOff.Game
     /// Game pad → arcade controls. Pad index 0 drives player 1, index 1 player 2 (MonoGame GamePad, SDL2
     /// GameController on DesktopGL; buttons named in Xbox layout).
     ///   turn:   left stick X beyond <see cref="StickDeadzone"/>, or D-pad left/right
-    ///   thrust: A, or right trigger beyond <see cref="TriggerThreshold"/>
-    ///   fire:   X, or right bumper (passed as a level: the simulation edge-detects fire like the arcade button)
+    ///   thrust: A, or left trigger beyond <see cref="TriggerThreshold"/> (held = thrust)
+    ///   fire:   X, right bumper, or right trigger beyond <see cref="TriggerThreshold"/>. All three produce the same
+    ///           "fire held" level, passed as is; the simulation's fire logic (unchanged) decides what a held
+    ///           button does
     ///   coin:   Back / View (either pad, on press)
     ///   start:  Start / Menu on pad 0 = 1-player start; Start on pad 1, or LB + Start on pad 0 = 2-player start
     /// Coin and start are edges (one pass per press), like the keyboard keys: the simulation adds a credit on every
@@ -26,7 +28,7 @@ namespace RipOff.Game
     {
         /// <summary>Axial dead zone on the left stick X (stick range −1..1). A design choice, not from the arcade.</summary>
         public const float StickDeadzone = 0.35f;
-        /// <summary>Right-trigger travel (0..1) that counts as thrust.</summary>
+        /// <summary>Trigger travel (0..1) beyond which LT counts as thrust and RT as fire.</summary>
         public const float TriggerThreshold = 0.3f;
 
         private readonly GamePadState[] _prev = new GamePadState[2];
@@ -44,8 +46,9 @@ namespace RipOff.Game
             {
                 Left = x < -StickDeadzone || s.DPad.Left == ButtonState.Pressed,
                 Right = x > StickDeadzone || s.DPad.Right == ButtonState.Pressed,
-                Thrust = s.Buttons.A == ButtonState.Pressed || s.Triggers.Right > TriggerThreshold,
-                Fire = s.Buttons.X == ButtonState.Pressed || s.Buttons.RightShoulder == ButtonState.Pressed,
+                Thrust = s.Buttons.A == ButtonState.Pressed || s.Triggers.Left > TriggerThreshold,
+                Fire = s.Buttons.X == ButtonState.Pressed || s.Buttons.RightShoulder == ButtonState.Pressed
+                    || s.Triggers.Right > TriggerThreshold,
             };
         }
 

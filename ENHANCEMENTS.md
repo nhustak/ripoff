@@ -34,3 +34,11 @@ Status: idea / planned / in progress / done. Source: Nick or bot-suggested.
 | Two-player Enhanced balance measurement. The knobs apply, but it was never measured; `ClearsPerTypeStep` also applies to the two-player 6-kill advance (NOTES §27.4.2) | idea | bot-suggested |
 | Chase turn-speed knob (`ChaseTurnPercent`, still 100 in Enhanced). 75 % was tried, but chasers circled a still player until the 30-minute cap (stall) in 1-2 of 20 games. It needs a fix for the circling before it can be used (NOTES §27.2) | idea | bot-suggested |
 | Human playtest feedback on the hit rate. The ~50 % hit rate was measured with bots that never thrust, and a moving human may see a different rate (NOTES §27.4.1) | idea | bot-suggested |
+
+### Ships
+
+| Idea | Status | Source |
+|---|---|---|
+| Ship select: each player chooses which ship they play, and both players can't pick the same ship (there are currently two ship shapes) | idea | Nick |
+| Additional ships beyond the current two | idea | Nick |
+| Ships have different abilities | idea | Nick |

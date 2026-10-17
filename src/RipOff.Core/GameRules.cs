@@ -66,8 +66,13 @@ namespace RipOff.Core
         public int WarpInPasses { get; init; }
         /// <summary>Speed when a warp-in materializes (the arcade's drive-in uses <see cref="RespawnSpeed"/>).</summary>
         public int WarpInSpeed { get; init; }
-        /// <summary>Where a warp-in happens (hook: only <see cref="WarpInLocation.Fixed"/> exists today).</summary>
+        /// <summary>Where a warp-in happens: <see cref="WarpInLocation.Fixed"/> (GameData.WarpInPoints) or
+        /// <see cref="WarpInLocation.Random"/> (Simulation.RandomWarpPoint, NOTES §29). Only used when WarpInPasses &gt; 0.</summary>
         public WarpInLocation WarpLocation { get; init; } = WarpInLocation.Fixed;
+        /// <summary>Warp kill (NOTES §29): when a warp-in materializes, enemies overlapping the player (tank contact
+        /// box, TankHitRadius) are destroyed as if rammed, scoring for that player; the player survives. Only used when
+        /// WarpInPasses &gt; 0.</summary>
+        public bool WarpKills { get; init; }
         /// <summary>How long a dead player waits before (re)spawning (hook: only <see cref="RespawnDelayRule.Fixed"/>
         /// exists today, = <see cref="RespawnDelay"/>).</summary>
         public RespawnDelayRule DelayRule { get; init; } = RespawnDelayRule.Fixed;
@@ -104,6 +109,7 @@ namespace RipOff.Core
             TowSpeedPercent = 75,
             // Respawn: warp in at the spawn point instead of driving in from the edge (NOTES §28). 30 passes = 0.79 s.
             WarpInPasses = 30, WarpInSpeed = 0,
+            WarpLocation = WarpInLocation.Random, WarpKills = true,
         };
 
         /// <summary>
@@ -130,6 +136,10 @@ namespace RipOff.Core
                 }),
             new(EnhancedOption.SlowerTowing, "SLOWER TOWING", "ENEMIES TOWING A CANISTER MOVE AT 75 %",
                 r => r with { TowSpeedPercent = Arcade.TowSpeedPercent }),
+            new(EnhancedOption.RandomWarpIn, "RANDOM WARP-IN", "WARP IN AT A RANDOM SPOT AWAY FROM THE CANISTERS AND THE OTHER PLAYER",
+                r => r with { WarpLocation = Arcade.WarpLocation }, Requires: EnhancedOption.WarpIn),
+            new(EnhancedOption.WarpKills, "WARP KILLS", "WARPING IN ON TOP OF AN ENEMY DESTROYS IT",
+                r => r with { WarpKills = Arcade.WarpKills }, Requires: EnhancedOption.WarpIn),
         };
 
         private static readonly GameRules?[] EnhancedByOptions = new GameRules?[(int)EnhancedOption.All + 1];
@@ -169,14 +179,22 @@ namespace RipOff.Core
         EnemyAimError = 2,
         SlowerRamp = 4,
         SlowerTowing = 8,
-        All = WarpIn | EnemyAimError | SlowerRamp | SlowerTowing,
+        RandomWarpIn = 16,
+        WarpKills = 32,
+        All = WarpIn | EnemyAimError | SlowerRamp | SlowerTowing | RandomWarpIn | WarpKills,
     }
 
     /// <summary>One row of the ENHANCED OPTIONS page: its bit, label, one-line description, and what "off" does to the rules.</summary>
-    public sealed record EnhancedVariation(EnhancedOption Option, string Label, string Info, Func<GameRules, GameRules> Off);
+    /// <param name="Requires">Another option this one only means something with (the page dims it while that one is off).</param>
+    public sealed record EnhancedVariation(EnhancedOption Option, string Label, string Info, Func<GameRules, GameRules> Off,
+        EnhancedOption Requires = EnhancedOption.None)
+    {
+        /// <summary>False when <see cref="Requires"/> is off in <paramref name="options"/>: the setting is kept but ignored.</summary>
+        public bool Applies(EnhancedOption options) => (options & Requires) == Requires;
+    }
 
-    /// <summary>Warp-in location strategy (Simulation.WarpInPoint). Later: e.g. Random (from the Enhanced RNG).</summary>
-    public enum WarpInLocation : byte { Fixed = 0 }
+    /// <summary>Warp-in location strategy (Simulation.WarpInPoint). Random draws from the Enhanced RNG.</summary>
+    public enum WarpInLocation : byte { Fixed = 0, Random = 1 }
 
     /// <summary>Respawn delay strategy (Simulation.RespawnDelayFor). Later: e.g. by cause of death (the player record's
     /// word C: 1 = ram, 2 = enemy fire) and time since the previous death.</summary>

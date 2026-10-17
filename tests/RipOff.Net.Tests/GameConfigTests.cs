@@ -74,7 +74,8 @@ public class GameConfigTests
         Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 3, 8, 0, 1 }));       // schema 3 but no options byte
         Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 3, 8, 0x80, 0, 15 })); // reserved flag bit
         Assert.NotNull(GameConfig.Decode(new byte[] { 3, 8, 0, 7, 15 }).Validate());            // unknown play mode: refused, with a reason
-        Assert.Contains("enhanced options", GameConfig.Decode(new byte[] { 3, 8, 0, 1, 0x10 }).Validate()); // unknown option bit
+        Assert.Contains("enhanced options", GameConfig.Decode(new byte[] { 3, 8, 0, 1, 0x40 }).Validate()); // unknown option bit
+        Assert.Null(GameConfig.Decode(new byte[] { 3, 8, 0, 1, 0x3F }).Validate()); // RANDOM WARP-IN (0x10), WARP KILLS (0x20)
         Assert.NotNull(new GameConfig(8, false, (PlayMode)7).Validate());
     }
 
@@ -160,11 +161,14 @@ public class GameConfigTests
         Assert.True(common > 1200, $"{common} common frames");
     }
 
-    [Fact]
-    public void GuestAdoptsTheHostsEnhancedOptionsAndBothWarpInIdentically()
+    [Theory]
+    [InlineData((byte)(EnhancedOption.WarpIn | EnhancedOption.SlowerTowing))]             // fixed warp, aim error and slower ramp off
+    [InlineData((byte)EnhancedOption.All)]                                                 // random warp-in + warp kills
+    [InlineData((byte)(EnhancedOption.WarpIn | EnhancedOption.WarpKills))]                 // warp kills at the fixed points
+    public void GuestAdoptsTheHostsEnhancedOptionsAndBothWarpInIdentically(byte o)
     {
         var net = new LoopbackNetwork(12, 30, 20, 0.03);
-        var opts = EnhancedOption.WarpIn | EnhancedOption.SlowerTowing; // aim error and slower ramp off
+        var opts = (EnhancedOption)o;
         var host = new LockstepSession(net.A, true, Key, LockstepSession.DefaultConfig(6, game: new GameConfig(8, Mode: PlayMode.Enhanced, Options: opts)), clock: () => net.NowMs / 1000);
         var guest = new LockstepSession(net.B, false, Key, clock: () => net.NowMs / 1000);
         var h = new Dictionary<int, uint>(); var g = new Dictionary<int, uint>();
@@ -181,7 +185,10 @@ public class GameConfigTests
         Assert.Equal(opts, guest.Config!.Value.Game.Options);
         Assert.Equal(opts, guest.Sim!.State.Options);
         Assert.Equal(opts, host.Sim!.State.Options);
-        Assert.Equal(0, guest.Sim.Rules.AimErrorAt(1));        // the guest runs the host's toggles, not its own defaults
+        Assert.Equal(guest.Sim.Rules, GameRules.For(PlayMode.Enhanced, opts)); // the guest runs the host's toggles, not its own defaults
+        if ((opts & EnhancedOption.EnemyAimError) == 0) Assert.Equal(0, guest.Sim.Rules.AimErrorAt(1));
+        Assert.Equal((opts & EnhancedOption.RandomWarpIn) != 0 ? WarpInLocation.Random : WarpInLocation.Fixed, guest.Sim.Rules.WarpLocation);
+        Assert.Equal((opts & EnhancedOption.WarpKills) != 0, guest.Sim.Rules.WarpKills);
         Assert.True(hostWarp > 0 && hostWarp == guestWarp, $"warp frames host {hostWarp} guest {guestWarp}");
         int common = 0;
         foreach (var (f, hash) in h) if (g.TryGetValue(f, out var gh)) { Assert.Equal(hash, gh); common++; }
@@ -191,10 +198,15 @@ public class GameConfigTests
     [Fact]
     public void OptionsAlteredInTransitAreCaughtAndUnknownOptionsRefused()
     {
-        Assert.Equal(4, Protocol.Version); // v4: the options byte changed the start message; v3 builds are refused at Hello
+        // v4: the options byte changed the start message; v3 builds are refused at Hello. RANDOM WARP-IN (0x10) and WARP
+        // KILLS (0x20) are two more bits in that byte, so the wire shape and the protocol stay v4 (NOTES §29).
+        Assert.Equal(4, Protocol.Version);
         // Start = [type, delay, len, schema, canisters, flags, mode, options, ...]
         var cfg = LockstepSession.DefaultConfig(3, game: new GameConfig(8, Mode: PlayMode.Enhanced));
         var (host, guest) = Run(cfg, p => p[7] = (byte)EnhancedOption.WarpIn);
+        Assert.Equal(SessionPhase.Failed, host.Phase);
+        Assert.Contains("game config mismatch", host.Status);
+        (host, guest) = Run(cfg, p => p[7] = (byte)(EnhancedOption.All & ~EnhancedOption.WarpKills)); // a new bit flipped
         Assert.Equal(SessionPhase.Failed, host.Phase);
         Assert.Contains("game config mismatch", host.Status);
         (host, guest) = Run(cfg, p => p[7] = 0x40);

@@ -82,6 +82,7 @@ namespace RipOff.Core
             s.MotorOff = true;
             s.AutoFireTimer[0] = s.AutoFireTimer[1] = 0;
             s.ShotsFired[0] = s.ShotsFired[1] = 0;
+            s.WarpKills[0] = s.WarpKills[1] = 0;
             s.ClearsTowardStep = 0;
             s.EnemyFireCooldown[0] = s.EnemyFireCooldown[1] = s.EnemyFireCooldown[2] = 0;
             s.EnemyFireEvents = s.EnemyFireHits = 0;
@@ -321,6 +322,7 @@ namespace RipOff.Core
                 {
                     if (--s.WarpTimer[p] > 0) continue;
                     Materialize(r, s.WarpX[p], s.WarpY[p], s.WarpHeading[p], Rules.WarpInSpeed);
+                    if (Rules.WarpKills) WarpKill(p, r);
                     continue;
                 }
                 r.Word3 += 1;
@@ -360,8 +362,98 @@ namespace RipOff.Core
         /// must draw from <see cref="GameState.NextEnhancedRandom"/>, so online peers pick the same point.</summary>
         private (int X, int Y, int Heading) WarpInPoint(int p) => Rules.WarpLocation switch
         {
+            WarpInLocation.Random => RandomWarpPoint(State, p),
             _ => GameData.WarpInPoints[p],
         };
+
+        /// <summary>
+        /// Random warp-in point (Enhanced RANDOM WARP-IN, NOTES §29), picked when the warp STARTS so the effect shows
+        /// where the player will appear. Drawn from <see cref="GameState.NextEnhancedRandom"/> (online lockstep safe).
+        /// A candidate is uniform in the playfield inset by <see cref="GameData.WarpMargin"/> on every side and is
+        /// accepted when it is outside the canister cluster box grown by <see cref="GameData.WarpCanisterClearance"/>
+        /// and at least <see cref="GameData.WarpPlayerClearance"/> from the other player (its tank if alive, its warp
+        /// point if it is warping in). Enemies are not avoided: landing on one is WARP KILLS. Up to
+        /// <see cref="GameData.WarpTries"/> candidates; if none fits, the first of <see cref="GameData.WarpFallbacks"/>
+        /// farthest from the other player (all of them satisfy the margin and canister rules). The ship faces the
+        /// canister cluster's center.
+        /// </summary>
+        public static (int X, int Y, int Heading) RandomWarpPoint(GameState s, int p)
+        {
+            (int X, int Y)? other = OtherPlayerSpot(s, p);
+            int lo = GameData.WarpMargin, w = GameData.FieldWidth - 2 * lo, h = GameData.FieldHeight - 2 * lo;
+            for (int t = 0; t < GameData.WarpTries; t++)
+            {
+                int x = lo + (int)(s.NextEnhancedRandom() % (uint)(w + 1));
+                int y = lo + (int)(s.NextEnhancedRandom() % (uint)(h + 1));
+                if (WarpSpotOk(x, y, other)) return (x, y, FaceCanisters(x, y));
+            }
+            var best = GameData.WarpFallbacks[0]; long bestD = -1;
+            foreach (var f in GameData.WarpFallbacks)
+            {
+                long d = other is { } o ? Dist2(f.X - o.X, f.Y - o.Y) : 0;
+                if (d > bestD) { bestD = d; best = f; }
+            }
+            return (best.X, best.Y, FaceCanisters(best.X, best.Y));
+        }
+
+        /// <summary>The other player's tank (alive or exploding) or its warp point while it warps in; null otherwise.</summary>
+        public static (int X, int Y)? OtherPlayerSpot(GameState s, int p)
+        {
+            int q = 1 - p;
+            if (s.OnePlayer) return null;
+            var o = s.Players[q];
+            if (!EnemyState.IsFree(o.A)) return (o.X, o.Y);
+            if (s.WarpTimer[q] > 0) return (s.WarpX[q], s.WarpY[q]);
+            return null;
+        }
+
+        /// <summary>The margin, canister and other-player rules of <see cref="RandomWarpPoint"/>.</summary>
+        public static bool WarpSpotOk(int x, int y, (int X, int Y)? other)
+        {
+            int m = GameData.WarpMargin;
+            if (x < m || x > GameData.FieldWidth - m || y < m || y > GameData.FieldHeight - m) return false;
+            var c = GameData.CanisterCluster; int k = GameData.WarpCanisterClearance;
+            if (x >= c.MinX - k && x <= c.MaxX + k && y >= c.MinY - k && y <= c.MaxY + k) return false;
+            if (other is { } o && Dist2(x - o.X, y - o.Y) < (long)GameData.WarpPlayerClearance * GameData.WarpPlayerClearance) return false;
+            return true;
+        }
+
+        private static long Dist2(int dx, int dy) => (long)dx * dx + (long)dy * dy;
+
+        private static int FaceCanisters(int x, int y)
+        {
+            var c = GameData.CanisterCluster;
+            return Trig.Bearing((c.MinX + c.MaxX) / 2 - x, (c.MinY + c.MaxY) / 2 - y);
+        }
+
+        /// <summary>
+        /// WARP KILLS (NOTES §29): at the moment a warp-in materializes, every live enemy inside the player's tank
+        /// contact box (<see cref="GameData.TankHitRadius"/>, the ram test of PlayerPass) is destroyed through the ram
+        /// path: explosion scale ExplosionRam, word C = 1, an explosion sound, the kill counted for the wave and the
+        /// points to player <paramref name="p"/>, and all enemies aim (the arcade's reaction to a ram). The player is
+        /// not exploded. A towed canister is dropped where it is when the explosion ends (ExplosionTick), as for any
+        /// kill. Materialize-only: during the warp the player isn't on the field (no contact at all), so there is no
+        /// invulnerable kill zone to steer enemies into for a whole second, and an enemy that leaves the effect before
+        /// it ends is spared. Runs before this pass's PlayerPass, so the overlap is a kill, not a mutual ram.
+        /// </summary>
+        private void WarpKill(int p, TankRecord r)
+        {
+            var s = State;
+            bool any = false;
+            for (int i = 0; i < 3; i++)
+            {
+                var o = s.Enemies[i];
+                if (!EnemyState.IsAlive(o.A)) continue;
+                if (!Box(o.X - r.X, o.Y - r.Y, GameData.TankHitRadius)) continue;
+                o.A &= 0xF; o.Scale = GameData.ExplosionRam; o.C = 1;
+                s.Sound.Explosions++;
+                s.KillsThisWave += 1;
+                s.Score[p] += PointsTens(s.EnemyType, s.Level);
+                s.WarpKills[p]++;
+                any = true;
+            }
+            if (any) AllEnemiesAim();
+        }
 
         /// <summary>Game over when no canister slot has y bit 0 clear (lst:1452-1481, GR §2).</summary>
         private void GameOverCheck()

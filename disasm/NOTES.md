@@ -1272,6 +1272,87 @@ Which knobs each toggle owns (choices):
 ### 28.4 UNCHECKED
 
 1. Feel: whether 0.79 s of warp plus the arcade delay feels right, and whether materializing at speed 0 (instead of the arcade's coasting entry) is better with a pad.
-2. Spawning into an enemy that sits on the warp point (ram on the materialize pass) was not tuned, for example by holding the warp until the point is clear.
-3. The effect is clipped by the field edge on P1's side (the warp point is 64 units from the right edge). It reads fine in the screenshots but wasn't checked on Windows.
+2. Spawning into an enemy that sits on the warp point (ram on the materialize pass) was not tuned, for example by holding the warp until the point is clear. Resolved by §29: with WARP KILLS on (default) the enemy is destroyed and the player survives.
+3. The effect is clipped by the field edge on P1's side (the warp point is 64 units from the right edge). It reads fine in the screenshots but wasn't checked on Windows. With RANDOM WARP-IN on (default, §29) spots are 160 units from every edge, so the effect is never clipped. This only remains with RANDOM WARP-IN off.
 4. Online warp-in was tested in the loopback lockstep tests only, not between two machines.
+
+## 29. Random warp-in and warp kills
+
+Status: done 2026-10-17. Nick playtested warp-in (§28): "warp in is good - let's make the position random and if you warp in on an enemy it kills it." He confirmed a warp kill awards the normal score and counts as a kill, and the player survives. Remake design, Enhanced only. Arcade is unchanged: `ArcadeDeterminismTests` and `EscalationTests` pass with the same checksums.
+
+### 29.1 Random warp-in (toggle RANDOM WARP-IN)
+
+`GameRules.WarpLocation = WarpInLocation.Random` (Enhanced default; Arcade `Fixed`). `Simulation.WarpInPoint` (the §28 hook) calls `Simulation.RandomWarpPoint(state, p)`.
+
+- **When:** at warp START, the pass the respawn delay ends. The spot goes into `WarpX/WarpY/WarpHeading`, so the effect is drawn where the ship will appear, and it doesn't move during the warp.
+- **Randomness:** `GameState.NextEnhancedRandom()` only (xorshift32, hashed outside Arcade), so online peers pick the same spot.
+- **Candidate:** x and y uniform in the field inset by `GameData.WarpMargin` = **160** on every side (x 160-864, y 160-608).
+  - The effect's outer spoke tips reach 120 + 36 = 156 units at the start (`Scene.DrawWarp`), so the effect and the ship are never clipped (`TheEffectIsDrawnAtTheRandomSpot`).
+- **Accepted when** (`Simulation.WarpSpotOk`):
+  - **Not on the canisters:** outside the box around all 16 canister starts (`GameData.CanisterCluster`, x 456-568, y 328-440), grown by `WarpCanisterClearance` = **96**.
+    - The box uses the start positions, not where canisters currently are. The cluster is where enemies head and where canisters return, and a fixed area keeps the rule simple and predictable.
+    - 64 was tried first. A ship could then land close enough that the start of the warp ring swept over the canisters (seen in the first 2P capture), so it became 96, about four tank radii.
+  - **Not on or near the other player:** at least `WarpPlayerClearance` = **240** units (Euclidean) from the other player's tank (alive or exploding) or, if it's warping in, its warp spot. That's two warp-effect radii, so the effects never overlap.
+    - P1 picks first in a pass, so a P2 warp starting on the same pass avoids P1's new spot.
+    - A dead player waiting out its delay has no position and is ignored. It will avoid this spot when it picks.
+  - **Enemies are not avoided:** landing on one is WARP KILLS.
+- **Tries:** up to `WarpTries` = **32** candidates.
+  - Even in the worst case (the other player in the middle of an open area) 38 % of the inset field is allowed, so 32 misses in a row happen about once in 6 million.
+  - Then `GameData.WarpFallbacks` is used: six fixed spots inside the margin and clear of the canisters. The one farthest from the other player is taken, and for any other-player position at least one fallback is more than 240 away (`FallbacksFollowTheRulesAndOneIsAlwaysFarEnough`).
+- **Heading:** the ship faces the center of the canister cluster (`Trig.Bearing` of cluster − spot).
+- **Local games get a fresh seed per game.**
+  - The Enhanced RNG is seeded from the records' B words and the pass counter at `StartGame` (§28). Those are identical at every local start, so the first warp of every local game landed on the same spot.
+  - `FrontEnd.StartLocal` now salts it with a per-game random value (`GameState.SaltEnhancedRng`, Enhanced only; Arcade stays 0).
+  - This also varies the enemy aim errors between local games. Online games don't salt: both peers seed from the session's record seeds.
+
+### 29.2 Warp kills (toggle WARP KILLS)
+
+`GameRules.WarpKills` (Enhanced true; Arcade false). In `RespawnPlayers`, right after `Materialize`, `Simulation.WarpKill(p, record)` runs.
+
+- **What it does:** every live enemy inside the player's tank contact box (`Box(dx, dy, GameData.TankHitRadius = 24)`, the same test as the ram in `PlayerPass`) is destroyed through the ram path:
+  - `A &= $F`, explosion scale `ExplosionRam`, word C = 1, one explosion sound each;
+  - `KillsThisWave += 1`, `PointsTens(type, level)` to that player;
+  - and `AllEnemiesAim()` once, the arcade's reaction to a ram.
+- **What it doesn't do:** the player is not exploded.
+- **Towed canisters:** a towing enemy drops its canister where it is when its explosion ends (`ExplosionTick` clears the taken bit), exactly as for a shot or ram kill (`WarpKillingATowerDropsItsCanister`).
+- **Stat:** `GameState.WarpKills[p]` counts these kills. It is NOT in the state hash: it never feeds back into the simulation, and hashing it (always 0 with the toggle off) would have changed the hashes of the toggles-off games.
+- **Materialize-only, not during the whole warp.** Chosen because:
+  - During the warp the player record is free (§28): there is no player on the field to touch. A kill zone for the whole 0.8 s would be an invulnerable area that kills anything driving through it, and the warp spot is often near the enemies' path, so it would be an easy exploit.
+  - At materialize the spot was chosen ~0.8 s earlier and the effect has been visible the whole time. An enemy that drives out of the effect before it closes is spared, which reads as fair (`OnlyOverlappingEnemiesAndOnlyAtMaterialize`).
+  - One check at a known pass is simple and deterministic.
+- **Order matters:** `RespawnPlayers` runs before `EnemyPass` and `PlayerPass` in a pass. The killed enemy is already exploding when this pass's `PlayerPass` runs its ram loop, so the overlap is a kill, not a mutual ram.
+- **With WARP KILLS off** (or in §28 builds) the overlap is a ram on that same pass: both explode and the player scores (`WarpKillsOffKeepsTheOldRamBothExplode`).
+- In 120 scripted games (`InRealGamesEveryWarpSpotFollowsTheRulesAndIsPickedAtWarpStart`) 1,381 warp-ins all followed the spot rules, and 8 warp kills happened without being staged.
+
+### 29.3 Toggles, persistence, online
+
+- `EnhancedOption.RandomWarpIn = 16`, `WarpKills = 32` (both in `All`, default ON). Their `GameRules.Variations` rows have `Requires: WarpIn`.
+  - While WARP-IN is off, the page dims both rows and they can't be changed. The cursor can still reach them, and the note says "NEEDS WARP-IN - IGNORED WHILE IT IS OFF".
+  - Their saved values are kept and used again when WARP-IN comes back. The rules ignore them anyway, since `WarpInPasses = 0` means no warp.
+- **Settings:** `"EnhancedOff"` names (`"RandomWarpIn"`, `"WarpKills"`). Files from 2026.10.17.3/.4 don't list them, so both read as ON and the file's other choices are kept.
+- **Online:** the options already travel as one byte in `GameConfig` (schema 3). The two new bits fit in it, so the **wire shape is unchanged and the protocol stays v4**, with no schema bump. Against 2026.10.17.3/.4:
+  - A **new host** with either new bit on: the old guest refuses the start with its "unknown enhanced options 0x3F" config error. There is no desync, because the old build's `Validate` rejects bits outside its `All`.
+  - An **old host** sends 0x0F (no new bits): a new guest adopts it, so both new features are off. That plays exactly like the old build, so the two stay in lockstep (`BothNewTogglesOffReproduce2026_10_17_4`).
+  - Bumping to v5 would only have changed the error message for the first case and blocked the second, which works.
+- **State hash:** unchanged in shape. `Options` and the warp state were already hashed outside Arcade. Random warps only change their values.
+
+### 29.4 Checks
+
+- **Arcade:** the checksums are unchanged.
+- **Toggles off reproduce 2026.10.17.4:** with RANDOM WARP-IN and WARP KILLS off (options 0x0F), the full state hashes, Enhanced fields included, equal the ones recorded on main at fdd05ee for the 5 scripted games (`WarpRandomTests.BothNewTogglesOffReproduce2026_10_17_4`).
+  - WARP-IN off still reproduces 2026.10.17.2 (§28).
+  - All toggles off still plays like Arcade.
+- **Spot rules:** checked directly over an 8,840-spot grid of other-player positions × RNG states, and in 120 full scripted 1P/2P games.
+- **Determinism:** same seed, same hashes. Random differs from fixed.
+- **Online:** the guest adopts {old toggles}, {all six} and {warp kills at fixed points}, with identical hashes on both peers over 1,500 frames with packet loss. A new bit flipped in transit is caught ("game config mismatch").
+- **Screenshots:** `/workspace/shots/warp-random-*.png`.
+  - Real game under Xvfb: two 1P games and two 2P games, mid-warp and late.
+  - The options page with WARP-IN off.
+  - The warp-kill sequence. This one is staged and headless, through the same `Scene.Build`: an enemy is parked on the spot, because a natural warp kill can't be timed for a capture.
+
+### 29.5 UNCHECKED
+
+1. Feel: whether 240 units from the other player and 96 around the canisters are the right gaps, and whether facing the canisters on arrival helps or hinders.
+2. Whether warp kills make dying too cheap. A player who expects an enemy to cross the spot can now get a free kill. Nick asked for it; it needs his playtest.
+3. Online random warp-in and warp kills were tested in the loopback lockstep tests only, not between two machines.
+4. The canister rule uses the canisters' start box, not where they are now. A canister dragged away and dropped elsewhere isn't avoided.

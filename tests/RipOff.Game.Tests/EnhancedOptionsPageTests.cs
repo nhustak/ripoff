@@ -8,7 +8,8 @@ namespace RipOff.Game.Tests;
 /// <summary>ENHANCED OPTIONS page (Options → ENHANCED OPTIONS): pad and keyboard, saved, used by Enhanced games only.</summary>
 public class EnhancedOptionsPageTests
 {
-    static readonly string[] AllOn = { "WARP-IN: ON", "ENEMY AIM ERROR: ON", "SLOWER RAMP: ON", "SLOWER TOWING: ON", "ALL ON", "BACK" };
+    static readonly string[] AllOn = { "WARP-IN: ON", "ENEMY AIM ERROR: ON", "SLOWER RAMP: ON", "SLOWER TOWING: ON", "RANDOM WARP-IN: ON", "WARP KILLS: ON", "ALL ON", "BACK" };
+    const EnhancedOption New = EnhancedOption.RandomWarpIn | EnhancedOption.WarpKills;
 
     [Fact]
     public void PadTogglesEachRowSavesAndBackReturnsToOptions()
@@ -24,8 +25,8 @@ public class EnhancedOptionsPageTests
         r.Press(Buttons.DPadDown); r.Press(Buttons.DPadLeft);                                                 // left too
         r.Press(Buttons.DPadDown); r.Press(Buttons.A);
         r.Press(Buttons.DPadDown); r.Press(Buttons.A);
-        Assert.Equal(EnhancedOption.WarpIn, s.EnhancedOptions);
-        Assert.Equal(new[] { "WARP-IN: ON", "ENEMY AIM ERROR: OFF", "SLOWER RAMP: OFF", "SLOWER TOWING: OFF", "ALL ON", "BACK" }, r.F.CurrentLabels);
+        Assert.Equal(EnhancedOption.WarpIn | New, s.EnhancedOptions);
+        Assert.Equal(new[] { "WARP-IN: ON", "ENEMY AIM ERROR: OFF", "SLOWER RAMP: OFF", "SLOWER TOWING: OFF", "RANDOM WARP-IN: ON", "WARP KILLS: ON", "ALL ON", "BACK" }, r.F.CurrentLabels);
         Assert.Equal(new[] { "EnemyAimError", "SlowerRamp", "SlowerTowing" }, s.EnhancedOff);
         Assert.True(r.Saves >= saves + 5);
         r.Choose("ALL ON"); Assert.Equal(EnhancedOption.All, s.EnhancedOptions);
@@ -46,7 +47,7 @@ public class EnhancedOptionsPageTests
         Assert.Equal(Screen.EnhancedOptions, r.F.Top);
         r.Key(Keys.Down); r.Key(Keys.Enter);                      // ENEMY AIM ERROR off
         r.Key(Keys.Down); r.Key(Keys.Right);                      // SLOWER RAMP off
-        Assert.Equal(EnhancedOption.WarpIn | EnhancedOption.SlowerTowing, s.EnhancedOptions);
+        Assert.Equal(EnhancedOption.WarpIn | EnhancedOption.SlowerTowing | New, s.EnhancedOptions);
         r.Key(Keys.F10);                                          // no second Options on top
         Assert.Equal(Screen.EnhancedOptions, r.F.Top);
         r.Key(Keys.Escape);
@@ -72,6 +73,33 @@ public class EnhancedOptionsPageTests
         // in an Arcade game the page says it doesn't apply
         r.Press(Buttons.Start); r.Choose("OPTIONS"); r.Choose("ENHANCED OPTIONS");
         Assert.Contains("NOT USED IN THIS ARCADE GAME", r.F.Notes);
+    }
+
+    [Fact]
+    public void WarpRowsAreDimmedAndIgnoredWhileWarpInIsOff()
+    {
+        var s = new Settings();
+        using var r = new Rig(s);
+        r.Choose("OPTIONS"); r.Choose("ENHANCED OPTIONS: ALL ON");
+        int rnd = Array.IndexOf(AllOn, "RANDOM WARP-IN: ON"), kills = Array.IndexOf(AllOn, "WARP KILLS: ON");
+        Assert.True(r.F.CurrentEnabled[rnd] && r.F.CurrentEnabled[kills]);
+        // RANDOM WARP-IN off while WARP-IN is on: changeable.
+        for (int i = 0; i < rnd; i++) r.Press(Buttons.DPadDown);
+        r.Press(Buttons.A);
+        Assert.Equal(EnhancedOption.All & ~EnhancedOption.RandomWarpIn, s.EnhancedOptions);
+        // WARP-IN off: both rows dim, keep their values, can't be changed, and say why.
+        for (int i = 0; i < rnd; i++) r.Press(Buttons.DPadUp);
+        r.Press(Buttons.A);
+        Assert.False(r.F.CurrentEnabled[rnd]); Assert.False(r.F.CurrentEnabled[kills]);
+        Assert.Equal("RANDOM WARP-IN: OFF", r.F.CurrentLabels[rnd]); Assert.Equal("WARP KILLS: ON", r.F.CurrentLabels[kills]);
+        var before = s.EnhancedOptions;
+        for (int i = 0; i < kills; i++) r.Press(Buttons.DPadDown);
+        Assert.Equal(kills, r.F.Selected);                     // still reachable, to read the note
+        r.Press(Buttons.A); r.Press(Buttons.DPadLeft); r.Press(Buttons.DPadRight);
+        Assert.Equal(before, s.EnhancedOptions);
+        Assert.Contains("NEEDS WARP-IN - IGNORED WHILE IT IS OFF", r.F.Notes);
+        // The rules ignore them too: no warp at all.
+        Assert.Equal(0, GameRules.For(PlayMode.Enhanced, s.EnhancedOptions).WarpInPasses);
     }
 
     static string TempDir() => Directory.CreateTempSubdirectory("ripoff-enh").FullName;
@@ -103,5 +131,10 @@ public class EnhancedOptionsPageTests
             if (json.Contains("WarpIn")) Assert.Equal(new[] { "WarpIn" }, u.EnhancedOff);
         }
         Assert.Equal(EnhancedOption.All, new Settings().GameConfig.Options);
+
+        // A file from 2026.10.17.3/.4 (before RANDOM WARP-IN / WARP KILLS): its choices kept, the new two ON.
+        var old = TempDir();
+        File.WriteAllText(Path.Combine(old, "settings.json"), "{ \"Version\": 2, \"EnhancedOff\": [\"SlowerRamp\"] }");
+        Assert.Equal(EnhancedOption.All & ~EnhancedOption.SlowerRamp, new SettingsStore(old).Load(out _).EnhancedOptions);
     }
 }

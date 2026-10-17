@@ -1,0 +1,15 @@
+<Project>
+  <!-- InformationalVersion = RipOffVersion (or "dev") + "+" + short git sha ("nogit" outside a git checkout). -->
+  <Target Name="RipOffInformationalVersion" BeforeTargets="GetAssemblyAttributes">
+    <Exec Command="git rev-parse --short=7 HEAD" WorkingDirectory="$(MSBuildThisFileDirectory)" ConsoleToMSBuild="true"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" EchoOff="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="RipOffGitSha" />
+      <Output TaskParameter="ExitCode" PropertyName="_RipOffGitExit" />
+    </Exec>
+    <PropertyGroup>
+      <RipOffGitSha Condition="'$(_RipOffGitExit)' != '0' or '$(RipOffGitSha)' == ''">nogit</RipOffGitSha>
+      <InformationalVersion Condition="'$(RipOffVersion)' == '0.0.0.0'">dev+$(RipOffGitSha)</InformationalVersion>
+      <InformationalVersion Condition="'$(RipOffVersion)' != '0.0.0.0'">$(RipOffVersion)+$(RipOffGitSha)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
+</Project>

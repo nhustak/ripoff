@@ -387,6 +387,25 @@ public class FrontEndTests
         Assert.Equal(new[] { Screen.Main }, host.F.Stack);
     }
 
+    /// <summary>The build version is drawn in the bottom-right corner of the main menu and the pause menu.</summary>
+    [Fact]
+    public void VersionShowsOnMainMenuAndPause()
+    {
+        using var r = new Rig();
+        Assert.Equal(BuildInfo.Display, FrontEnd.VersionText);
+        var with = new List<Line>(); var without = new List<Line>();
+        int Corner(List<Line> l) => l.Count(x => x.X1 > Scene.Width - 300 && x.Y1 < 30 && x.Y2 < 30);
+        r.F.Build(with);
+        Assert.True(Corner(with) > 5, "main menu corner");
+        r.Choose("OPTIONS"); r.F.Build(without);
+        Assert.Equal(0, Corner(without));               // not on other menus
+        r.Press(Buttons.B);
+        r.F.StartLocal(true); r.Press(Buttons.Start);
+        Assert.Equal(Screen.Pause, r.F.Top);
+        r.F.Build(with);
+        Assert.True(Corner(with) > 5, "pause corner");
+    }
+
     [Fact]
     public void EveryScreenDrawsInsideTheField()
     {

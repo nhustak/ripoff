@@ -18,7 +18,7 @@ namespace RipOff.Game.Steam
     {
         public enum LobbyPhase { None, Creating, Hosting, Searching, Joining, Joined, Failed }
 
-        public const string KeyGame = "game", KeyVersion = "ver", KeyCode = "code", KeyMode = "mode";
+        public const string KeyGame = "game", KeyVersion = "ver", KeyCode = "code", KeyMode = "mode", KeyBuild = "build";
 
         public bool Available { get; private set; }
         public string Status { get; private set; } = "Steam not initialized";
@@ -141,6 +141,7 @@ namespace RipOff.Game.Steam
             SteamMatchmaking.SetLobbyData(Lobby, KeyGame, Branding.LobbyGameKey);
             SteamMatchmaking.SetLobbyData(Lobby, KeyVersion, Protocol.Version.ToString());
             SteamMatchmaking.SetLobbyData(Lobby, KeyCode, Code);
+            SteamMatchmaking.SetLobbyData(Lobby, KeyBuild, BuildInfo.Informational); // display only; KeyVersion is the gate
             SteamMatchmaking.SetLobbyData(Lobby, KeyMode, ((int)(LobbyMode ?? PlayMode.Arcade)).ToString());
             SteamFriends.SetRichPresence("connect", "+connect_lobby " + Lobby.m_SteamID);
             SteamFriends.SetRichPresence("status", Branding.GameName + " - waiting for a player");
@@ -215,7 +216,12 @@ namespace RipOff.Game.Steam
             // Reject lobbies of other games sharing App ID 480, and other builds of this one.
             string game = SteamMatchmaking.GetLobbyData(lobby, KeyGame), ver = SteamMatchmaking.GetLobbyData(lobby, KeyVersion);
             if (game != Branding.LobbyGameKey) { Fail("that lobby is not a " + Branding.GameName + " game"); return; }
-            if (ver != Protocol.Version.ToString()) { Fail("version mismatch: host v" + ver + ", this build v" + Protocol.Version); return; }
+            if (ver != Protocol.Version.ToString())
+            {
+                string hostBuild = SteamMatchmaking.GetLobbyData(lobby, KeyBuild);
+                Fail($"version mismatch: host v{ver} (build {BuildInfo.DisplayOf(hostBuild)}), this build v{Protocol.Version} (build {BuildInfo.Display})");
+                return;
+            }
             Peer = SteamMatchmaking.GetLobbyOwner(lobby); PeerLeft = false;
             Code = SteamMatchmaking.GetLobbyData(lobby, KeyCode);
             LobbyMode = int.TryParse(SteamMatchmaking.GetLobbyData(lobby, KeyMode), out var lm) && GameRules.IsDefined((PlayMode)lm) ? (PlayMode)lm : null;

@@ -28,6 +28,7 @@ if (warning != null) Console.Error.WriteLine("RipOff: " + warning + " (" + store
 // window, only when Options -> STEAM AT LAUNCH is on or Steam launched us with +connect_lobby: the overlay (invite
 // dialog) hooks the graphics device only if SteamAPI_Init ran before the device was created (Steamworks overlay docs).
 var log = new InputLog(Path.GetDirectoryName(store.FilePath)!);
+log.Header($"version: {RipOff.Core.BuildInfo.Informational} ({RipOff.Core.BuildInfo.Display}), protocol v{RipOff.Net.Protocol.Version}");
 log.Header($"os: {Environment.OSVersion}, .NET {Environment.Version}, 64-bit process: {Environment.Is64BitProcess}");
 log.Header($"args: {(args.Length == 0 ? "(none)" : string.Join(' ', args))}");
 log.Header($"settings: {store.FilePath} ({(warning ?? "ok")}), stick dead zone {settings.StickDeadzone:0.00}, steam at launch {settings.SteamAtLaunch}");

@@ -61,6 +61,10 @@ namespace RipOff.Net
         public ITransport Transport => _t;
         /// <summary>The start parameters in use once running (sent by the host, received by the guest).</summary>
         public Protocol.StartConfig? Config { get; private set; }
+        /// <summary>This side's build string sent in Hello (display only; default BuildInfo.Informational).</summary>
+        public string LocalBuild { get; init; } = BuildInfo.Informational;
+        /// <summary>The peer's build string from its Hello ("" until received, or when an older build sent none).</summary>
+        public string PeerBuild { get; private set; } = "";
         /// <summary>Host: the guest echoed the hash of the start config (game options included) and it matched.
         /// Guest: the received config passed <see cref="GameConfig.Validate"/>. No frame is simulated before this.</summary>
         public bool ConfigVerified { get; private set; }
@@ -118,7 +122,7 @@ namespace RipOff.Net
             {
                 if (!_helloSent && _t.State == TransportState.Connected)
                 {
-                    Send(Protocol.EncodeHello(new Protocol.Hello(Protocol.Version, _gameKey, IsHost)), true);
+                    Send(Protocol.EncodeHello(new Protocol.Hello(Protocol.Version, _gameKey, IsHost, LocalBuild)), true);
                     _helloSent = true;
                 }
                 if (IsHost && _helloOk && !_startSent)
@@ -242,9 +246,11 @@ namespace RipOff.Net
                     {
                         case Protocol.MsgHello:
                             var h = Protocol.DecodeHello(r);
+                            PeerBuild = h.Build;
                             if (h.Version != Protocol.Version || h.GameKey != _gameKey)
                             {
-                                string why = $"version mismatch: peer {h.GameKey} v{h.Version}, this build {_gameKey} v{Protocol.Version}";
+                                string why = $"version mismatch: peer {h.GameKey} v{h.Version} (build {BuildInfo.DisplayOf(h.Build.Length > 0 ? h.Build : "unknown")}), "
+                                    + $"this build {_gameKey} v{Protocol.Version} (build {BuildInfo.DisplayOf(LocalBuild)})";
                                 Send(Protocol.EncodeReject(why), true); Fail(why); return;
                             }
                             if (h.FromHost == IsHost) { string why = IsHost ? "both peers are hosting" : "both peers are joining"; Send(Protocol.EncodeReject(why), true); Fail(why); return; }

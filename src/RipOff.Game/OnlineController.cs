@@ -134,6 +134,9 @@ namespace RipOff.Game
             return "MODE: SET BY THE HOST";
         }
 
+        /// <summary>"OTHER PLAYER: V2026.10.17.1" once the peer's Hello arrived (null before, or if it sent no build).</summary>
+        public string? PeerBuildText() => Session?.PeerBuild is { Length: > 0 } b ? "OTHER PLAYER: " + BuildInfo.DisplayOf(b) : null;
+
         public List<string> Describe()
         {
             var l = new List<string>();
@@ -187,7 +190,7 @@ namespace RipOff.Game
                 var sb = new StringBuilder();
                 sb.AppendLine($"{Branding.GameName} desync report");
                 sb.AppendLine($"time: {DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}");
-                sb.AppendLine($"protocol: v{Protocol.Version}  game key: {Branding.LobbyGameKey}  build: {typeof(OnlineController).Assembly.GetName().Version}");
+                sb.AppendLine($"protocol: v{Protocol.Version}  game key: {Branding.LobbyGameKey}  build: {BuildInfo.Informational}  peer build: {(s.PeerBuild.Length > 0 ? s.PeerBuild : "unknown")}");
                 sb.AppendLine($"role: {(s.IsHost ? "host (P1)" : "guest (P2)")}  transport: {s.Transport.Description}");
                 sb.AppendLine($"status: {s.Status}");
                 if (s.Config is { } c)

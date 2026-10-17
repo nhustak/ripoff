@@ -1,0 +1,17 @@
+<Project>
+  <!--
+    Version: single source of truth for every project (README "Versioning").
+    Release builds pass the display version:  dotnet publish ... -p:RipOffVersion=2026.10.17.1  (tools/publish.ps1 does this).
+    -p:Version=2026.10.17.1 also works. Without either, this is a dev build: 0.0.0.0, InformationalVersion "dev+<sha>".
+    Version/AssemblyVersion/FileVersion = the four numbers (each ≤ 65535); InformationalVersion = RipOffVersion+<short sha>
+    (Directory.Build.targets). RipOff.Core.BuildInfo reads it for the screens, input-log.txt and the online handshake.
+  -->
+  <PropertyGroup>
+    <RipOffVersion Condition="'$(RipOffVersion)' == '' and '$(Version)' != ''">$(Version)</RipOffVersion>
+    <RipOffVersion Condition="'$(RipOffVersion)' == ''">0.0.0.0</RipOffVersion>
+    <Version>$([System.Version]::Parse('$(RipOffVersion)').ToString())</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+</Project>

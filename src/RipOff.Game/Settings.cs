@@ -58,9 +58,17 @@ namespace RipOff.Game
 
         public SettingsStore(string? directory = null)
         {
-            directory ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Branding.SettingsFolder);
+            directory ??= Path.Combine(AppDataRoot(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.Create)), Branding.SettingsFolder);
             FilePath = Path.Combine(directory, "settings.json");
         }
+
+        /// <summary>
+        /// The per-user folder, never relative. GetFolderPath returns "" when the folder does not exist (and Create
+        /// can fail), which used to put settings.json and input-log.txt under the current directory (found with the
+        /// SDL end-to-end run on Linux, NOTES §25). Falls back to the folder next to the exe.
+        /// </summary>
+        public static string AppDataRoot(string? folder) =>
+            !string.IsNullOrEmpty(folder) && Path.IsPathRooted(folder) ? folder : AppContext.BaseDirectory;
 
         /// <summary>Never throws. <paramref name="warning"/> explains a reset (null when the file loaded or was missing).</summary>
         public Settings Load(out string? warning)

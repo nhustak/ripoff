@@ -931,3 +931,88 @@ This is the only change on the input path shared by PR #11 and PR #12 that PR #1
    - an old settings file.
 
 UNCHECKED: everything on real Windows with a real pad and Steam client.
+
+## 25. Controller regression, evidence pass (after PR #13), and Steam Input support
+
+**Which builds had what.**
+
+| Build | Pad code | Steam init at launch |
+|---|---|---|
+| a621869 (PR #9) | Added in 818842b (M2) | No: `Program.cs` has no Steam |
+| 6997594 (PR #10, LT/RT remap) | Same | No |
+| 1f9a1ab (PR #11) | Same | **Yes**: `Program.cs:25` `SteamPlatform.Init(args)` before the window, and `RipOffGame.cs:149` `_steam?.RunCallbacks()` every tick |
+| 97a8b73 (PR #12) | Changed | Yes: `Program.cs:28-30`, gated by `Settings.SteamEnabled`, default true (`Settings.cs:29`) |
+| 0b41087 (PR #13) | Changed | No (lazy) |
+
+So **if the pad worked for Nick on 1f9a1ab with Steam running, Steam init at launch alone cannot be the cause**: the Steam Input theory is weakened.
+
+What we have on 1f9a1ab is mixed:
+- Nick's report relayed at 12:19 AM, against main = 1f9a1ab, said the controller did not work *in menus*.
+- His latest report says the pad worked until PR #12.
+- Whether he used the pad *in a game* on 1f9a1ab is UNCHECKED.
+
+PR #10 and PR #11 were merged one minute apart (00:14 and 00:15 EDT), so 1f9a1ab was main for only about 25 minutes before PR #12.
+
+**Diff of the input path, 6997594 → 97a8b73 → 0b41087 (all read from git):**
+- `GamePad.GetState(i, GamePadDeadZone.None)`:
+  - Same call at 6997594 `RipOffGame.cs:62` and 97a8b73 `RipOffGame.cs:96`, but 97a8b73 reads slots 0..min(4, `MaximumGamePadCount`) (`RipOffGame.cs:105-106`) where 6997594 read 0 and 1 (`:94`).
+  - MonoGame 3.8.6 SDL: `MaximumGamePadCount` = 16 (`GamePad.SDL.cs:87-90`), so 4 slots are read.
+  - 0b41087 uses `GamePad.GetState(i)` (default dead zone).
+- **Slot assignment:**
+  - MonoGame puts each new controller in the lowest free slot (`GamePad.SDL.cs:23-35`, `AddDevice`).
+  - 97a8b73 takes the first connected slot as P1 (`PadMapper.cs:63`), and a 1-player game uses every pad OR'd (`InputReader.cs:108`, `FrontEnd.cs:144`).
+  - No wrong PlayerIndex is possible on this path.
+- **Button mapping:**
+  - Identical: 6997594 `PadMapper.cs:47-51` vs 97a8b73 `PadMapper.cs:46-50`.
+  - Dead zone default 0.35 and trigger threshold 0.3 are unchanged (6997594 `PadMapper.cs:30,32`; 97a8b73 `:27,29`).
+  - The settings dead zone is clamped to 0.10-0.60 (97a8b73 `Settings.cs:38`). No unit change: the value is a fraction, and the Options screen multiplies by 100 only for display.
+- **Edges:** 97a8b73 `InputReader.cs:87-88` stores the previous state every tick and skips only the connect tick, so they re-arm.
+- **Gating:**
+  - No `IsActive`, `GetCapabilities` or `GamePadType` checks at 6997594 or 97a8b73 (git grep).
+  - 0b41087 calls `GetCapabilities` only for names (`RipOffGame.cs:111`), and that never filters.
+- **Menu layer:** neutral input only for an online game under a menu (97a8b73 `FrontEnd.cs:154`). A local game steps only on top, with real input (`:144`).
+
+**End-to-end test of the real pad path (new, `tools/padtest`):**
+- Setup:
+  - each build ran under Xvfb with software GL;
+  - an SDL2 virtual game controller was attached inside the game process (startup hook, `SDL_JoystickAttachVirtual`, SDL 2.32.10 from MonoGame.Library.SDL);
+  - button scripts were played;
+  - screenshots were checked.
+- Results:
+  - **6997594:** Back/Start started a game, and A + left stick + RT moved, turned and fired.
+  - **1f9a1ab:** D-pad moved the menu highlight, and A selected LOCAL PLAY. In game the pad moved the tank. Steam init failed on the box (no Steam client) and was skipped.
+  - **97a8b73:** A skipped the splash, D-pad Down/Up moved the highlight, A started a 1-player game, A/stick/RT drove the tank, and Start opened PAUSED. Steam init failed as above.
+  - **0b41087:** same as 97a8b73.
+- **VERIFIED:** without Steam, PR #12's and PR #13's pad code works through MonoGame's real SDL GamePad path, menus and game. No non-Steam code regression exists on that path.
+- UNCHECKED: Windows' SDL backends (XInput/RawInput/HIDAPI/WGI), which the box cannot run.
+
+**A real bug the end-to-end run found (not Nick's cause):**
+- `SettingsStore` used `GetFolderPath(ApplicationData)`, which returns "" when the folder does not exist. Settings and `input-log.txt` then went to the *current directory* (`RipOffRemake/` under the working dir).
+- On Windows `%APPDATA%` always exists for a user profile, so this is UNCHECKED as a factor on Nick's machine and very unlikely.
+- Fixed: `SpecialFolderOption.Create`, plus `SettingsStore.AppDataRoot`, which falls back to the exe folder and is never relative. Tested (`SettingsPathTests`).
+
+**Root cause verdict: UNCHECKED.** Steam is the only input-path difference between "worked" (6997594) and "broken", and that only holds if the 1f9a1ab-in-game report is set aside. Steam can redirect the controller under 480: a Valve engineer in Steamworks.NET #380 says "you're telling Steam that your application is SpaceWar, which actually has Steam Input mappings and controller input is redirected to Steam Input instead of XInput". It cannot be verified without Nick's Windows machine. INPUT TEST and `input-log.txt` (now logging the pad source) are how to settle it.
+
+**Fix that keeps Steam and Steam Input on: read Steam Input in-game.**
+- `Steam/SteamInputPads.cs`:
+  - `SteamInput.Init(false)` right after `SteamAPI_Init`, as Spacewar does (SDK `SteamworksExample/Main.cpp:254`).
+  - Steam Input frames are then run by `SteamAPI_RunCallbacks` (Steamworks.NET `isteaminput.cs:19-24`; ISteamInput docs, RunFrame).
+  - Each tick: `GetConnectedControllers`, then `ActivateActionSet` (`ship_controls` in a game, `menu_controls` in menus; the docs say it is "cheap, and can be safely called repeatedly"), then `GetDigitalActionData`/`GetAnalogActionData`.
+  - Spacewar's action names come from Valve's sample (`steamworksexample/gameenginesdl.cpp:1234-1253`, `steam_input_manifest.vdf`): turn_left, turn_right, forward_thrust, fire_lasers, pause_menu, analog_controls, and menu_up/down/left/right/select/cancel.
+- `SteamPadMapping.ToState` turns them into the Xbox layout the rest of the game reads:
+  - ship set: turn → D-pad left/right; analog_controls → left stick (Spacewar steers with its x, `Ship.cpp:421-432`); thrust → A; fire → X; pause → Start;
+  - menu set: D-pad; select → A; cancel → B.
+- `SteamPadMapping.Merge`: when any Steam Input controller has a bound action (`bActive`), Steam Input fills the pad slots and the SDL pads are ignored for that tick, so one press is never counted twice. Otherwise the SDL pads are used.
+- The source in use is shown on INPUT TEST (PAD SOURCE) and logged.
+- Tests (`SteamInputMappingTests`) cover every action mapping, merge both ways, and the whole front end driven only by Steam Input actions (splash, menu, 1-player start, thrust/turn/fire, pause_menu, menu_cancel).
+- With Steam not initialized (the PR #13 default), Steam is not in the process, and the pad goes through SDL (verified above on Linux; on Windows with Steam Input on, UNCHECKED).
+
+**Choices (flagged):**
+1. *Spacewar's own action sets (chosen) vs our own action manifest.* The second option means `SteamInput.SetInputActionManifestFilePath` with a shipped `steam_input_manifest.vdf` plus per-controller configs, as Valve's sample does at `Main.cpp:275`. Our own manifest gives a fixed button layout but needs hand-written controller VDFs that cannot be tested here. Spacewar's sets work today under 480 without extra files. For a real App ID, ship a manifest with the same action names.
+2. *Lazy Steam init (kept from PR #13) vs init at launch.* Lazy keeps local play on SDL and Steam out of the process. Init at launch gives the overlay and now also Steam Input everywhere. Both are supported (Options → STEAM AT LAUNCH).
+3. *Steam Input exclusive when bound vs OR with SDL pads.* Exclusive avoids double menu presses. OR would keep a non-Steam pad working next to a Steam one. Exclusive was chosen.
+
+UNCHECKED: everything with a real Steam client and Steam Input on Windows, including:
+- whether Spacewar's live configuration binds these actions for Nick's controller type;
+- which physical buttons they use;
+- whether `bActive` reports true.

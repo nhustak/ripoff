@@ -58,8 +58,8 @@ Any controller SDL2 knows as a GameController (Xbox, PlayStation, Switch Pro, mo
 | Action | Pad button (Xbox names; PlayStation in brackets) |
 |---|---|
 | Turn left / right | Left stick left / right (dead zone 0.35), or D-pad left / right |
-| Thrust | A [Cross], or right trigger RT [R2] pressed past 30 % |
-| Fire | X [Square], or right bumper RB [R1]. One shot per press, like the arcade button |
+| Thrust | A [Cross], or left trigger LT [L2] pulled past 30 % (held = thrust) |
+| Fire | X [Square], right bumper RB [R1], or right trigger RT [R2] pulled past 30 %. All three are the same fire button: one shot per press, as in the arcade (holding does not repeat) |
 | Coin | Back / View [Share / Create], on either pad |
 | 1-player start | Start / Menu [Options] on pad 1 |
 | 2-player start | Start on pad 2, or hold LB [L1] and press Start on pad 1 |
@@ -70,7 +70,7 @@ Pads can be plugged in or pulled out at any time; a pulled pad just stops steeri
 
 1. `dotnet test RipOff.sln` (all three test projects, no window, no audio device, no Steam needed).
 2. `dotnet run --project src/RipOff.Game`, then pick **LOCAL PLAY**. The title should read "volume 100%". If it shows "no audio hardware", the game still runs silently.
-3. Controller: connect a pad before or after starting. Back = coin, Start = 1-player game; steer with the stick and the D-pad, thrust with A and with RT, fire with X and RB (holding fire gives one shot). With a second pad: coin twice, Start on pad 2 for a 2-player game (or LB + Start on pad 1). Pull a pad out mid-game: the game keeps running; plug it back in.
+3. Controller: connect a pad before or after starting. Back = coin, Start = 1-player game; steer with the stick and the D-pad, thrust with A and with LT, fire with X, RB and RT (each press = one shot; holding does not repeat). With a second pad: coin twice, Start on pad 2 for a 2-player game (or LB + Start on pad 1). Pull a pad out mid-game: the game keeps running; plug it back in.
 4. Each sound (what triggers it in the game):
 
 | Sound | How to hear it |

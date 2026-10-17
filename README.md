@@ -240,19 +240,45 @@ Also change `AssemblyName` in `src/RipOff.Game/RipOff.Game.csproj` (exe name). A
 ### Publishing a Windows build
 
 ```powershell
-pwsh tools/publish.ps1
+pwsh tools/publish.ps1                      # next release version for today
+pwsh tools/publish.ps1 -Version 2026.10.17.2 # a given version
+pwsh tools/publish.ps1 -Version dev         # dev build (0.0.0.0, "dev+<sha>")
 ```
 
-This writes `artifacts/RipOff-win-x64.zip` (about 37 MB): a self-contained win-x64 build, so the other machine needs no .NET install. It works from Windows, Linux or macOS. Without the script: `dotnet publish src/RipOff.Game -p:PublishProfile=win-x64` gives the same folder in `artifacts/publish/win-x64/`. The zip is flat (204 files). Next to `RipOff.exe` are `steam_api64.dll`, `Steamworks.NET.dll` (the Windows build of it), `steam_appid.txt` (`480`), `LiteNetLib.dll`, `SDL2.dll`, `openal.dll`, `MonoGame.Framework.dll`, the `RipOff*.dll` files, and the .NET runtime. The script fails if the exe, the Steam files, or `480` are missing. Checked by cross-publishing on the Linux box; UNCHECKED: running the zip on Windows.
+This writes `artifacts/RipOff-<version>-win-x64.zip` (e.g. `RipOff-2026.10.17.1-win-x64.zip`) (about 37 MB): a self-contained win-x64 build, so the other machine needs no .NET install. It works from Windows, Linux or macOS. Without the script: `dotnet publish src/RipOff.Game -p:PublishProfile=win-x64` gives the same folder in `artifacts/publish/win-x64/` (a dev build unless you add `-p:RipOffVersion=...`). The zip is flat (204 files). Next to `RipOff.exe` are `steam_api64.dll`, `Steamworks.NET.dll` (the Windows build of it), `steam_appid.txt` (`480`), `LiteNetLib.dll`, `SDL2.dll`, `openal.dll`, `MonoGame.Framework.dll`, the `RipOff*.dll` files, and the .NET runtime. The script fails if the exe, the Steam files, or `480` are missing. Checked by cross-publishing on the Linux box; UNCHECKED: running the zip on Windows.
+
+### Versioning
+
+Versions are **YYYY.MM.DD.N**: the release date in America/New_York, zero-padded, and the release number of that day starting at 1 (`2026.10.17.1`, then `2026.10.17.2`). Tags are `v` + version (`v2026.10.17.1`).
+
+- **Single source:** `Directory.Build.props` (all projects). `-p:RipOffVersion=2026.10.17.1` or `-p:Version=2026.10.17.1` sets it.
+  - `Version`, `AssemblyVersion` and `FileVersion` hold the four numbers, each ≤ 65535 (a leading zero is dropped there: 2027.01.05.1 becomes 2027.1.5.1).
+  - `InformationalVersion` is `2026.10.17.1+<short sha>` (`Directory.Build.targets` asks git).
+  - Without a version, a build is a **dev build**: `0.0.0.0`, informational `dev+<sha>` (`nogit` outside a git checkout).
+- **Rules and next number:** `RipOff.Core.ReleaseVersion` (strict format, real dates, N ≥ 1). `tools/publish.ps1` without `-Version` lists the tags `v*` locally and on `origin` and asks `tools/release/NextVersion` for today's next N.
+- **In the game:** `RipOff.Core.BuildInfo`.
+  - The main menu and the pause menu show `V2026.10.17.1` (or `DEV ABC1234`) in the bottom-right corner, and the window title shows it too.
+  - It is the first line of `input-log.txt` and is in desync reports.
+  - Online, each peer sends its build in Hello (display only, shown as "OTHER PLAYER: V…"), and Steam lobbies carry a `build` key. **Compatibility is still decided by the protocol version** (`Protocol.Version`, now 3); a mismatch message names both builds.
 
 ### Releases / distribution
 
-Releases are cut from a tag on `main`; the zip is attached to a GitHub release. The first one is [`arcade-v1.0`](https://github.com/nhustak/ripoff/releases/tag/arcade-v1.0): the faithful Arcade mode, the baseline before expanded modes.
+Releases are cut from a tag on `main`, and the zip is attached to a GitHub release. Exact steps (run from a clean, up-to-date `main`):
 
-1. On a clean, up-to-date `main` run `dotnet test RipOff.sln`; everything must pass.
-2. Tag the commit: `git tag -a <name> -m "<what it is>"` and `git push origin <name>` (annotated tag, never moved or re-pushed).
-3. Build from that commit: `pwsh tools/publish.ps1` gives `artifacts/RipOff-win-x64.zip`. Check that `RipOff.exe`, `steam_api64.dll` and `steam_appid.txt` (`480`) are in it (`unzip -l`).
-4. `gh release create <name> artifacts/RipOff-win-x64.zip --verify-tag --title "..." --notes-file notes.md`, with notes on how to play locally and online (see Testing with a friend).
+```powershell
+dotnet test RipOff.sln                                    # everything must pass
+pwsh tools/publish.ps1                                    # prints the version, e.g. 2026.10.17.1; builds artifacts/RipOff-2026.10.17.1-win-x64.zip
+unzip -l artifacts/RipOff-2026.10.17.1-win-x64.zip        # RipOff.exe, steam_api64.dll, steam_appid.txt (480) present
+git tag -a v2026.10.17.1 -m "Rip-Off 2026.10.17.1"        # annotated, by Nick Hustak <nhustak@gmail.com>; never moved or re-pushed
+git push origin v2026.10.17.1
+gh release create v2026.10.17.1 artifacts/RipOff-2026.10.17.1-win-x64.zip --verify-tag --title "Rip-Off 2026.10.17.1" --notes-file notes.md
+```
+
+Build first and tag second. The script picks N from the tags that already exist, so tagging first would make it pick N + 1. Notes should say how to play locally and online (see Testing with a friend), and that both online players need the same build.
+
+**Pre-scheme releases** (kept as they are):
+- [`arcade-v1.0`](https://github.com/nhustak/ripoff/releases/tag/arcade-v1.0): the faithful Arcade game, protocol v2.
+- [`enhanced-preview-1`](https://github.com/nhustak/ripoff/releases/tag/enhanced-preview-1): Arcade + Enhanced, protocol v3, pre-release.
 
 The repo is private: a friend can only download a release asset with access to the repo. Otherwise send them the zip directly.
 

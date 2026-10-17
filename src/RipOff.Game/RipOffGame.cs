@@ -53,7 +53,7 @@ namespace RipOff.Game
             IsFixedTimeStep = true;
             TargetElapsedTime = TimeSpan.FromSeconds(1.0 / GameData.PassesPerSecond);
             Window.AllowUserResizing = true;
-            Window.Title = Branding.WindowTitle;
+            Window.Title = Branding.WindowTitle + " " + BuildInfo.Display.ToLowerInvariant();
             IsMouseVisible = false;
             Window.TextInput += (_, e) => { if (_typed.Length < 32) _typed.Append(e.Character); };
             if (shotPath == null)
@@ -169,7 +169,7 @@ namespace RipOff.Game
             int pads = _input.Pads.ConnectedCount;
             string padText = pads == 0 ? "no pad" : pads == 1 ? "1 pad" : pads + " pads";
             string steam = _steam == null || !_steam.Initialized ? ", Steam not started" : _steam.Available ? ", Steam" : ", no Steam";
-            string t = $"{Branding.WindowTitle} - {audio}, {padText}{steam}";
+            string t = $"{Branding.WindowTitle} {BuildInfo.Display.ToLowerInvariant()} - {audio}, {padText}{steam}";
             if (t != _title) { Window.Title = t; _title = t; }
         }
 

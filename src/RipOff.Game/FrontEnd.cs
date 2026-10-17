@@ -432,6 +432,17 @@ namespace RipOff.Game
                 : Top == Screen.Main ? "UP/DOWN CHOOSE   A/ENTER SELECT   F10 OPTIONS"
                 : "UP/DOWN CHOOSE   A/ENTER SELECT   B/ESC BACK";
             VectorFont.DrawCentered(hint, cx, 50, 14, o, false);
+            if (Top is Screen.Main or Screen.Pause) DrawVersion(o);
+        }
+
+        /// <summary>Build version in the bottom-right corner (main menu and pause): "V2026.10.17.1" or "DEV ABC1234".</summary>
+        public static string VersionText => BuildInfo.Display;
+
+        private static void DrawVersion(List<Line> o)
+        {
+            const float size = 11;
+            string t = VersionText;
+            VectorFont.Draw(t, Scene.Width - 10 - VectorFont.Width(t, size), 12, size, o, false);
         }
 
         private void BuildInputTest(List<Line> o)
@@ -496,6 +507,7 @@ namespace RipOff.Game
                     if (s?.Phase == SessionPhase.Closed) { n.Add(s.Status.ToUpperInvariant()); return ("GAME ENDED", n); }
                     n.AddRange(Online.Describe());
                     if (Online.ModeText() is { } mt) n.Add(mt);
+                    if (Online.PeerBuildText() is { } pb) n.Add(pb);
                     if (Online.Error != null) return ("DISCONNECTED", n);
                     return (Online.Mode switch
                     {

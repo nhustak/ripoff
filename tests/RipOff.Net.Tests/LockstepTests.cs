@@ -153,6 +153,38 @@ public class LockstepTests
     }
 
     [Fact]
+    public void HelloCarriesTheBuildForDisplayAndOlderHellosStillDecode()
+    {
+        var h = new Protocol.Hello(Protocol.Version, "k", true, "2026.10.17.1+abc1234");
+        var d = Protocol.DecodeHello(new Protocol.Reader(Protocol.EncodeHello(h)[1..]));
+        Assert.Equal(h, d);
+        // a v3 Hello from before builds were sent (enhanced-preview-1): no trailing string
+        var old = new Protocol.Writer().U16(Protocol.Version).Str("k").U8(1).ToArray();
+        Assert.Equal("", Protocol.DecodeHello(new Protocol.Reader(old)).Build);
+    }
+
+    [Fact]
+    public void PeersLearnEachOthersBuildAndAMismatchNamesBoth()
+    {
+        var net = new LoopbackNetwork(4, 20);
+        var host = new LockstepSession(net.A, true, "k", LockstepSession.DefaultConfig(1), clock: () => net.NowMs / 1000) { LocalBuild = "2026.10.17.1+aaaaaaa" };
+        var guest = new LockstepSession(net.B, false, "k", clock: () => net.NowMs / 1000) { LocalBuild = "2026.10.17.2+bbbbbbb" };
+        for (int i = 0; i < 100; i++) { host.Update(default); guest.Update(default); net.Advance(1000.0 / 38); }
+        Assert.Equal(SessionPhase.Running, host.Phase);
+        Assert.Equal("2026.10.17.2+bbbbbbb", host.PeerBuild);   // different builds, same protocol: allowed, shown
+        Assert.Equal("2026.10.17.1+aaaaaaa", guest.PeerBuild);
+
+        var net2 = new LoopbackNetwork(5, 20);
+        var h2 = new LockstepSession(net2.A, true, "k", LockstepSession.DefaultConfig(1), clock: () => net2.NowMs / 1000) { LocalBuild = "2026.10.17.1+aaaaaaa" };
+        var g2 = new LockstepSession(net2.B, false, "other-key", clock: () => net2.NowMs / 1000) { LocalBuild = "dev+ccccccc" };
+        for (int i = 0; i < 100; i++) { h2.Update(default); g2.Update(default); net2.Advance(1000.0 / 38); }
+        Assert.Equal(SessionPhase.Failed, h2.Phase);
+        Assert.Contains("version mismatch", h2.Status);
+        Assert.Contains("build DEV CCCCCCC", h2.Status);
+        Assert.Contains("build V2026.10.17.1", h2.Status);
+    }
+
+    [Fact]
     public void LostPeerTimesOut()
     {
         var net = new LoopbackNetwork(5, 20);

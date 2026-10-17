@@ -30,7 +30,10 @@ namespace RipOff.Net
         };
 
         // ---- messages ----
-        public readonly record struct Hello(ushort Version, string GameKey, bool FromHost);
+        /// <summary><paramref name="Build"/>: the sender's BuildInfo.Informational ("2026.10.17.1+abc1234"), for display
+        /// only; the protocol <paramref name="Version"/> decides compatibility. Optional on the wire (trailing; older v3
+        /// builds do not send it).</summary>
+        public readonly record struct Hello(ushort Version, string GameKey, bool FromHost, string Build = "");
         /// <summary>Everything both peers need to build the same simulation: the shared <see cref="GameConfig"/>
         /// (rules/options) plus the session's input delay and the per-game random start (pass counter, RNG seeds).</summary>
         public readonly record struct StartConfig(int InputDelay, GameConfig Game, int PassCounter, int[] Seeds);
@@ -56,10 +59,15 @@ namespace RipOff.Net
             public int I32() { Need(4); int v = _d[_p] | (_d[_p + 1] << 8) | (_d[_p + 2] << 16) | (_d[_p + 3] << 24); _p += 4; return v; }
             public string Str() { int n = U8(); Need(n); var s = Encoding.UTF8.GetString(_d, _p, n); _p += n; return s; }
             public byte[] Bytes(int n) { Need(n); var r = new byte[n]; Array.Copy(_d, _p, r, 0, n); _p += n; return r; }
+            public int Remaining => _d.Length - _p;
         }
 
-        public static byte[] EncodeHello(in Hello h) => new Writer().U8(MsgHello).U16(h.Version).Str(h.GameKey).U8(h.FromHost ? 1 : 0).ToArray();
-        public static Hello DecodeHello(Reader r) => new Hello((ushort)r.U16(), r.Str(), r.U8() != 0);
+        public static byte[] EncodeHello(in Hello h) => new Writer().U8(MsgHello).U16(h.Version).Str(h.GameKey).U8(h.FromHost ? 1 : 0).Str(h.Build).ToArray();
+        public static Hello DecodeHello(Reader r)
+        {
+            var version = (ushort)r.U16(); var key = r.Str(); bool fromHost = r.U8() != 0;
+            return new Hello(version, key, fromHost, r.Remaining > 0 ? r.Str() : "");
+        }
 
         public static byte[] EncodeReject(string why) => new Writer().U8(MsgReject).Str(why).ToArray();
 

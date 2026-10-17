@@ -57,6 +57,7 @@ Arcade behaviour, for reference. The remake has no coins or credits; games start
 | Advance: enemy type +1. After type 6 comes type 1, the level goes +1, and the BONUS LEVEL screen is shown. | lst:529-547 |
 | Step-back: if **3 or more canisters were stolen** in the wave and the type is > 1, the type goes −1. The theft counter then resets. | lst:558-571 |
 | The 6 enemy types each have their own sprite | NOTES §10.2 |
+| **Measured pace** (one-player, 8 canisters, MAME vs remake identical frame for frame over 28 waves): a wave lasts about 100-270 passes, then a 50-pass gap (99 after BONUS). Clearing every wave gives type 6 about 38 s in and level 2 after about 1 minute | `trace:excerpts/p9_escalation.txt`, NOTES §26 |
 
 ## 5. Enemy spawning and parameters
 

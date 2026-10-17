@@ -1,5 +1,7 @@
 // Test-only startup hook: attaches an SDL2 virtual game controller inside the game process and plays a script.
-// RIPOFF_PADSCRIPT = "sec:ACTION;..." ACTION = press:BTN | hold:BTN | release:BTN | axis:N:VALUE | log:TEXT
+// RIPOFF_PADSCRIPT = "sec:ACTION;..." ACTION = press:BTN | hold:BTN | release:BTN | axis:N:VALUE | shot:N | rate:SECONDS
+// rate:S measures the local game's simulation passes per wall-clock second over S seconds (NOTES §26), by reading
+// RipOffGame._front.LocalSim.State.PassCounter through reflection (test only).
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -25,6 +27,31 @@ internal class StartupHook
     }
 
     static void Log(string s) { Console.WriteLine($"[padhook {DateTime.Now:HH:mm:ss.fff}] {s}"); Console.Out.Flush(); }
+
+    static int? Passes()
+    {
+        const System.Reflection.BindingFlags Any = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static;
+        var gameT = Type.GetType("Microsoft.Xna.Framework.Game, MonoGame.Framework");
+        var game = gameT?.GetProperty("Instance", Any)?.GetValue(null);
+        var front = game?.GetType().GetField("_front", Any)?.GetValue(game);
+        var sim = front?.GetType().GetProperty("LocalSim", Any)?.GetValue(front);
+        var st = sim?.GetType().GetProperty("State", Any)?.GetValue(sim) ?? sim?.GetType().GetField("State", Any)?.GetValue(sim);
+        return st?.GetType().GetField("PassCounter", Any)?.GetValue(st) as int?;
+    }
+
+    static void Rate(double seconds)
+    {
+        int? a = Passes(); var t0 = System.Diagnostics.Stopwatch.StartNew();
+        if (a == null) { Log("rate: no local game"); return; }
+        int total = 0, last = a.Value;
+        while (t0.Elapsed.TotalSeconds < seconds)
+        {
+            Thread.Sleep(250);
+            int? b = Passes(); if (b == null) { Log("rate: game ended"); return; }
+            total += (b.Value - last + 4096) & 0xFFF; last = b.Value; // RAM[$A8] is 12-bit
+        }
+        Log($"RATE: {total} passes in {t0.Elapsed.TotalSeconds:F3} s = {total / t0.Elapsed.TotalSeconds:F3} passes/s");
+    }
 
     static void Run(string script)
     {
@@ -57,6 +84,7 @@ internal class StartupHook
                     case "hold": setb(j, B(parts[2]), 1); break;
                     case "release": setb(j, B(parts[2]), 0); break;
                     case "shot": Log("SNAP:shot:" + parts[2]); Thread.Sleep(400); break;
+                    case "rate": Rate(double.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture)); break;
                     case "axis": seta(j, int.Parse(parts[2]), short.Parse(parts[3])); break;
                 }
                 Log(step);

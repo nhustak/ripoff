@@ -1,0 +1,119 @@
+# Pass 9 (NOTES §26): difficulty escalation, MAME 0.276 'ripoff' vs the remake (src/RipOff.Core). Recorded 2026-10-17.
+# MAME: disasm/trace/scripts/run3.sh + trace3.lua (1-player, default DIPs = 8 canisters, coin f120, START1 f200, hunt bot
+#   from f261; observation only, no RAM writes). Tables: tools/remake/Waves (mame = from the MAME RAM log; lock = remake
+#   driven by the same bot from the log's frame-201 seeds, all compared words checked every frame). Derived numbers only.
+# Columns: wave, spawn frame, type RAM[$F5], level RAM[$FB], enemies spawned, max speed word3 / turn step wordE per enemy,
+#   frames spawn->first pick-up ($014), spawn->first theft (RAM[$F9]+1), spawn->wave end (all free), F8 and F9 at the wave end
+#   (level 1 one-player: F8 and F9 each include the +1 of the third-enemy handicap, lst:843-861), frames wave end->next spawn.
+# One frame = one pass = 26.316 ms (38 Hz). '-' = did not happen in that wave.
+
+## run w3_hunt: FT=8 PRI=600 SHOT=20 IDLET=99
+# MAME w3_hunt/ram.log: frames to 6902, A8 gaps (passes not +1 per frame) 0
+# wave start_f type level enemies maxspeed/turn(per enemy) start->first_grab start->first_theft wave_len(frames) kills(F8 incl. handicap) thefts(F9) gap_to_next
+1 252 T1 L1 2 3/2,3/2 - - 96 3 1 50
+2 398 T2 L1 2 5/3,5/3 88 - 148 3 1 50
+3 596 T3 L1 2 6/4,6/4 109 227 228 2 2 50
+4 874 T3 L1 2 6/4,6/4 80 177 178 2 2 50
+5 1102 T3 L1 2 6/4,6/4 - - 138 3 1 50
+6 1290 T4 L1 2 8/5,8/5 48 - 104 3 1 50
+7 1444 T5 L1 2 9/5,9/5 67 - 158 3 1 50
+8 1652 T6 L1 2 11/6,11/6 54 160 235 2 2 50
+9 1937 T6 L1 2 11/6,11/6 70 190 191 2 2 50
+10 2178 T6 L1 2 11/6,11/6 113 - 148 3 1 99
+11 2425 T1 L2 3 4/3,4/3,4/3 - - 258 3 0 50
+12 2733 T2 L2 3 6/4,6/4,6/4 - - 119 3 0 50
+13 2902 T3 L2 3 7/4,7/4,7/4 88 - 132 3 0 50
+14 3084 T4 L2 3 9/5,9/5,9/5 186 - 215 3 0 50
+15 3349 T5 L2 3 10/6,10/6,10/6 22 - 152 3 0 50
+16 3551 T6 L2 3 12/7,12/7,12/7 - - 97 3 0 99
+17 3747 T1 L3 3 5/3,5/3,5/3 218 - 271 3 0 50
+18 4068 T2 L3 3 7/4,7/4,7/4 - - 122 3 0 50
+19 4240 T3 L3 3 8/5,8/5,8/5 20 - 162 3 0 50
+20 4452 T4 L3 3 10/6,10/6,10/6 40 - 201 3 0 50
+21 4703 T5 L3 3 11/6,11/6,11/6 65 - 218 3 0 50
+22 4971 T6 L3 3 13/7,13/7,13/7 13 - 200 3 0 99
+23 5270 T1 L4 3 6/4,6/4,6/4 159 267 268 2 1 50
+24 5588 T1 L4 3 6/4,6/4,6/4 - - 223 3 0 50
+25 5861 T2 L4 3 8/5,8/5,8/5 64 - 190 3 0 50
+26 6101 T3 L4 3 9/5,9/5,9/5 106 235 236 2 1 50
+27 6387 T3 L4 3 9/5,9/5,9/5 78 164 243 2 1 50
+28 6680 T3 L4 3 9/5,9/5,9/5 82 221 - 0 0 -
+# remake game over at f6902
+# lockstep: remake == MAME on every compared word, f202-f6902
+# level 2 reached at wave 11, f2425 = 58.5 s after the start (f202)
+# level 3 reached at wave 17, f3747 = 93.3 s after the start (f202)
+# level 4 reached at wave 23, f5270 = 133.4 s after the start (f202)
+
+## run w3_b: FT=4 PRI=600 SHOT=15 IDLET=99
+# MAME w3_b/ram.log: frames to 5941, A8 gaps (passes not +1 per frame) 0
+# wave start_f type level enemies maxspeed/turn(per enemy) start->first_grab start->first_theft wave_len(frames) kills(F8 incl. handicap) thefts(F9) gap_to_next
+1 252 T1 L1 2 3/2,3/2 - - 164 3 1 50
+2 466 T2 L1 2 5/3,5/3 - - 89 3 1 50
+3 605 T3 L1 2 6/4,6/4 159 - 223 3 1 50
+4 878 T4 L1 2 8/5,8/5 79 178 179 2 2 50
+5 1107 T4 L1 2 8/5,8/5 57 130 131 2 2 50
+6 1288 T4 L1 2 8/5,8/5 59 - 95 3 1 50
+7 1433 T5 L1 2 9/5,9/5 65 - 220 3 1 50
+8 1703 T6 L1 2 11/6,11/6 48 134 216 1 3 50
+9 1969 T5 L1 2 9/5,9/5 73 - 202 3 1 50
+10 2221 T6 L1 2 11/6,11/6 43 - 186 3 1 99
+11 2506 T1 L2 3 4/3,4/3,4/3 - - 96 3 0 50
+12 2652 T2 L2 3 6/4,6/4,6/4 - - 169 3 0 50
+13 2871 T3 L2 3 7/4,7/4,7/4 - - 226 3 0 50
+14 3147 T4 L2 3 9/5,9/5,9/5 78 177 335 1 2 50
+15 3532 T4 L2 3 9/5,9/5,9/5 107 - 164 3 0 50
+16 3746 T5 L2 3 10/6,10/6,10/6 177 - 217 3 0 50
+17 4013 T6 L2 3 12/7,12/7,12/7 72 - 152 3 0 99
+18 4264 T1 L3 3 5/3,5/3,5/3 - - 154 3 0 50
+19 4468 T2 L3 3 7/4,7/4,7/4 128 - 340 3 0 50
+20 4858 T3 L3 3 8/5,8/5,8/5 118 - 204 3 0 50
+21 5112 T4 L3 3 10/6,10/6,10/6 78 - 251 3 0 50
+22 5413 T5 L3 3 11/6,11/6,11/6 59 134 258 2 1 50
+23 5721 T5 L3 3 11/6,11/6,11/6 51 219 - 0 0 -
+# remake game over at f5941
+# lockstep: remake == MAME on every compared word, f202-f5941
+# level 2 reached at wave 11, f2506 = 60.6 s after the start (f202)
+# level 3 reached at wave 18, f4264 = 106.9 s after the start (f202)
+
+## run w3_weak: FT=1.5 PRI=0 SHOT=1000000 IDLET=99
+# MAME w3_weak/ram.log: frames to 4854, A8 gaps (passes not +1 per frame) 0
+# wave start_f type level enemies maxspeed/turn(per enemy) start->first_grab start->first_theft wave_len(frames) kills(F8 incl. handicap) thefts(F9) gap_to_next
+1 252 T1 L1 2 3/2,3/2 286 544 603 1 3 50
+2 905 T1 L1 2 3/2,3/2 169 428 429 2 2 50
+3 1384 T1 L1 2 3/2,3/2 165 - 196 3 1 50
+4 1630 T2 L1 2 5/3,5/3 135 - 156 3 1 50
+5 1836 T3 L1 2 6/4,6/4 129 - 230 3 1 50
+6 2116 T4 L1 2 8/5,8/5 55 148 149 2 2 50
+7 2315 T4 L1 2 8/5,8/5 121 253 254 2 2 50
+8 2619 T4 L1 2 8/5,8/5 56 - 102 3 1 50
+9 2771 T5 L1 2 9/5,9/5 52 - 110 3 1 50
+10 2931 T6 L1 2 11/6,11/6 - - 126 3 1 99
+11 3156 T1 L2 3 4/3,4/3,4/3 233 - 279 3 0 50
+12 3485 T2 L2 3 6/4,6/4,6/4 80 - 253 3 0 50
+13 3788 T3 L2 3 7/4,7/4,7/4 69 306 341 1 2 50
+14 4179 T3 L2 3 7/4,7/4,7/4 - - 329 3 0 50
+15 4558 T4 L2 3 9/5,9/5,9/5 178 295 - 0 0 -
+# remake game over at f4854
+# lockstep: remake == MAME on every compared word, f202-f4854
+# level 2 reached at wave 11, f3156 = 77.7 s after the start (f202)
+
+## run w3_back: FT=8 PRI=600 SHOT=20 IDLET=3
+# MAME w3_back/ram.log: frames to 2714, A8 gaps (passes not +1 per frame) 0
+# wave start_f type level enemies maxspeed/turn(per enemy) start->first_grab start->first_theft wave_len(frames) kills(F8 incl. handicap) thefts(F9) gap_to_next
+1 252 T1 L1 2 3/2,3/2 - - 96 3 1 50
+2 398 T2 L1 2 5/3,5/3 88 - 148 3 1 50
+3 596 T3 L1 2 6/4,6/4 109 227 315 1 3 50
+4 961 T2 L1 2 5/3,5/3 117 - 146 3 1 50
+5 1157 T3 L1 2 6/4,6/4 82 261 317 1 3 50
+6 1524 T2 L1 2 5/3,5/3 - - 155 3 1 50
+7 1729 T3 L1 2 6/4,6/4 94 249 296 1 3 50
+8 2075 T2 L1 2 5/3,5/3 - - 220 3 1 50
+9 2345 T3 L1 2 6/4,6/4 132 262 - 0 0 -
+# remake game over at f2714
+# lockstep: remake == MAME on every compared word, f202-f2714
+
+## pass rate
+# cinemat.cpp:1042 (MAME 0.276) screen refresh = 19.923 MHz/4/16/16/16/16/2 = 37.9997 Hz; RAM[$A8] rose by exactly 1 in every
+#   frame of all four runs above ('A8 gaps 0'), so one pass per frame through level 4.
+# Remake on the box (tools/padtest, real RipOff.dll, MonoGame DesktopGL fixed step, Xvfb): RATE line of the hook:
+#   RATE: 1141 passes in 30.031 s = 37.993 passes/s

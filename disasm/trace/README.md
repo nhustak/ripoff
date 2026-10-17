@@ -105,3 +105,21 @@ No new MAME runs. `scripts/p8/sound_measure.py` re-reads the pass-6 sound-lab WA
 - `tests/RipOff.Core.Tests/Data/*.fc`: frame-end RAM[$FC] (the sound command byte), run-length encoded, from 5 runs, used by `ReplayTests.SoundCommandByte`. RAM only, no ROM data.
 
 The WAV files, RAM logs and CPU traces are not committed (they are large, and the traces contain opcode text from the program ROM).
+
+### Pass 9 (difficulty escalation, NOTES §26)
+
+`scripts/trace3.lua` (wrapper `scripts/run3.sh`) runs a one-player game with a closed-loop "hunt" autopilot and logs data RAM every frame. It never writes RAM.
+- Env: `TAG`, `FRAMES`, `FT`, `PRI`, `SHOT`, `IDLET`.
+- The run stops at game over.
+- `tools/remake/Waves` turns a log into a per-wave table (`mame`).
+- It also replays the same bot through `src/RipOff.Core` from the log's seeds and compares every frame (`lock`).
+
+| run | env | frames | outcome |
+|---|---|---|---|
+| w3_hunt | defaults (FT 8, PRI 600, SHOT 20) | 6,902 | 28 waves, level 4; remake identical |
+| w3_b | FT 4, SHOT 15 | 5,941 | 25 waves, level 3; remake identical |
+| w3_weak | FT 1.5, PRI 0, SHOT 1e6 | 4,854 | 15 waves, level 2; remake identical |
+| w3_back | IDLET 3 | 2,714 | type 3 → 2 step-backs; remake identical |
+
+- `excerpts/p9_escalation.txt`: per-wave tables, lockstep results, level times, pass rates.
+- `tests/RipOff.Core.Tests/Data/w3_hunt.esc`, `w3_back.esc`: wave-state RAM checkpoints every 50 frames for `EscalationTests` (RAM only).

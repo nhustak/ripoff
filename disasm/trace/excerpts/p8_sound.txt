@@ -1,0 +1,82 @@
+# p8 sound_measure.py: MAME netlist cue measurements (sl_* runs, 48 kHz, 1 frame = 1263.2 samples)
+
+(1) laser (Q4 = 0 on): base - sl_q4_1, 1 bursts >= 60 ms
+  t(ms, window centre)  median f0 (Hz) over bursts   median period (ms)
+    10.7       62  16.254
+    21.3       62  16.254
+    32.0     1116   0.896
+    42.7      923   1.084
+    53.3      779   1.283
+    64.0      671   1.491
+    74.7      592   1.690
+    85.3      527   1.896
+    96.0      475   2.107
+
+(2) torpedo (Q3 = 0 on): base - sl_q3_1, 103 bursts >= 60 ms
+  t(ms, window centre)  median f0 (Hz) over bursts   median period (ms)
+    10.7       62  16.254
+    21.3      460   2.174
+    32.0      319   3.131
+    42.7      246   4.063
+
+(3) motor (FC bit 2 = 0 on): sl_fc2_0 - base in base bit-2 = 1 frames
+  strongest spectral lines (Hz): [51, 52, 102, 103, 139, 278]
+
+(4) beep (FC bit 3 = 0 on): sl_fc3_0 - base in base bit-3 = 1 frames
+  f0 = 1462 Hz
+  fraction of samples above mid-level (duty, after coupling filters) = 0.59
+
+(5) background (FC bit 4 = 0 on): base - sl_fc4_1, grouped by FC bits 7-5
+  bits 7-5 = 0: 748 frames, tone f0 = 161 Hz, amplitude-modulation f = 5.1 Hz, rms 1352
+  bits 7-5 = 1: 145 frames, tone f0 = 182 Hz, amplitude-modulation f = 5.1 Hz, rms 1459
+  bits 7-5 = 2: 321 frames, tone f0 = 208 Hz, amplitude-modulation f = 5.9 Hz, rms 1427
+  bits 7-5 = 3: 631 frames, tone f0 = 246 Hz, amplitude-modulation f = 6.6 Hz, rms 1436
+  bits 7-5 = 4: 771 frames, tone f0 = 296 Hz, amplitude-modulation f = 8.1 Hz, rms 1402
+  bits 7-5 = 5: 217 frames, tone f0 = 378 Hz, amplitude-modulation f = 10.3 Hz, rms 1584
+  bits 7-5 = 6: 808 frames, tone f0 = 519 Hz, amplitude-modulation f = 3.7 Hz, rms 1424
+
+(6) explosion (Q7 falling edge): base - sl_q7_1, per trigger (events OUT7=0)
+  25 triggers, 18 isolated (no other within 40 frames)
+  median rms per 50 ms from the trigger frame: 8611 15997 14711 12118 12500 12852 11745 12697 10074 8786 6031 4646 2687 2173 1105 801 758 485 506
+  decay fit over windows 350-800 ms: rms ~ exp(-t / 141 ms)
+  spectral energy below 50/100/200/400/800 Hz: 0.64 0.85 0.95 0.99 1.00
+
+(7) beep phase: FC bit 3 on BONUS frames (FC bit 0 = 1) vs frame-end RAM[$A8] & 3 (sl_base)
+  bit3=0 A8&3=1: 24 frames
+  bit3=0 A8&3=2: 25 frames
+  bit3=1 A8&3=0: 24 frames
+  bit3=1 A8&3=1: 1 frames
+  bit3=1 A8&3=3: 25 frames
+  BONUS frames f3265-f3363; frames with bit3=1 although A8&3 in (1,2): [3265]
+
+(8) sweep detail (window 512 samples, step 256) and linear/exponential period fits
+  laser burst at f3174, 165 ms: 37ms:1017 43ms:926 48ms:844 53ms:779 59ms:724 64ms:671 69ms:627 75ms:592 80ms:557 85ms:524 91ms:501 96ms:475 101ms:454 107ms:442
+    linear fit period(ms) = 0.279 + 0.01890 * t(ms); max |residual| 0.035 ms
+    rms over t = 30-105 ms: 1672
+  torpedo: 103 bursts (lengths median 266 ms); 2048-sample windows
+    window centre t(ms)  median f0 (Hz)  period (ms)  n
+       21    363    2.75  103
+       41    246    4.06  100
+       61    185    5.42   92
+       81    152    6.56   90
+      101    135    7.42   88
+      121    126    7.94   88
+      141    120    8.33   88
+      161    114    8.75   88
+      181    114    8.75   86
+      201    114    8.75   76
+      221    117    8.53   58
+      241    117    8.53   52
+      261    120    8.33   51
+
+(9) continuous cue (bit forced on for the whole run) minus base: plateau tone
+  laser Q4=0 (sl_q4_0 - sl_base, 1 s from f1000): f0 = 14499 Hz, rms 1539
+  torpedo Q3=0 (sl_q3_0 - sl_base, 1 s from f1000): f0 = 117 Hz, rms 1729
+
+(10) cue level (rms of forced-minus-base difference while the cue sounds; MAME output, full scale 32768)
+  motor  (sl_fc2_0 - base, base bit 2 = 1): 751 (400 frames)
+  beep   (sl_fc3_0 - base, base bit 3 = 1): 1002 (400 frames)
+  laser  (sl_q4_0 - base, f1000-f1400): 1520 (400 frames)
+  torpedo(sl_q3_0 - base, f1000-f1400): 1453 (400 frames)
+  background (base - sl_fc4_1, bit 4 = 0): 1375 (400 frames)
+  base run peak |sample| 32767

@@ -116,9 +116,23 @@ namespace RipOff.Core
             // Game-over test: the first thing after the frame wait, $062E-$0653 (lst:1446-1481), i.e. before the
             // sound routine and the wave check of the pass. Replays ram1 f3434 / wander1 f4462 / tp_shoot2 f4784:
             // RAM[$EC] does not get the +2 of a wave check in the game-over pass.
+            bool playingAtPassStart = State.Mode == GameMode.Playing;
             if (State.Mode == GameMode.Playing) GameOverCheck();
 
             HandleCredits(input);
+
+            // Command byte RAM[$FC] (GR §9, NOTES §15/§19.3): built and shifted out by the sound routine at the
+            // start of the pass (lst:283-384), so it reflects the state left by the previous pass. Bits 2-4 and 7-5
+            // compared every frame against the RAM logs by tools/remake/Replay (NOTES §21.4).
+            // Motor: bit 2 is written by the wave code later in the pass, so the latch gets the previous pass's value;
+            // in the game-over pass that is still the in-play value (replays ram1 f3434, shoot1 f4790, wander1 f4462).
+            s.Sound.Motor = playingAtPassStart && !s.MotorOff;
+            // Beep: command bit 3 is cleared when RAM[$A8] bit 1 = 0 at the sound routine (lst:317-338). sl_base:
+            // bit 3 = 0 on 49 of 49 BONUS frames with frame-end A8 & 3 = 1 or 2 after the first BONUS frame
+            // (trace:excerpts/p8_sound.txt (7)).
+            s.Sound.Beep = s.Mode == GameMode.Playing && s.BonusFlag && (s.PassCounter & 2) == 0;
+            s.Sound.BackgroundMuted = s.Mode != GameMode.Playing || s.BonusFlag;
+            s.Sound.BackgroundLevel = s.Background;
 
             // Sound routine (lst:283-353, §15): torpedo countdown; Q3 = 0 while RAM[$FD] counts.
             s.Sound.Torpedo = s.TorpedoTimer > 0;
@@ -153,11 +167,6 @@ namespace RipOff.Core
                 for (int p = 0; p < 2; p++)
                     while (s.Score[p] >= 1000) { s.Score[p] -= 1000; s.ScoreThousands[p] += 1; }
 
-            // Command byte outputs (GR §9).
-            s.Sound.Motor = s.Mode == GameMode.Playing && !s.MotorOff;
-            s.Sound.Beep = s.Mode == GameMode.Playing && s.BonusFlag && (s.PassCounter & 2) == 0; // UNCHECKED: phase
-            s.Sound.BackgroundMuted = s.Mode != GameMode.Playing || s.BonusFlag;
-            s.Sound.BackgroundLevel = s.Background;
         }
 
         // ---------------------------------------------------------------- waves

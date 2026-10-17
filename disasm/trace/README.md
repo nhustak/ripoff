@@ -97,4 +97,11 @@ No new MAME runs. `scripts/p7/p7_checks.py` re-reads 9 existing RAM logs; `tools
 - `excerpts/p7_checks.txt`: `$1204` rounding fit, at-canister turn target, player thrust cadence, wall bounce, tow offset, game-start timing, spawn-pass turn, and the full-frame replay result (NOTES §20).
 - `tests/RipOff.Core.Tests/Data/*.chk`: RAM checkpoints every 100 frames from 7 runs (words `$00-$4F`, `$A8`, `$B0-$CF`, `$EC`, `$F1`, `$F2`), used by the unit tests. RAM only, no ROM data.
 
+### Pass 8 (Milestone 2, sound)
+
+No new MAME runs. `scripts/p8/sound_measure.py` re-reads the pass-6 sound-lab WAVs (`sl_*`, scripts/p6/soundlab.sh) and RAM logs and prints derived numbers only (frequencies, periods, rms levels, fits); no audio is written or committed.
+
+- `excerpts/p8_sound.txt`: laser and torpedo sweeps, motor lines, beep frequency and duty, background tone and pulsing per bits 7-5, explosion envelope and decay fit, the beep phase on the BONUS screen, and the cue levels used to calibrate `src/RipOff.Core/Audio/SoundBoard.cs` (NOTES §21).
+- `tests/RipOff.Core.Tests/Data/*.fc`: frame-end RAM[$FC] (the sound command byte), run-length encoded, from 5 runs, used by `ReplayTests.SoundCommandByte`. RAM only, no ROM data.
+
 The WAV files, RAM logs and CPU traces are not committed (they are large, and the traces contain opcode text from the program ROM).

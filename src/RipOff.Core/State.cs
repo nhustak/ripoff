@@ -74,7 +74,7 @@ namespace RipOff.Core
         public bool Motor;        // command bit 2 = 0 (during waves)
         public bool Beep;         // command bit 3 = 0 (BONUS screen)
         public bool BackgroundMuted; // command bit 4 = 1
-        public int BackgroundLevel;  // RAM[$78]; bits 7-5 drive the drone. UNCHECKED: pitch mapping
+        public int BackgroundLevel;  // RAM[$78]; bits 7-5 = drone pitch/tempo (NOTES §21.3)
     }
 
     /// <summary>Per-pass inputs. Booleans are "pressed"; the arcade reads them active-low.</summary>

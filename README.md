@@ -112,7 +112,7 @@ The window title shows the volume (or why there is no audio), how many pads are 
 
 ### Controller troubleshooting
 
-**Steam starts only when you need it.** Nick's controller stopped working once the game initialized Steam: in M3/M4 that happened at every launch, before the window. With `steam_appid.txt` = 480, an initialized Steam client treats the game as Spacewar, and its Steam Input can redirect the controller away from XInput. Sources:
+**Steam starts only when you need it.** From M3 (PR #11) to M4 (PR #12) the game initialized Steam at every launch, before the window. Whether that is what stopped Nick's controller is UNCHECKED (NOTES §25). With `steam_appid.txt` = 480, an initialized Steam client treats the game as Spacewar, and its Steam Input can redirect the controller away from XInput. Sources:
 
 - A Valve input engineer in [Steamworks.NET #380](https://github.com/rlabrecque/Steamworks.NET/issues/380).
 - Reports from [Unreal](https://forums.unrealengine.com/t/gamepad-not-working-when-connected-to-steam/448003), [GodotSteam](https://github.com/GodotSteam/GodotSteam/discussions/568) ("inputs work until Steam.run_callbacks() kicks in") and [Godot](https://forum.godotengine.org/t/disabling-steam-input-in-godotsteam/118350), all under App ID 480.
@@ -121,19 +121,24 @@ So by default the game never touches Steam for local play, the menus or direct I
 
 Trade-off: the Steam overlay (Shift+Tab, **INVITE A STEAM FRIEND**) works only if Steam was initialized before the window was created. To get the overlay, set **Options → STEAM AT LAUNCH: ON** and restart, or let Steam start the game with an invite (`+connect_lobby`). Lobby codes work either way. `--no-steam` never starts Steam.
 
-If the pad still stops after Steam starts (online via Steam, or STEAM AT LAUNCH on), use either fix:
+**Steam Input is supported in the game (no need to turn it off).** Once Steam is initialized, the game also reads controllers through Steamworks **ISteamInput**, using Spacewar's (App 480) action sets: `ship_controls` in a game and `menu_controls` in menus. If Steam Input delivers a controller, the game uses it, and the SDL/XInput pads are ignored for that tick so the same press is not counted twice. Otherwise the SDL pads are used as before. With Steam not started, the game reads the pad through SDL (MonoGame GamePad).
 
-- In Steam, open Library → Spacewar → Properties → Controller and set Steam Input to "Disable Steam Input" (install Spacewar first with `steam://run/480`).
-- In Steam's controller settings, turn off "Xbox Configuration Support".
+Which physical buttons do what under Steam Input depends on Steam's Spacewar configuration for your controller, not on this game. In Valve's sample Xbox configuration:
+- RT fires.
+- A / B are select / back in menus.
+- The D-pad moves in menus.
+- The left stick steers.
+
+The Steam Input path is UNCHECKED: it has not been run against a real Steam client. Disabling Steam Input for Spacewar (Library → Spacewar → Properties → Controller) is only a fallback, not a requirement.
 
 **What Windows sees:**
 
-- **Options → INPUT TEST** lists pad slots 0-3. For each it shows connected or not, the controller name and type, the buttons held, both sticks and both triggers. It also shows what the game makes of it ("GAME SEES: LEFT THRUST FIRE") and the Steam state. Every button can be tested, so leave by holding **B** for 1 s or pressing **Esc**.
+- **Options → INPUT TEST** lists pad slots 0-3. For each it shows connected or not, the controller name and type, the buttons held, both sticks and both triggers. It also shows what the game makes of it ("GAME SEES: LEFT THRUST FIRE"), the **PAD SOURCE** (SDL or Steam Input) and the Steam state. Every button can be tested, so leave by holding **B** for 1 s or pressing **Esc**.
 - **`%APPDATA%\RipOffRemake\input-log.txt`** is rewritten at every launch, 2 s after the window opens (SDL reports pads only once the window runs). It records:
   - Windows and .NET version, arguments, settings path, dead zone and STEAM AT LAUNCH.
   - Steam-related environment variables (`SteamAppId`, `SDL_GAMECONTROLLER_IGNORE_DEVICES`, …).
   - All 4 slots with name, type, buttons and axes.
-  - Later events: pads connecting or disconnecting, and Steam starting with its result.
+  - Later events: pads connecting or disconnecting, Steam starting with its result, and which **pad source** is in use (SDL, or Steam Input with how many controllers are bound).
   - It contains no Steam IDs or tokens.
 
 UNCHECKED: whether Steam Input is the cause on Nick's PC. The log and INPUT TEST will show it: a pad that is listed before Steam starts and disappears after would confirm it.
@@ -251,6 +256,13 @@ If a **DESYNC** appears: both of you go back to the menu and start a new session
 If the connection drops, the game gives up after 10 s without data and shows why.
 
 ### Dev tools
+
+- `tools/padtest`: an end-to-end controller test on Linux.
+  - It runs the real game under Xvfb with software GL.
+  - A startup hook attaches an SDL2 virtual game controller inside the process (`SDL_JoystickAttachVirtual`).
+  - It then plays a button script and saves screenshots. Usage is at the top of `tools/padtest/run.py`.
+  - It exercises MonoGame's real GamePad path (SDL 2.32.10). Windows' XInput/RawInput backends and Steam are not covered.
+
 
 - `tools/remake/gen_shapes.py` regenerates `src/RipOff.Core/Shapes/ShapeData.g.cs` from `disasm/shapes/objects.txt` and `shapes.txt`.
 - `tools/remake/Replay` (not in the solution) replays a full MAME RAM log through RipOff.Core frame by frame: `dotnet run -c Release --project tools/remake/Replay -- idle1 202 12000 5 idle`. It needs the local trace runs (`RUNS`, default `/workspace/mame/runs`), which are not in the repo.

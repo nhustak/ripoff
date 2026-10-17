@@ -34,6 +34,8 @@ namespace RipOff.Game.Steam
         public bool Initialized => true;
         public bool EnsureInit() => Available;
         public string PersonaName { get; private set; } = "";
+        /// <summary>Controllers through ISteamInput (NOTES §25); null until Steam is up.</summary>
+        public SteamInputPads? InputPads { get; private set; }
 
         private Callback<GameLobbyJoinRequested_t>? _cbLobbyJoin;
         private Callback<GameRichPresenceJoinRequested_t>? _cbRpJoin;
@@ -80,6 +82,7 @@ namespace RipOff.Game.Steam
                 p._crEnter = CallResult<LobbyEnter_t>.Create(p.OnLobbyEnter);
             }
             catch (Exception e) { p.Status = "Steam setup error: " + e.Message; }
+            p.InputPads = SteamInputPads.Start();
             p.PendingJoin = ParseConnect(string.Join(' ', args));
             return p;
         }
@@ -255,6 +258,7 @@ namespace RipOff.Game.Steam
             try { Leave(); } catch (Exception) { }
             _cbLobbyJoin?.Dispose(); _cbRpJoin?.Dispose(); _cbChat?.Dispose(); _cbSession?.Dispose(); _cbSessionFailed?.Dispose();
             _crCreate?.Dispose(); _crList?.Dispose(); _crEnter?.Dispose();
+            InputPads?.Shutdown();
             SteamAPI.Shutdown();
             Available = false;
         }

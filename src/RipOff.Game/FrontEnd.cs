@@ -73,6 +73,10 @@ namespace RipOff.Game
         public readonly PadSlot[] Pads = new PadSlot[InputReader.MaxPads];
         /// <summary>Gameplay controls seen this tick (INPUT TEST screen).</summary>
         public PlayInput LastPlay { get; private set; }
+        /// <summary>A game (not a menu) is on top: Steam Input then uses Spacewar's ship action set, else its menu set.</summary>
+        public bool InGame => Top is Screen.LocalGame or Screen.OnlineGame;
+        /// <summary>Where the pads come from this tick (INPUT TEST), set by the host.</summary>
+        public string PadSource { get; set; } = "SDL (MONOGAME GAMEPAD)";
         /// <summary>Ticks the INPUT TEST screen needs B held (or Esc) to leave, so B itself can be tested.</summary>
         public const int InputTestHoldTicks = Tps;
         private int _bHeld;
@@ -429,7 +433,9 @@ namespace RipOff.Game
             var all = LastPlay.All;
             string game = "GAME SEES: " + (all.Left ? "LEFT " : "") + (all.Right ? "RIGHT " : "") + (all.Thrust ? "THRUST " : "") + (all.Fire ? "FIRE" : "")
                 + (all.Left || all.Right || all.Thrust || all.Fire ? "" : "NOTHING");
-            VectorFont.DrawCentered(game, cx, 150, 18, o);
+            VectorFont.DrawCentered(game, cx, 180, 18, o);
+            string src = "PAD SOURCE: " + PadText.ForFont(PadSource);
+            VectorFont.DrawCentered(src, cx, 145, Fit(src, 14), o, false);
             string st = "STEAM: " + PadText.ForFont(_steam?.Status ?? "off");
             VectorFont.DrawCentered(st, cx, 110, Fit(st, 14), o, false);
             VectorFont.DrawCentered("HOLD B OR PRESS ESC TO GO BACK", cx, 50, 14, o, false);

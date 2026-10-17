@@ -26,6 +26,10 @@ namespace RipOff.Game
         readonly SteamGate? _steam;
         readonly InputLog? _log;
         readonly PadSlot[] _slots = new PadSlot[InputReader.MaxPads];
+        readonly GamePadState[] _sdl = new GamePadState[InputReader.MaxPads];
+        readonly GamePadState[] _steamPads = new GamePadState[InputReader.MaxPads];
+        readonly PadSlot[] _sdlSlots = new PadSlot[InputReader.MaxPads];
+        string _padSource = "";
         readonly FrontEnd? _front;
         readonly SettingsStore? _store;
         SoundOutput? _sound;
@@ -99,6 +103,7 @@ namespace RipOff.Game
         /// </summary>
         void ReadPads()
         {
+            Array.Copy(_sdlSlots, _slots, _slots.Length); // SDL view (names cached per SDL slot)
             for (int i = 0; i < _slots.Length; i++)
             {
                 GamePadState st;
@@ -114,8 +119,25 @@ namespace RipOff.Game
                 }
                 _slots[i].Name ??= ""; _slots[i].Type ??= "";
                 _slots[i].State = st;
-                _pads[i] = st;
+                _sdl[i] = st;
             }
+            Array.Copy(_slots, _sdlSlots, _slots.Length);
+
+            // Steam Input (NOTES §25): once Steam is initialized under App 480, Steam can take the controller away from
+            // SDL/XInput and deliver it as Spacewar actions instead; read those and prefer them when they are bound.
+            var sip = _steam?.Platform?.InputPads;
+            int bound = 0;
+            if (sip != null) { sip.Read(_front!.InGame, _steamPads); bound = sip.Bound; }
+            else Array.Clear(_steamPads);
+            bool useSteam = SteamPadMapping.Merge(_sdl, _steamPads, bound, _pads);
+            if (useSteam)
+                for (int i = 0; i < _slots.Length; i++)
+                    _slots[i] = new PadSlot { State = _pads[i], Name = _pads[i].IsConnected ? "Steam Input" : "", Type = sip!.Types[i] ?? "" };
+            string src = useSteam ? $"Steam Input ({sip!.Bound} of {sip.Connected} controllers bound, {( _front!.InGame ? "ship" : "menu")} actions; SDL pads ignored)"
+                : sip != null ? $"SDL (MonoGame GamePad); Steam Input: {sip.Status}, {sip.Connected} controllers, none bound{(sip.HandlesResolved ? "" : ", Spacewar actions not found")}"
+                : "SDL (MonoGame GamePad); Steam Input off (Steam not started)";
+            if (src != _padSource) { _padSource = src; _log?.Event("pad source: " + src); }
+            _front!.PadSource = useSteam ? $"STEAM INPUT, {sip!.Bound} CONTROLLER(S)" : sip != null ? $"SDL; STEAM INPUT {sip.Connected} SEEN, NONE BOUND" : "SDL (STEAM NOT STARTED)";
         }
 
         protected override void Update(GameTime gameTime)

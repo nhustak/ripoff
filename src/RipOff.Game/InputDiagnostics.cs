@@ -112,7 +112,7 @@ namespace RipOff.Game
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
                 if (append) File.AppendAllText(FilePath, text); else File.WriteAllText(FilePath, text);
             }
-            catch (Exception) { /* diagnostics must never stop the game */ }
+            catch (Exception e) { Console.Error.WriteLine("RipOff: input log not written: " + e.Message); /* diagnostics must never stop the game */ }
         }
     }
 }

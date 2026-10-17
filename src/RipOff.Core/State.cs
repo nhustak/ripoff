@@ -130,6 +130,35 @@ namespace RipOff.Core
         public PlayMode PlayMode = PlayMode.Arcade;
         /// <summary>The rules the simulation reads for <see cref="PlayMode"/>.</summary>
         public GameRules Rules => GameRules.For(PlayMode);
+
+        // ---- Enhanced-mode state (never changed in Arcade; hashed only when PlayMode is not Arcade) ----
+        /// <summary>Cleared waves since the last type step (GameRules.ClearsPerTypeStep).</summary>
+        public int ClearsTowardStep;
+        /// <summary>Passes until each enemy may fire again (miss cooldown, chase reaction delay).</summary>
+        public readonly int[] EnemyFireCooldown = new int[3];
+        /// <summary>xorshift32 state for Enhanced randomness (aim error). Seeded at StartGame from the start seeds
+        /// (record words B and the pass counter), so both online peers draw the same numbers. 0 in Arcade.</summary>
+        public uint EnhancedRng;
+
+        // ---- statistics (not part of the simulation, not hashed) ----
+        /// <summary>Enemy fire tests that found a live player in reach this game (Arcade: every one is a kill).</summary>
+        public int EnemyFireEvents;
+        /// <summary>Of <see cref="EnemyFireEvents"/>, the ones that destroyed the player.</summary>
+        public int EnemyFireHits;
+
+        public void SeedEnhancedRng()
+        {
+            if (PlayMode == PlayMode.Arcade) { EnhancedRng = 0; return; }
+            uint x = 0x9E3779B9u;
+            for (int i = 0; i < 5; i++) x = (x ^ (uint)Record(i).B) * 0x01000193u;
+            x = (x ^ (uint)PassCounter) * 0x01000193u;
+            EnhancedRng = x == 0 ? 0x2545F491u : x;
+        }
+
+        public uint NextEnhancedRandom()
+        {
+            uint x = EnhancedRng; x ^= x << 13; x ^= x >> 17; x ^= x << 5; EnhancedRng = x; return x;
+        }
         /// <summary>Passes fire has been held since the last shot (auto-fire only), per player.</summary>
         public readonly int[] AutoFireTimer = new int[2];
         /// <summary>Shots fired this game, per player (remake statistic; used by tests and the game-over screen).</summary>

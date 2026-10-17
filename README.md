@@ -63,13 +63,21 @@ MAIN MENU
 
 MODE SELECT (after a local start or a host item)
 ├─ ARCADE                    the original 1980 game (tag arcade-v1.0), never changed
-├─ ENHANCED                  the expanded mode; for now identical rules to ARCADE
+├─ ENHANCED                  longer games: slower ramp, enemies that miss (below)
 └─ BACK
 ```
 
 The last mode picked is highlighted next time and saved in settings.json (`"Mode": "Arcade"` / `"Enhanced"`).
 
-**Game modes** (`src/RipOff.Core/GameRules.cs`): `PlayMode { Arcade, Enhanced }` is part of `GameConfig`, and the `Simulation` reads its tunables from `GameRules.For(mode)` instead of constants. `GameRules.Arcade` holds the arcade values and must not change: `ArcadeDeterminismTests` pins the state checksums of scripted Arcade runs to the values recorded at `arcade-v1.0`. `GameRules.Enhanced` starts as a copy of Arcade and is where expanded-mode tweaks go. The state hash includes the mode only when it is not Arcade, so Arcade hashes are unchanged.
+**Game modes** (`src/RipOff.Core/GameRules.cs`): `PlayMode { Arcade, Enhanced }` is part of `GameConfig`, and the `Simulation` reads its tunables from `GameRules.For(mode)` instead of constants. `GameRules.Arcade` holds the arcade values and must not change: `ArcadeDeterminismTests` pins the state checksums of scripted Arcade runs to the values recorded at `arcade-v1.0`. `GameRules.Enhanced` is where expanded-mode tweaks go. The state hash includes the mode (and Enhanced-only state) only when it is not Arcade, so Arcade hashes are unchanged.
+
+**ENHANCED** (disasm/NOTES.md §27): same game, tuned so it lasts about 2-2.5× longer with a scripted player.
+- Enemy shots can miss: ±20° aim spread at level 1, 2° tighter per level down to ±10°, and the shot must pass within 12 units. About half of the shots miss; close range still kills.
+- After a miss an enemy waits 32 passes before it can fire again, and a fresh chaser waits 0.5 s.
+- Two cleared waves per enemy-type step. Three-enemy waves start at level 3. Enemy speed is capped at 8 + level.
+- Towing enemies move at 75 %.
+
+All randomness comes from a seeded generator in the game state, so online games stay in lockstep. Measure with `tools/remake/Waves stats [seeds] [minutes]`.
 
 ```
 PAUSE MENU (in a game: Esc or pad Start)

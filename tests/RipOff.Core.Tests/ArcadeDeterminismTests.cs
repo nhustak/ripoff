@@ -81,21 +81,13 @@ public class ArcadeDeterminismTests
         Assert.Same(GameRules.Enhanced, GameRules.For(PlayMode.Enhanced));
     }
 
-    /// <summary>Enhanced starts as a copy of Arcade's rules: same play, but the mode is part of the state hash, so an
-    /// Arcade peer and an Enhanced peer can never pass as in sync.</summary>
     [Fact]
-    public void EnhancedStartsAsACopyOfArcade()
+    public void EnhancedIsDeterministicAndDiverges()
     {
-        Assert.Equal(GameRules.Arcade with { Mode = PlayMode.Enhanced }, GameRules.Enhanced);
-        var arcade = Create(2, false, new GameConfig(8)); var enh = Create(2, false, new GameConfig(8, Mode: PlayMode.Enhanced));
-        Assert.Equal(PlayMode.Enhanced, enh.State.PlayMode);
-        Assert.NotEqual(StateHash.Compute(arcade.State), StateHash.Compute(enh.State));
-        for (int f = 0; f < 2000; f++)
-        {
-            var inp = new FrameInput { P1 = new PlayerInput { Fire = f % 3 == 0, Left = f % 50 < 10, Thrust = f % 7 < 3 } };
-            arcade.Step(inp); enh.Step(inp);
-        }
-        enh.State.PlayMode = PlayMode.Arcade; // same rules today: only the mode tag differs
-        Assert.Equal(StateHash.Compute(arcade.State), StateHash.Compute(enh.State));
+        var a = Run(2, false, new GameConfig(8, Mode: PlayMode.Enhanced));
+        var b = Run(2, false, new GameConfig(8, Mode: PlayMode.Enhanced));
+        Assert.Equal(a, b);                                   // same seed + inputs → same checksums
+        Assert.NotEqual(Golden[2], a);                        // and not the Arcade game
+        Assert.NotEqual(a, Run(3, false, new GameConfig(8, Mode: PlayMode.Enhanced)));
     }
 }

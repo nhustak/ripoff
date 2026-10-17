@@ -1104,3 +1104,75 @@ Reading the table:
    - pad versus the cabinet's buttons.
 4. Which version Nick remembers (cabinet, MAME, or a home port).
 5. Two-player escalation in these runs (needs 6 kills, i.e. two clears per step: lst:500-573, replayed in pass 7 but not measured per wave here).
+
+## 27. Enhanced mode tuning: longer games, enemies that miss ("the enemy AI right now seems way too accurate")
+
+Status: done 2026-10-17. Arcade is untouched. `ArcadeDeterminismTests` (checksums from arcade-v1.0) and `EscalationTests` (MAME RAM checkpoints) pass unchanged. Every new knob is in `GameRules` (src/RipOff.Core/GameRules.cs), and its Arcade value takes the original code path.
+
+### 27.1 Why Arcade enemies feel "too accurate" (research, Simulation.cs line numbers at this commit)
+
+- **Enemy fire is a hitscan kill test, not a projectile** (§18.4, §19.1). The fire line is only drawn (`EnemyDraw`, Simulation.cs:615); the kill comes from `FireTest` (Simulation.cs:506; ROM `$1123-$11B7`).
+- **Aim: there is no lead and no error.** A chasing enemy sets C/D to the player's exact position every pass (`ChooseChaseTarget`, Simulation.cs:404) and steers at `Trig.Bearing(C − X, D − Y)` (Simulation.cs:407).
+- **When it fires:** `Steer` (Simulation.cs:472) calls `FireTest` whenever the heading equals the bearing or snaps onto it, i.e. when it is within one turn step.
+- **Fire conditions in `FireTest`:**
+  - the enemy's fire window: `FireWindowBase`, Simulation.cs:53. Each enemy gets 4 passes in every 16;
+  - |enemy − player| < 150 on both axes (`GameData.FireReach`);
+  - the enemy is on the field;
+  - the player is alive.
+  If all hold, the player **always** dies. There is no shot speed (the hit is instant). Inside its window the enemy retries every pass.
+- **Turn precision:** turn step ⌊v/2⌋ + 1 degrees per pass (`EnemyTurnStep`, Simulation.cs:48, set at Simulation.cs:283). The snap makes the final aim exact.
+- **Chase start:** any moving, non-towing enemy within the 256 box of the player switches to chase in the player's pass (Simulation.cs:705, `GameData.ChaseRadius`). Chase never ends on distance (§18.3).
+- **Escalation** (§26, GAME_RULES §4-5):
+  - `WaveEnd` (Simulation.cs:211): one cleared wave = type +1 (`Advance`, Simulation.cs:240); after type 6 comes level +1; 3 or more thefts in a wave step the type back (Simulation.cs:224).
+  - Speed v = type + ⌊type/2⌋ + level + 1 (`EnemyMaxSpeed`, Simulation.cs:36).
+  - Waves have 2 enemies at level 1 in one-player and 3 from level 2 (`SpawnWave`, Simulation.cs:254).
+
+So whenever a chaser lines up inside 150 units during its window, the shot is a sure kill. The only defence is to stay out of reach or kill the enemy first.
+
+### 27.2 Knobs (Arcade value → Enhanced value)
+
+| knob (GameRules) | Arcade | Enhanced | effect (Simulation.cs) |
+|---|---|---|---|
+| `EnemyAimErrorDeg` / `PerLevel` / `Min` | 0 | ±20° at level 1, −2° per level, min ±10° | `AimHits`: each fire test that passes draws an angle error from the Enhanced RNG. It hits only if range × sin(err) ≤ `EnemyHitRadius` (integer sine table, Chebyshev range) |
+| `EnemyHitRadius` | (unused) | 12 | see above. At range 150 a shot needs \|err\| ≤ 4°; under about 35 units it always hits |
+| `EnemyMissCooldown` | 0 | 32 passes | after a miss the enemy cannot fire for two windows (no instant retry in the same window) |
+| `ChaseReactionPasses` | 0 | 19 (0.5 s) | a fresh chaser cannot fire right away |
+| `ChaseTurnPercent` | 100 | 100 | knob kept. 75 % made some games (1-2 of 20 with the hunt bot) run to the 30-minute cap: the chaser orbits a still player (cf. §18.4 "Orbit") |
+| `ClearsPerTypeStep` | 1 | 2 | `StepUp`: two cleared waves per type step. A step-back resets the count |
+| `FullWaveFromLevel` | 2 | 3 | the one-player handicap (2 enemies) lasts through level 2 |
+| `EnemySpeedCapBase` | 0 (no cap) | 8 | `SpawnSpeed`: v ≤ 8 + level, so type 6 is 9 at level 1 (arcade 11) and 10 at level 2 (arcade 12). The turn step follows v |
+| `TowSpeedPercent` | 100 | 75 | towing enemies move at 75 % (min 2), so there is more time to rescue canisters |
+
+**Determinism.**
+- The aim error uses `GameState.EnhancedRng` (xorshift32). `StartGame` seeds it from the five record B words and the pass counter, which are the same on both online peers (`LockstepSession.CreateSimulation`). Arcade never seeds or steps it.
+- `ClearsTowardStep`, `EnemyFireCooldown[3]` and `EnhancedRng` are in `StateHash` only when the mode is not Arcade.
+- `EnemyFireEvents` / `EnemyFireHits` are statistics and are not hashed.
+
+### 27.3 Measurements (`tools/remake/Waves stats 40 30`)
+
+Setup:
+- one-player, 8 canisters, 40 seeds (start words as `LockstepSession.DefaultConfig`), cap 30 min;
+- hunt bot from §26: it never thrusts. `FT` = fire tolerance in degrees; `LEAD`; `PRI` = priority for towing/at-canister targets;
+- "fire events" = fire tests that found the player in reach.
+
+| bot | mode | median length | mean length | ended / 40 | waves | level reached | time to L2 / L3 / L4 (s, games reaching it) | player deaths | enemy hit % | deaths/min | kills |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| strong (FT 8, lead) | Arcade | 111 s | 115 s | 40 | 19.1 | 2.4 | 45 (39) / 95 (12) / 145 (3) | 6.6 | 100 | 3.34 | 39.8 |
+| strong | **Enhanced** | **250 s** (2.3×) | 264 s | 40 | 47.8 | 3.6 | 71 (40) / 144 (37) / 230 (20) | 10.0 | **52** | 2.13 | 105.5 |
+| medium (FT 4, lead) | Arcade | 107 s | 157 s | 39 | 18.6 | 2.3 | 42 (37) / 101 (12) / 129 (4) | 6.2 | 100 | 3.13 | 38.6 |
+| medium | **Enhanced** | **275 s** (2.6×) | 339 s | 38 | 45.8 | 3.5 | 72 (40) / 150 (36) / 233 (21) | 9.5 | **48** | 2.05 | 100.1 |
+| weak (FT 1.5, no lead, PRI 0) | Arcade | 87 s | 220 s | 37 | 12.4 | 1.3 | 86 (11) / - / - | 3.0 | 100 | 1.58 | 17.2 |
+| weak | **Enhanced** | **138 s** (1.6×) | 344 s | 35 | 16.8 | 1.2 | 119 (7) / - / - | 2.1 | **38** | 0.83 | 25.5 |
+
+Reading:
+- Enhanced games last about 2.3-2.6× longer for the strong and medium bots and 1.6× for the weak bot.
+- Enemy fire hits about half the time instead of always.
+- The weak bot still loses in a median 2.3 minutes and rarely reaches level 2, so Enhanced is not a free win.
+- Means include games stopped at the 30-minute cap (the arcade too: an idle-ish player can survive a lone chaser, §18.4). That is why medians are given.
+- Before tuning, the aim error alone with a 24-unit hit radius missed only 3 % of shots: enemies mostly fire at close range. Hence the 12-unit hit radius.
+
+### 27.4 UNCHECKED
+
+1. Feel with a human player. The bots never thrust, so they sit still and hunt. A moving human meets chasers at other ranges, and the hit rate may differ.
+2. Two-player Enhanced (the same knobs apply; `ClearsPerTypeStep` also applies to the 6-kill advance) was not measured.
+3. The fire line is still drawn along the enemy's heading on a miss (cosmetic; no visual miss offset).

@@ -57,15 +57,26 @@ MAIN MENU
 │  ├─ DISPLAY: WINDOWED/FULLSCREEN
 │  ├─ STICK DEAD ZONE: 10-60%     (default 35%, steps of 5)
 │  ├─ STEAM AT LAUNCH: OFF/ON     (default OFF; applies on the next start; see Controller troubleshooting)
+│  ├─ ENHANCED OPTIONS: ALL ON    → ENHANCED OPTIONS page (below)
 │  ├─ INPUT TEST                  all 4 pad slots live (hold B or press Esc to leave)
 │  └─ BACK
 └─ EXIT                      the only way out, with EXIT TO DESKTOP below
 
 MODE SELECT (after a local start or a host item)
 ├─ ARCADE                    the original 1980 game (tag arcade-v1.0), never changed
-├─ ENHANCED                  longer games: slower ramp, enemies that miss (below)
+├─ ENHANCED                  longer games: slower ramp, enemies that miss (below); shows the Enhanced options
+└─ BACK
+
+ENHANCED OPTIONS (OPTIONS → ENHANCED OPTIONS; Enhanced games only, Arcade ignores them)
+├─ WARP-IN: ON/OFF           players warp in at their spawn point instead of driving in from the edge
+├─ ENEMY AIM ERROR: ON/OFF   enemy shots can miss; reload after a miss; later first shot
+├─ SLOWER RAMP: ON/OFF       two clears per enemy type, 3-enemy waves from level 3, speed cap
+├─ SLOWER TOWING: ON/OFF     towing enemies at 75 %
+├─ ALL ON
 └─ BACK
 ```
+
+All Enhanced options default ON. They're saved in settings.json as `"EnhancedOff": [...]` (the ones switched off), so older files and options added later read as ON. Each toggle sets its knobs back to the Arcade values when off; all off plays like Arcade. Online, the guest uses the host's options.
 
 The last mode picked is highlighted next time and saved in settings.json (`"Mode": "Arcade"` / `"Enhanced"`).
 
@@ -76,6 +87,7 @@ The last mode picked is highlighted next time and saved in settings.json (`"Mode
 - After a miss an enemy waits 32 passes before it can fire again, and a fresh chaser waits 0.5 s.
 - Two cleared waves per enemy-type step. Three-enemy waves start at level 3. Enemy speed is capped at 8 + level.
 - Towing enemies move at 75 %.
+- Warp-in (NOTES §28): after the respawn delay a player warps in at its spawn point (64 units inside the edge) over 0.8 s, with a contracting vector ring. While warping it can't be hit, doesn't collide and can't fire. It then materializes standing still.
 
 Enhanced changes done so far, and the ideas backlog: [ENHANCEMENTS.md](ENHANCEMENTS.md).
 
@@ -201,7 +213,7 @@ UNCHECKED: whether Steam Input is the cause on Nick's PC. The log and INPUT TEST
 Main menu → **ONLINE** (tree above). Steam starts the first time you pick a Steam item. If it cannot start, the reason is shown and the Steam items are greyed out; direct IP still works. `--no-steam` skips Steam entirely.
 
 - **Pausing online:** the shared game never pauses (a choice; it is flagged in NOTES §23). Esc or Start opens the menu as an overlay. The game keeps running, dimmed, behind it, and your tank gets no input until you close the menu.
-- **Rules:** the host's mode (**ARCADE** / **ENHANCED**), **AUTO FIRE** and **CANISTERS** settings are sent to the guest and checked by both sides before the first frame. The guest adopts the host's mode for that session (its own saved mode is unchanged). The connecting screen shows the mode; Steam lobbies also advertise it (`mode` lobby key). Protocol version 3: builds from before game modes (v2, e.g. the `arcade-v1.0` zip) are refused at connect with a version-mismatch message.
+- **Rules:** the host's mode (**ARCADE** / **ENHANCED**), **AUTO FIRE** and **CANISTERS** settings are sent to the guest and checked by both sides before the first frame. The guest adopts the host's mode for that session (its own saved mode is unchanged). The connecting screen shows the mode; Steam lobbies also advertise it (`mode` lobby key). For Enhanced, the host's **ENHANCED OPTIONS** are sent too and adopted by the guest. Protocol version 4: builds from before the options (v3: 2026.10.17.1, 2026.10.17.2, `enhanced-preview-1`) and before game modes (v2, `arcade-v1.0`) are refused at connect with a version-mismatch message naming both builds.
 - **After a game over:** choose **PLAY AGAIN**; either player can start the next game. There are no coins online either.
 
 How it works (`disasm/NOTES.md` §22):

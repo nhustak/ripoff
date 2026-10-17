@@ -9,7 +9,7 @@ Background and measurements: [disasm/NOTES.md §27](disasm/NOTES.md) and the ENH
 
 ## Done (in Enhanced)
 
-Shipped in PR #18 (first in the `enhanced-preview-1` pre-release) and released in **2026.10.17.1**.
+The first eight knobs shipped in PR #18 (first in the `enhanced-preview-1` pre-release) and were released in **2026.10.17.1**. Warp-in and the options page came in **2026.10.17.3**.
 
 | Knob (`GameRules`) | Arcade | Enhanced | Effect | Version |
 |---|---|---|---|---|
@@ -21,6 +21,8 @@ Shipped in PR #18 (first in the `enhanced-preview-1` pre-release) and released i
 | `FullWaveFromLevel` | 2 | 3 | Three-enemy waves start at level 3 (one-player) | 2026.10.17.1 |
 | `EnemySpeedCapBase` | 0 (no cap) | 8 | Enemy speed is capped at 8 + level | 2026.10.17.1 |
 | `TowSpeedPercent` | 100 | 75 | Towing enemies move at 75 % (min 2), leaving more time to rescue canisters | 2026.10.17.1 |
+| `WarpInPasses` / `WarpInSpeed` | 0 (drive in from the edge at speed 5) | 30 passes (0.8 s), speed 0 | Players warp in at their spawn point with a vector effect. They can't be hit, collide or fire until they materialize (NOTES §28) | 2026.10.17.3 |
+| ENHANCED OPTIONS page | (not applicable) | WARP-IN, ENEMY AIM ERROR, SLOWER RAMP, SLOWER TOWING, all ON by default | Each Enhanced variation can be switched off (off = Arcade values for its knobs). Saved in settings.json; online, the host's options are used (protocol v4) | 2026.10.17.3 |
 
 The result: games last about 2.3-2.6× longer with the strong and medium test bots, and enemy fire hits about half the time instead of always (NOTES §27.3).
 
@@ -39,9 +41,9 @@ Status: idea / planned / in progress / done. Source: Nick or bot-suggested.
 
 | Idea | Status | Source |
 |---|---|---|
-| Players "warp" in instead of coming in from off screen, to allow more options | idea | Nick |
-| Warp-in delay depends on how you were killed and on the time since your last death (for example, a collision death takes longer to warp in from) | idea | Nick |
-| Random warp-in location after death | idea | Nick |
+| Players "warp" in instead of coming in from off screen, to allow more options | done (2026.10.17.3, toggle WARP-IN) | Nick |
+| Warp-in delay depends on how you were killed and on the time since your last death (for example, a collision death takes longer to warp in from). Hook ready: `GameRules.DelayRule` / `Simulation.RespawnDelayFor` | idea | Nick |
+| Random warp-in location after death. Hook ready: `GameRules.WarpLocation` / `Simulation.WarpInPoint` (must use the Enhanced RNG) | idea | Nick |
 
 ### Feedback
 

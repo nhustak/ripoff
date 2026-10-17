@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -35,19 +36,41 @@ namespace RipOff.Game
         [JsonConverter(typeof(JsonStringEnumConverter<PlayMode>))]
         public PlayMode Mode { get; set; } = PlayMode.Arcade;
 
-        public GameConfig GameConfig => new(Canisters, AutoFire, Mode);
+        /// <summary>Enhanced variations switched OFF on the ENHANCED OPTIONS page, by name (EnhancedOption, e.g.
+        /// "WarpIn"). Stored as the "off" list so that a missing list (older files) and variations added later
+        /// default ON. Unknown names are ignored.</summary>
+        public List<string> EnhancedOff { get; set; } = new();
+
+        [JsonIgnore]
+        public EnhancedOption EnhancedOptions
+        {
+            get
+            {
+                var o = EnhancedOption.All;
+                foreach (var v in GameRules.Variations) if (EnhancedOff?.Contains(v.Option.ToString()) == true) o &= ~v.Option;
+                return o;
+            }
+            set
+            {
+                EnhancedOff = new List<string>();
+                foreach (var v in GameRules.Variations) if ((value & v.Option) == 0) EnhancedOff.Add(v.Option.ToString());
+            }
+        }
+
+        public GameConfig GameConfig => new(Canisters, AutoFire, Mode, EnhancedOptions);
 
         public Settings Normalize()
         {
             Version = 2;
             if (Array.IndexOf(GameData.CanistersForDip, Canisters) < 0) Canisters = GameConfig.Default.Canisters;
             if (!GameRules.IsDefined(Mode)) Mode = PlayMode.Arcade;
+            EnhancedOptions = EnhancedOptions; // drops unknown or duplicate names from EnhancedOff
             Volume = double.IsFinite(Volume) ? Math.Round(Math.Clamp(Volume, 0, 1) / VolumeStep) * VolumeStep : 1.0;
             StickDeadzone = float.IsFinite(StickDeadzone) ? MathF.Round(Math.Clamp(StickDeadzone, DeadzoneMin, DeadzoneMax) / DeadzoneStep) * DeadzoneStep : PadMapper.DefaultStickDeadzone;
             return this;
         }
 
-        public Settings Clone() => (Settings)MemberwiseClone();
+        public Settings Clone() { var c = (Settings)MemberwiseClone(); c.EnhancedOff = new List<string>(EnhancedOff ?? new List<string>()); return c; }
     }
 
     /// <summary>

@@ -61,10 +61,20 @@ public class GameConfigTests
             var g = new GameConfig(4, true, m);
             Assert.Equal(g, GameConfig.Decode(g.Encode()));
         }
-        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 9, 8, 0, 0 }));    // unknown schema
-        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 1, 8, 0 }));       // schema 1 (before play modes)
-        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 2, 8, 0x80, 0 })); // reserved flag bit
-        Assert.NotNull(GameConfig.Decode(new byte[] { 2, 8, 0, 7 }).Validate());              // unknown play mode: refused, with a reason
+        foreach (var o in new[] { EnhancedOption.All, EnhancedOption.None, EnhancedOption.WarpIn | EnhancedOption.SlowerTowing })
+        {
+            var g = new GameConfig(8, false, PlayMode.Enhanced, o);
+            Assert.Equal(g, GameConfig.Decode(g.Encode()));
+            Assert.Null(g.Validate());
+        }
+        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 9, 8, 0, 0, 15 }));   // unknown schema
+        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 1, 8, 0 }));          // schema 1 (before play modes)
+        var v3 = Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 2, 8, 0, 1 })); // schema 2 (before Enhanced options)
+        Assert.Contains("schema 2", v3.Message);
+        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 3, 8, 0, 1 }));       // schema 3 but no options byte
+        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 3, 8, 0x80, 0, 15 })); // reserved flag bit
+        Assert.NotNull(GameConfig.Decode(new byte[] { 3, 8, 0, 7, 15 }).Validate());            // unknown play mode: refused, with a reason
+        Assert.Contains("enhanced options", GameConfig.Decode(new byte[] { 3, 8, 0, 1, 0x10 }).Validate()); // unknown option bit
         Assert.NotNull(new GameConfig(8, false, (PlayMode)7).Validate());
     }
 
@@ -148,6 +158,48 @@ public class GameConfigTests
         int common = 0;
         foreach (var (f, hash) in h) if (g.TryGetValue(f, out var gh)) { Assert.Equal(hash, gh); common++; }
         Assert.True(common > 1200, $"{common} common frames");
+    }
+
+    [Fact]
+    public void GuestAdoptsTheHostsEnhancedOptionsAndBothWarpInIdentically()
+    {
+        var net = new LoopbackNetwork(12, 30, 20, 0.03);
+        var opts = EnhancedOption.WarpIn | EnhancedOption.SlowerTowing; // aim error and slower ramp off
+        var host = new LockstepSession(net.A, true, Key, LockstepSession.DefaultConfig(6, game: new GameConfig(8, Mode: PlayMode.Enhanced, Options: opts)), clock: () => net.NowMs / 1000);
+        var guest = new LockstepSession(net.B, false, Key, clock: () => net.NowMs / 1000);
+        var h = new Dictionary<int, uint>(); var g = new Dictionary<int, uint>();
+        int hostWarp = 0, guestWarp = 0;
+        host.FrameSimulated = (f, st) => { h[f] = StateHash.Compute(st); if (st.WarpTimer[0] > 0 || st.WarpTimer[1] > 0) hostWarp++; };
+        guest.FrameSimulated = (f, st) => { g[f] = StateHash.Compute(st); if (st.WarpTimer[0] > 0 || st.WarpTimer[1] > 0) guestWarp++; };
+        for (int i = 0; i < 1500; i++)
+        {
+            host.Update(new PlayerInput { Fire = i % 10 < 3, Left = i % 60 < 20 });
+            guest.Update(new PlayerInput { Fire = i % 8 < 2, Thrust = i % 9 < 4 });
+            net.Advance(1000.0 / 38);
+        }
+        Assert.Equal(SessionPhase.Running, host.Phase); Assert.Equal(SessionPhase.Running, guest.Phase);
+        Assert.Equal(opts, guest.Config!.Value.Game.Options);
+        Assert.Equal(opts, guest.Sim!.State.Options);
+        Assert.Equal(opts, host.Sim!.State.Options);
+        Assert.Equal(0, guest.Sim.Rules.AimErrorAt(1));        // the guest runs the host's toggles, not its own defaults
+        Assert.True(hostWarp > 0 && hostWarp == guestWarp, $"warp frames host {hostWarp} guest {guestWarp}");
+        int common = 0;
+        foreach (var (f, hash) in h) if (g.TryGetValue(f, out var gh)) { Assert.Equal(hash, gh); common++; }
+        Assert.True(common > 1200, $"{common} common frames");
+    }
+
+    [Fact]
+    public void OptionsAlteredInTransitAreCaughtAndUnknownOptionsRefused()
+    {
+        Assert.Equal(4, Protocol.Version); // v4: the options byte changed the start message; v3 builds are refused at Hello
+        // Start = [type, delay, len, schema, canisters, flags, mode, options, ...]
+        var cfg = LockstepSession.DefaultConfig(3, game: new GameConfig(8, Mode: PlayMode.Enhanced));
+        var (host, guest) = Run(cfg, p => p[7] = (byte)EnhancedOption.WarpIn);
+        Assert.Equal(SessionPhase.Failed, host.Phase);
+        Assert.Contains("game config mismatch", host.Status);
+        (host, guest) = Run(cfg, p => p[7] = 0x40);
+        Assert.Equal(SessionPhase.Failed, guest.Phase);
+        Assert.Contains("enhanced options", guest.Status);
     }
 
     [Fact]

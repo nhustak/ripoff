@@ -210,7 +210,7 @@ public class FrontEndTests
         var s = new Settings();
         using var r = new Rig(s);
         r.Choose("OPTIONS");
-        Assert.Equal(new[] { "AUTO FIRE: OFF", "CANISTERS: 8", "VOLUME: 100%", "MUTE: OFF", "DISPLAY: WINDOWED", "STICK DEAD ZONE: 35%", "STEAM AT LAUNCH: OFF", "INPUT TEST", "BACK" }, r.F.CurrentLabels);
+        Assert.Equal(new[] { "AUTO FIRE: OFF", "CANISTERS: 8", "VOLUME: 100%", "MUTE: OFF", "DISPLAY: WINDOWED", "STICK DEAD ZONE: 35%", "STEAM AT LAUNCH: OFF", "ENHANCED OPTIONS: ALL ON", "INPUT TEST", "BACK" }, r.F.CurrentLabels);
         r.Press(Buttons.A); Assert.True(s.AutoFire);                       // A toggles
         r.Press(Buttons.DPadRight); Assert.False(s.AutoFire);              // right toggles too
         r.Press(Buttons.DPadDown); r.Press(Buttons.DPadRight); Assert.Equal(12, s.Canisters);
@@ -226,6 +226,7 @@ public class FrontEndTests
         Assert.Equal(Settings.DeadzoneMin, s.StickDeadzone, 3);           // clamped
         r.Press(Buttons.DPadDown); r.Press(Buttons.A); Assert.True(s.SteamAtLaunch);
         Assert.True(r.Saves >= 10);
+        r.Press(Buttons.DPadDown); Assert.Equal("ENHANCED OPTIONS: ALL ON", r.F.CurrentLabels[r.F.Selected]);
         r.Press(Buttons.DPadDown); Assert.Equal("INPUT TEST", r.F.CurrentLabels[r.F.Selected]);
         r.Press(Buttons.DPadDown); Assert.Equal("BACK", r.F.CurrentLabels[r.F.Selected]);
         r.Press(Buttons.A);

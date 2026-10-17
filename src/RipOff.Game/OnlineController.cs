@@ -134,6 +134,15 @@ namespace RipOff.Game
             return "MODE: SET BY THE HOST";
         }
 
+        /// <summary>The Enhanced options of this session (host: its own; guest: the received config). Null when the
+        /// session is not Enhanced, or not known yet.</summary>
+        public string? OptionsText()
+        {
+            GameConfig? c = Mode is Kind.SteamHost or Kind.LanHost ? HostConfig : Session?.Config?.Game;
+            if (c is not { Mode: PlayMode.Enhanced } g) return null;
+            return "ENHANCED OPTIONS: " + FrontEnd.EnhancedSummary(g.Options) + (Mode is Kind.SteamHost or Kind.LanHost ? "" : " (HOST'S CHOICE)");
+        }
+
         /// <summary>"OTHER PLAYER: V2026.10.17.1" once the peer's Hello arrived (null before, or if it sent no build).</summary>
         public string? PeerBuildText() => Session?.PeerBuild is { Length: > 0 } b ? "OTHER PLAYER: " + BuildInfo.DisplayOf(b) : null;
 

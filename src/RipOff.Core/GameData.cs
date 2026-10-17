@@ -66,6 +66,9 @@ namespace RipOff.Core
 
         /// <summary>P1/P2 (re)spawn: lst:899-932, NOTES §19.2.</summary>
         public static readonly (int X, int Y, int Heading)[] PlayerStarts = { (1024, 320, 270), (0, 448, 90) };
+        /// <summary>Enhanced warp-in points (remake, NOTES §28): each start moved 64 units into the field along its
+        /// heading. That's about where the arcade's drive-in stops (speed 5 coasting down: 4·(5+4+3+2+1) = 60).</summary>
+        public static readonly (int X, int Y, int Heading)[] WarpInPoints = { (1024 - 64, 320, 270), (64, 448, 90) };
         public const int RespawnDelay = 0x19;  // 25 passes ($03B2-$03B6, lst:882-886, NOTES §19.2)
         public const int RespawnSpeed = 5;     // lst:891-893
 

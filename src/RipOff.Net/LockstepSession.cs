@@ -41,7 +41,7 @@ namespace RipOff.Net
         private bool _helloOk, _startSent;
         private double _lastHeard;
         private Protocol.StartConfig? _pendingStart;
-        private readonly Protocol.StartConfig _hostConfig;
+        private Protocol.StartConfig _hostConfig; // host: Ship2 is set from the guest's Hello before Start is sent
 
         public bool IsHost { get; }
         /// <summary>0 for the host (player 1), 1 for the guest (player 2).</summary>
@@ -63,6 +63,11 @@ namespace RipOff.Net
         public Protocol.StartConfig? Config { get; private set; }
         /// <summary>This side's build string sent in Hello (display only; default BuildInfo.Informational).</summary>
         public string LocalBuild { get; init; } = BuildInfo.Informational;
+        /// <summary>Guest: the ship it wants (sent in Hello; the host may move it off the host's ship). Host: unused, its
+        /// own ship is hostConfig.Game.Ship1. <see cref="Protocol.NoShip"/> = no wish (keep the host config's Ship2).</summary>
+        public int LocalShip { get; init; } = Protocol.NoShip;
+        /// <summary>The ship the peer asked for in its Hello (<see cref="Protocol.NoShip"/> if none).</summary>
+        public int PeerShipWish { get; private set; } = Protocol.NoShip;
         /// <summary>The peer's build string from its Hello ("" until received, or when an older build sent none).</summary>
         public string PeerBuild { get; private set; } = "";
         /// <summary>Host: the guest echoed the hash of the start config (game options included) and it matched.
@@ -85,6 +90,19 @@ namespace RipOff.Net
             _hostConfig = hostConfig ?? DefaultConfig(Environment.TickCount);
             if (isHost && _hostConfig.Game.Validate() is { } bad) throw new ArgumentException("game config: " + bad, nameof(hostConfig));
             _lastHeard = _clock();
+        }
+
+        /// <summary>
+        /// Host side of SHIP SELECT online (NOTES §30): the host keeps its own ship (Ship1); the guest gets the ship it
+        /// asked for, unless that is the host's ship or unknown, in which case it gets the lowest other ship. With no wish
+        /// the host config's Ship2 stays (moved the same way if it clashes). Always called; the sim only uses the ships
+        /// when the rules have SHIP SELECT on.
+        /// </summary>
+        public static GameConfig ResolveShips(GameConfig g, int guestWish)
+        {
+            int want = guestWish == Protocol.NoShip ? g.Ship2 : guestWish;
+            if (!Ships.IsDefined(want) || want == g.Ship1) want = Ships.FirstOtherThan(g.Ship1);
+            return g with { Ship2 = want };
         }
 
         /// <summary>Start parameters derived from a seed: RNG words and pass counter vary per game.</summary>
@@ -122,11 +140,12 @@ namespace RipOff.Net
             {
                 if (!_helloSent && _t.State == TransportState.Connected)
                 {
-                    Send(Protocol.EncodeHello(new Protocol.Hello(Protocol.Version, _gameKey, IsHost, LocalBuild)), true);
+                    Send(Protocol.EncodeHello(new Protocol.Hello(Protocol.Version, _gameKey, IsHost, LocalBuild, IsHost ? _hostConfig.Game.Ship1 : LocalShip)), true);
                     _helloSent = true;
                 }
                 if (IsHost && _helloOk && !_startSent)
                 {
+                    _hostConfig = _hostConfig with { Game = ResolveShips(_hostConfig.Game, PeerShipWish) };
                     Send(Protocol.EncodeStart(_hostConfig), true); _startSent = true;
                     Begin(_hostConfig);
                 }
@@ -254,6 +273,7 @@ namespace RipOff.Net
                                 Send(Protocol.EncodeReject(why), true); Fail(why); return;
                             }
                             if (h.FromHost == IsHost) { string why = IsHost ? "both peers are hosting" : "both peers are joining"; Send(Protocol.EncodeReject(why), true); Fail(why); return; }
+                            PeerShipWish = h.Ship;
                             _helloOk = true;
                             break;
                         case Protocol.MsgReject: Fail("rejected by peer: " + r.Str()); return;

@@ -71,7 +71,12 @@ namespace RipOff.Game
             }
         }
 
-        public GameConfig GameConfig => new(Canisters, AutoFire, Mode, EnhancedOptions);
+        /// <summary>Last ships picked on the SHIP SELECT screen (Ships.All ids): P1 (also "your ship" online) and P2 of a
+        /// local 2-player game. Defaults = the arcade's ships; Normalize keeps them known and different.</summary>
+        public int Ship1 { get; set; } = Ships.Classic1;
+        public int Ship2 { get; set; } = Ships.Classic2;
+
+        public GameConfig GameConfig => new(Canisters, AutoFire, Mode, EnhancedOptions, Ship1, Ship2);
 
         public Settings Normalize()
         {
@@ -79,6 +84,8 @@ namespace RipOff.Game
             if (Array.IndexOf(GameData.CanistersForDip, Canisters) < 0) Canisters = GameConfig.Default.Canisters;
             if (!GameRules.IsDefined(Mode)) Mode = PlayMode.Arcade;
             EnhancedOptions = EnhancedOptions; // drops unknown or duplicate names from EnhancedOff
+            if (!Ships.IsDefined(Ship1)) Ship1 = Ships.Classic1;
+            if (!Ships.IsDefined(Ship2) || Ship2 == Ship1) Ship2 = Ships.FirstOtherThan(Ship1);
             Volume = double.IsFinite(Volume) ? Math.Round(Math.Clamp(Volume, 0, 1) / VolumeStep) * VolumeStep : 1.0;
             StickDeadzone = float.IsFinite(StickDeadzone) ? MathF.Round(Math.Clamp(StickDeadzone, DeadzoneMin, DeadzoneMax) / DeadzoneStep) * DeadzoneStep : PadMapper.DefaultStickDeadzone;
             return this;

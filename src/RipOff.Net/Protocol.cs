@@ -9,7 +9,8 @@ namespace RipOff.Net
     public static class Protocol
     {
         /// <summary>Protocol version; peers with a different value are rejected (Hello).</summary>
-        public const ushort Version = 4; // 2: auto-fire accepted (M4); 3: play mode (Arcade/Enhanced) in the game config; 4: Enhanced options byte
+        public const ushort Version = 5; // 2: auto-fire accepted (M4); 3: play mode (Arcade/Enhanced) in the game config; 4: Enhanced options byte;
+                                         // 5: options 16-bit + ships in the game config (schema 4), ship wish in Hello
 
         public const byte MsgHello = 1, MsgReject = 2, MsgStart = 3, MsgInput = 4, MsgBye = 5, MsgStartAck = 6;
 
@@ -32,8 +33,11 @@ namespace RipOff.Net
         // ---- messages ----
         /// <summary><paramref name="Build"/>: the sender's BuildInfo.Informational ("2026.10.17.1+abc1234"), for display
         /// only; the protocol <paramref name="Version"/> decides compatibility. Optional on the wire (trailing; older v3
-        /// builds do not send it).</summary>
-        public readonly record struct Hello(ushort Version, string GameKey, bool FromHost, string Build = "");
+        /// builds do not send it).
+        /// <paramref name="Ship"/>: the ship the sender wants to fly (Ships.All id; <see cref="NoShip"/> = no wish). The
+        /// host resolves both ships into the start config (LockstepSession); trailing and optional on the wire.</summary>
+        public readonly record struct Hello(ushort Version, string GameKey, bool FromHost, string Build = "", int Ship = NoShip);
+        public const int NoShip = 0xFF;
         /// <summary>Everything both peers need to build the same simulation: the shared <see cref="GameConfig"/>
         /// (rules/options) plus the session's input delay and the per-game random start (pass counter, RNG seeds).</summary>
         public readonly record struct StartConfig(int InputDelay, GameConfig Game, int PassCounter, int[] Seeds);
@@ -62,11 +66,12 @@ namespace RipOff.Net
             public int Remaining => _d.Length - _p;
         }
 
-        public static byte[] EncodeHello(in Hello h) => new Writer().U8(MsgHello).U16(h.Version).Str(h.GameKey).U8(h.FromHost ? 1 : 0).Str(h.Build).ToArray();
+        public static byte[] EncodeHello(in Hello h) => new Writer().U8(MsgHello).U16(h.Version).Str(h.GameKey).U8(h.FromHost ? 1 : 0).Str(h.Build).U8(h.Ship).ToArray();
         public static Hello DecodeHello(Reader r)
         {
             var version = (ushort)r.U16(); var key = r.Str(); bool fromHost = r.U8() != 0;
-            return new Hello(version, key, fromHost, r.Remaining > 0 ? r.Str() : "");
+            string build = r.Remaining > 0 ? r.Str() : "";
+            return new Hello(version, key, fromHost, build, r.Remaining > 0 ? r.U8() : NoShip);
         }
 
         public static byte[] EncodeReject(string why) => new Writer().U8(MsgReject).Str(why).ToArray();

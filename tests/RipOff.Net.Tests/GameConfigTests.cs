@@ -67,15 +67,26 @@ public class GameConfigTests
             Assert.Equal(g, GameConfig.Decode(g.Encode()));
             Assert.Null(g.Validate());
         }
-        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 9, 8, 0, 0, 15 }));   // unknown schema
+        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 9, 8, 0, 0, 15, 0, 0, 1 })); // unknown schema
         Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 1, 8, 0 }));          // schema 1 (before play modes)
         var v3 = Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 2, 8, 0, 1 })); // schema 2 (before Enhanced options)
         Assert.Contains("schema 2", v3.Message);
-        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 3, 8, 0, 1 }));       // schema 3 but no options byte
-        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 3, 8, 0x80, 0, 15 })); // reserved flag bit
-        Assert.NotNull(GameConfig.Decode(new byte[] { 3, 8, 0, 7, 15 }).Validate());            // unknown play mode: refused, with a reason
-        Assert.Contains("enhanced options", GameConfig.Decode(new byte[] { 3, 8, 0, 1, 0x40 }).Validate()); // unknown option bit
-        Assert.Null(GameConfig.Decode(new byte[] { 3, 8, 0, 1, 0x3F }).Validate()); // RANDOM WARP-IN (0x10), WARP KILLS (0x20)
+        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 3, 8, 0, 1, 0x3F }));  // schema 3 (one options byte, no ships)
+        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0 })); // schema 4 cut short
+        Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 4, 8, 0x80, 0, 15, 0, 0, 1 })); // reserved flag bit
+        Assert.NotNull(GameConfig.Decode(new byte[] { 4, 8, 0, 7, 15, 0, 0, 1 }).Validate());   // unknown play mode: refused, with a reason
+        Assert.Contains("enhanced options", GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x80, 0, 0, 1 }).Validate()); // unknown option bit
+        Assert.Contains("enhanced options", GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0x01, 0, 1 }).Validate()); // unknown high bit
+        Assert.Null(GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0, 0, 1 }).Validate()); // SHIP SELECT is bit 0x40
+        Assert.Equal(EnhancedOption.All, GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0, 0, 1 }).Options);
+        // ships: known and different (NOTES §30)
+        var swapped = new GameConfig(8, false, PlayMode.Enhanced, EnhancedOption.All, Ships.Classic2, Ships.Classic1);
+        Assert.Null(swapped.Validate());
+        Assert.Equal(swapped, GameConfig.Decode(swapped.Encode()));
+        Assert.Equal(new byte[] { 4, 8, 0, 1, 0x7F, 0, 1, 0 }, swapped.Encode());
+        Assert.Contains("both players", GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0, 1, 1 }).Validate());
+        Assert.Contains("unknown ship", GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0, 0, 9 }).Validate());
+        Assert.Contains("unknown ship", GameConfig.Decode(new byte[] { 4, 8, 0, 0, 0x7F, 0, 200, 0 }).Validate()); // checked in Arcade too
         Assert.NotNull(new GameConfig(8, false, (PlayMode)7).Validate());
     }
 
@@ -162,10 +173,10 @@ public class GameConfigTests
     }
 
     [Theory]
-    [InlineData((byte)(EnhancedOption.WarpIn | EnhancedOption.SlowerTowing))]             // fixed warp, aim error and slower ramp off
-    [InlineData((byte)EnhancedOption.All)]                                                 // random warp-in + warp kills
-    [InlineData((byte)(EnhancedOption.WarpIn | EnhancedOption.WarpKills))]                 // warp kills at the fixed points
-    public void GuestAdoptsTheHostsEnhancedOptionsAndBothWarpInIdentically(byte o)
+    [InlineData((ushort)(EnhancedOption.WarpIn | EnhancedOption.SlowerTowing))]           // fixed warp, aim error and slower ramp off
+    [InlineData((ushort)EnhancedOption.All)]                                               // random warp-in + warp kills + ship select
+    [InlineData((ushort)(EnhancedOption.WarpIn | EnhancedOption.WarpKills))]               // warp kills at the fixed points
+    public void GuestAdoptsTheHostsEnhancedOptionsAndBothWarpInIdentically(ushort o)
     {
         var net = new LoopbackNetwork(12, 30, 20, 0.03);
         var opts = (EnhancedOption)o;
@@ -198,10 +209,10 @@ public class GameConfigTests
     [Fact]
     public void OptionsAlteredInTransitAreCaughtAndUnknownOptionsRefused()
     {
-        // v4: the options byte changed the start message; v3 builds are refused at Hello. RANDOM WARP-IN (0x10) and WARP
-        // KILLS (0x20) are two more bits in that byte, so the wire shape and the protocol stay v4 (NOTES §29).
-        Assert.Equal(4, Protocol.Version);
-        // Start = [type, delay, len, schema, canisters, flags, mode, options, ...]
+        // v5: options became 16-bit and the ships were added (GameConfig schema 4, NOTES §30); v4 builds are refused at
+        // Hello.
+        Assert.Equal(5, Protocol.Version);
+        // Start = [type, delay, len, schema, canisters, flags, mode, options lo, options hi, ship1, ship2, ...]
         var cfg = LockstepSession.DefaultConfig(3, game: new GameConfig(8, Mode: PlayMode.Enhanced));
         var (host, guest) = Run(cfg, p => p[7] = (byte)EnhancedOption.WarpIn);
         Assert.Equal(SessionPhase.Failed, host.Phase);
@@ -209,7 +220,7 @@ public class GameConfigTests
         (host, guest) = Run(cfg, p => p[7] = (byte)(EnhancedOption.All & ~EnhancedOption.WarpKills)); // a new bit flipped
         Assert.Equal(SessionPhase.Failed, host.Phase);
         Assert.Contains("game config mismatch", host.Status);
-        (host, guest) = Run(cfg, p => p[7] = 0x40);
+        (host, guest) = Run(cfg, p => p[8] = 0x80);
         Assert.Equal(SessionPhase.Failed, guest.Phase);
         Assert.Contains("enhanced options", guest.Status);
     }

@@ -19,6 +19,8 @@ public class ModeSelectTests
         Assert.Equal(0, r.F.Selected);                         // default: Arcade
         int saves = r.Saves;
         r.Press(Buttons.DPadDown); r.Press(Buttons.A);
+        Assert.Equal(Screen.ShipSelect, r.F.Top);              // ENHANCED with SHIP SELECT on (NOTES §30)
+        r.Press(Buttons.A);
         Assert.Equal(Screen.LocalGame, r.F.Top);
         Assert.Equal(PlayMode.Enhanced, r.F.LocalSim!.State.PlayMode);
         Assert.True(r.F.LocalSim.State.OnePlayer);
@@ -59,6 +61,8 @@ public class ModeSelectTests
         r.Key(Keys.Escape);
         Assert.Equal(Screen.Main, r.F.Top);
         r.Key(Keys.Enter); r.Key(Keys.Down); r.Key(Keys.Enter);
+        Assert.Equal(Screen.ShipSelect, r.F.Top);
+        r.Key(Keys.Enter);
         Assert.Equal(Screen.LocalGame, r.F.Top);
         Assert.Equal(PlayMode.Enhanced, r.F.LocalSim!.State.PlayMode);
     }
@@ -90,11 +94,15 @@ public class ModeSelectTests
         host.Choose("ONLINE"); host.Choose("HOST DIRECT IP");
         Assert.Equal(Screen.ModeSelect, host.F.Top);
         host.Choose(Branding.ModeEnhanced);
+        Assert.Equal(Screen.ShipSelect, host.F.Top);
+        host.Choose("CLASSIC 1");
         Assert.Equal(Screen.Connecting, host.F.Top);
         Assert.Equal("MODE: " + Branding.ModeEnhanced, host.F.Online.ModeText());
         host.Tick();
         int port = int.Parse(host.F.Online.Describe()[0].Split(' ').Last());
-        guest.Choose("ONLINE"); guest.Choose("JOIN DIRECT IP");    // joining has no mode select
+        guest.Choose("ONLINE"); guest.Choose("JOIN DIRECT IP");    // joining has no mode select, only the ship wish
+        Assert.Equal(Screen.ShipSelect, guest.F.Top);
+        guest.Choose("CLASSIC 2");
         Assert.Equal(Screen.Keyboard, guest.F.Top);
         guest.Type("127.0.0.1:" + port); guest.Key(Keys.Enter);
         Assert.Equal(Screen.Connecting, guest.F.Top);

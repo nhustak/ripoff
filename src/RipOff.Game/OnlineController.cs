@@ -49,6 +49,8 @@ namespace RipOff.Game
 
         /// <summary>Game rules used when this machine hosts (the guest receives and verifies them).</summary>
         public GameConfig HostConfig { get; private set; } = GameConfig.Default;
+        /// <summary>The ship this machine asks for when it joins (sent in Hello; the host may move it off its own ship).</summary>
+        public int GuestShip { get; set; } = Protocol.NoShip;
 
         public void HostSteam(GameConfig? config = null) { Stop(); HostConfig = config ?? GameConfig.Default; Mode = Kind.SteamHost; _steam?.Host(HostConfig.Mode); }
         public void JoinSteamCode(string code) { Stop(); Mode = Kind.SteamJoin; _steam?.JoinByCode(code); }
@@ -118,7 +120,7 @@ namespace RipOff.Game
         {
             bool host = Mode is Kind.SteamHost or Kind.LanHost;
             var cfg = LockstepSession.DefaultConfig(Environment.TickCount, game: HostConfig);
-            Session = new LockstepSession(_transport!, host, Branding.LobbyGameKey, host ? cfg : null) { RecordInputs = true };
+            Session = new LockstepSession(_transport!, host, Branding.LobbyGameKey, host ? cfg : null) { RecordInputs = true, LocalShip = GuestShip };
             Session.FrameSimulated = (f, s) => FrameSimulated?.Invoke(f, s);
         }
 
@@ -141,6 +143,17 @@ namespace RipOff.Game
             GameConfig? c = Mode is Kind.SteamHost or Kind.LanHost ? HostConfig : Session?.Config?.Game;
             if (c is not { Mode: PlayMode.Enhanced } g) return null;
             return "ENHANCED OPTIONS: " + FrontEnd.EnhancedSummary(g.Options) + (Mode is Kind.SteamHost or Kind.LanHost ? "" : " (HOST'S CHOICE)");
+        }
+
+        /// <summary>The ships of this session once the start config is known, when it uses them (Enhanced, SHIP SELECT
+        /// on): "SHIPS: P1 CLASSIC 1 - P2 CLASSIC 2", plus a note when the guest's pick went to the host. Null otherwise.</summary>
+        public string? ShipsText()
+        {
+            if (Session?.Config?.Game is not { } g || !GameRules.For(g.Mode, g.Options).ShipSelect) return null;
+            bool host = Mode is Kind.SteamHost or Kind.LanHost;
+            string t = $"SHIPS: P1 {Ships.Get(g.Ship1).Name} - P2 {Ships.Get(g.Ship2).Name} (YOU ARE P{(host ? 1 : 2)})";
+            if (!host && GuestShip != Protocol.NoShip && GuestShip != g.Ship2) t += " - YOUR PICK IS THE HOST'S SHIP";
+            return t;
         }
 
         /// <summary>"OTHER PLAYER: V2026.10.17.1" once the peer's Hello arrived (null before, or if it sent no build).</summary>

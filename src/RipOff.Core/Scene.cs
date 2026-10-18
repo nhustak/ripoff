@@ -25,8 +25,9 @@ namespace RipOff.Core
             for (int i = 0; i < 3; i++) DrawTank(s.Enemies[i], s.Enemies[i].Type + 1, o);
             if (s.Mode == GameMode.Playing)
             {
-                DrawTank(s.Players[0], 0, o);
-                if (!s.OnePlayer) DrawTank(s.Players[1], 1, o);
+                // The ship's tank set (SHIP SELECT, NOTES §30); Arcade: set 0 for P1, 1 for P2 as before.
+                DrawTank(s.Players[0], Ships.Get(s.Ships[0]).ShapeSet, o);
+                if (!s.OnePlayer) DrawTank(s.Players[1], Ships.Get(s.Ships[1]).ShapeSet, o);
                 for (int p = 0; p < (s.OnePlayer ? 1 : 2); p++) if (s.WarpTimer[p] > 0) DrawWarp(s, p, o);
             }
             foreach (var fl in s.FireLines)
@@ -100,9 +101,19 @@ namespace RipOff.Core
             {
                 int scale = (int)(GameData.PlayerScale * (t - 0.5f) * 2);
                 int start = o.Count;
-                AddShape(ShapeData.Body[Math.Clamp(p, 0, ShapeData.Body.Length - 1)], x, y, s.WarpHeading[p], scale, o);
+                AddShape(ShapeData.Body[Math.Clamp(Ships.Get(s.Ships[p]).ShapeSet, 0, ShapeData.Body.Length - 1)], x, y, s.WarpHeading[p], scale, o);
                 for (int i = start; i < o.Count; i++) o[i] = o[i] with { Bright = false };
             }
+        }
+
+        /// <summary>A ship as it looks in play (body + treads), for menus such as SHIP SELECT.</summary>
+        public static void DrawShip(int ship, float x, float y, int heading, int scale, List<Line> o, bool bright = true)
+        {
+            int set = Math.Clamp(Ships.Get(ship).ShapeSet, 0, ShapeData.Body.Length - 1), start = o.Count;
+            AddShape(ShapeData.Body[set], x, y, heading, scale, o);
+            AddShape(ShapeData.Anim8[set][0], x, y, heading, scale, o);
+            AddShape(ShapeData.Anim9[set][0], x, y, heading, scale, o);
+            if (!bright) for (int i = start; i < o.Count; i++) o[i] = o[i] with { Bright = false };
         }
 
         static void AddShape(Seg[] segs, float ox, float oy, int heading, int scale, List<Line> o)

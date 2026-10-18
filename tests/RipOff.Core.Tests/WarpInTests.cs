@@ -8,7 +8,8 @@ public class WarpInTests
 {
     /// <summary>Warp-in at the fixed points without warp kills: the warp-in of 2026.10.17.3/.4 (random spots and warp
     /// kills are WarpRandomTests).</summary>
-    public const EnhancedOption FixedWarp = EnhancedOption.All & ~EnhancedOption.RandomWarpIn & ~EnhancedOption.WarpKills;
+    /// <summary>The 2026.10.17.4 options: WARP-IN at the fixed points plus the three tunings (no later features).</summary>
+    public const EnhancedOption FixedWarp = EnhancedOption.WarpIn | EnhancedOption.EnemyAimError | EnhancedOption.SlowerRamp | EnhancedOption.SlowerTowing;
 
     static Simulation Start(bool onePlayer = true, EnhancedOption o = FixedWarp, PlayMode m = PlayMode.Enhanced)
     {

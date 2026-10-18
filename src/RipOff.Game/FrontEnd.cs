@@ -16,7 +16,7 @@ namespace RipOff.Game
     /// </summary>
     public sealed class FrontEnd
     {
-        public enum Screen { Splash, Main, Online, Options, Keyboard, Connecting, LocalGame, OnlineGame, Pause, GameOver, InputTest, ModeSelect, EnhancedOptions }
+        public enum Screen { Splash, Main, Online, Options, Keyboard, Connecting, LocalGame, OnlineGame, Pause, GameOver, InputTest, ModeSelect, EnhancedOptions, ShipSelect }
         public enum GameKind { None, OnePlayer, TwoPlayer, Online }
 
         /// <summary>Splash auto-advance (any key or button skips it sooner).</summary>
@@ -59,6 +59,7 @@ namespace RipOff.Game
         public List<string> CurrentLabels => Items().ConvertAll(i => i.Label);
         /// <summary>The notes under the current screen title (tests).</summary>
         public List<string> Notes => Header().notes;
+        public string Title => Header().title;
         /// <summary>Whether each item of the menu on top can be chosen.</summary>
         public List<bool> CurrentEnabled => Items().ConvertAll(i => i.Enabled);
 
@@ -113,6 +114,7 @@ namespace RipOff.Game
             if (_steam?.Initialized == true && _steam.TakePendingJoin() is ulong lobby) // Steam invite / friends list "Join game" / +connect_lobby
             {
                 EndGame();
+                Online.GuestShip = Settings.Ship1; // an invite skips SHIP SELECT: the last pick is the wish
                 Online.JoinSteamLobby(lobby);
                 SetStack(Screen.Main, Screen.Online, Screen.Connecting);
             }
@@ -222,19 +224,19 @@ namespace RipOff.Game
             switch (Top)
             {
                 case Screen.Main:
-                    l.Add(new("START 1 PLAYER", () => ChooseMode(() => StartLocal(true))));
-                    l.Add(new("START 2 PLAYERS", () => ChooseMode(() => StartLocal(false))));
+                    l.Add(new("START 1 PLAYER", () => ChooseMode(() => StartLocal(true), ShipPick.OnePlayer)));
+                    l.Add(new("START 2 PLAYERS", () => ChooseMode(() => StartLocal(false), ShipPick.TwoPlayers)));
                     l.Add(new("ONLINE", () => Push(Screen.Online)));
                     l.Add(new("OPTIONS", () => Push(Screen.Options)));
                     l.Add(new("EXIT", () => ExitRequested = true));
                     break;
                 case Screen.Online:
-                    l.Add(new("HOST ONLINE (STEAM)", () => { if (!SteamReady()) return; ChooseMode(() => { Online.HostSteam(Settings.GameConfig); Push(Screen.Connecting); }); }, Enabled: SteamSelectable));
-                    l.Add(new("JOIN BY CODE (STEAM)", () => { if (!SteamReady()) return; OpenKeyboard(OnScreenKeyboard.Mode.LobbyCode, "ENTER LOBBY CODE",
-                        code => { Online.JoinSteamCode(code); Push(Screen.Connecting); }); }, Enabled: SteamSelectable));
-                    l.Add(new("HOST DIRECT IP", () => ChooseMode(() => { Online.HostLan(Settings.GameConfig, LanPort); Push(Screen.Connecting); })));
-                    l.Add(new("JOIN DIRECT IP", () => OpenKeyboard(OnScreenKeyboard.Mode.Address, "HOST ADDRESS (IP OR IP:PORT)",
-                        addr => { Online.JoinLan(addr); Push(Screen.Connecting); })));
+                    l.Add(new("HOST ONLINE (STEAM)", () => { if (!SteamReady()) return; ChooseMode(() => { Online.HostSteam(Settings.GameConfig); Push(Screen.Connecting); }, ShipPick.Host); }, Enabled: SteamSelectable));
+                    l.Add(new("JOIN BY CODE (STEAM)", () => { if (!SteamReady()) return; ChooseGuestShip(() => OpenKeyboard(OnScreenKeyboard.Mode.LobbyCode, "ENTER LOBBY CODE",
+                        code => { Online.GuestShip = Settings.Ship1; Online.JoinSteamCode(code); Push(Screen.Connecting); })); }, Enabled: SteamSelectable));
+                    l.Add(new("HOST DIRECT IP", () => ChooseMode(() => { Online.HostLan(Settings.GameConfig, LanPort); Push(Screen.Connecting); }, ShipPick.Host)));
+                    l.Add(new("JOIN DIRECT IP", () => ChooseGuestShip(() => OpenKeyboard(OnScreenKeyboard.Mode.Address, "HOST ADDRESS (IP OR IP:PORT)",
+                        addr => { Online.GuestShip = Settings.Ship1; Online.JoinLan(addr); Push(Screen.Connecting); }))));
                     l.Add(new("BACK", Pop));
                     break;
                 case Screen.ModeSelect:
@@ -242,6 +244,18 @@ namespace RipOff.Game
                         l.Add(new(Branding.ModeName(m), () => PickMode(m)));
                     l.Add(new("BACK", Pop));
                     break;
+                case Screen.ShipSelect:
+                {
+                    int taken = ShipTakenNow;
+                    foreach (var sh in Ships.All)
+                    {
+                        int id = sh.Id;
+                        bool free = id != taken;
+                        l.Add(new(free ? sh.Name : sh.Name + " - PLAYER 1", free ? () => PickShip(id) : null, Enabled: free));
+                    }
+                    l.Add(new("BACK", () => BackFrom(Screen.ShipSelect)));
+                    break;
+                }
                 case Screen.Connecting:
                     bool ended = Online.Error != null || Online.Session?.Phase is SessionPhase.Desynced or SessionPhase.Closed || !Online.Active;
                     if (!ended && Online.Mode == OnlineController.Kind.SteamHost && _steam?.Code != null)
@@ -318,6 +332,7 @@ namespace RipOff.Game
         private void BackFrom(Screen s)
         {
             if (s == Screen.Connecting) LeaveOnline();
+            else if (s == Screen.ShipSelect && _shipStep > 0) { _shipStep--; _sel[Screen.ShipSelect] = ShipOf(_shipStep); }
             else Pop();
         }
 
@@ -330,10 +345,14 @@ namespace RipOff.Game
             Settings.Canisters = order[(i + d + order.Length) % order.Length];
         }
 
-        /// <summary>Opens MODE SELECT with the last mode highlighted; <paramref name="then"/> runs after a pick.</summary>
-        private void ChooseMode(Action then)
+        /// <summary>Who picks a ship on SHIP SELECT (NOTES §30) after ENHANCED is chosen with SHIP SELECT on.</summary>
+        public enum ShipPick { None, OnePlayer, TwoPlayers, Host, Guest }
+
+        /// <summary>Opens MODE SELECT with the last mode highlighted; <paramref name="then"/> runs after a pick (and, for
+        /// ENHANCED with SHIP SELECT on, after SHIP SELECT for <paramref name="ships"/>).</summary>
+        private void ChooseMode(Action then, ShipPick ships = ShipPick.None)
         {
-            _modeDone = then;
+            _modeDone = then; _modeShips = ships;
             Push(Screen.ModeSelect);
             _sel[Screen.ModeSelect] = Settings.Mode == PlayMode.Enhanced ? 1 : 0;
         }
@@ -343,6 +362,48 @@ namespace RipOff.Game
             Change(() => Settings.Mode = m); // remembered in settings.json
             Pop();
             var then = _modeDone; _modeDone = null;
+            if (then != null && GameRules.For(m, Settings.EnhancedOptions).ShipSelect && _modeShips != ShipPick.None) ChooseShips(_modeShips, then);
+            else then?.Invoke();
+        }
+
+        /// <summary>Joining: the guest picks the ship it would like first, when its own ENHANCED OPTIONS have SHIP SELECT
+        /// on (the host's settings decide whether ships are used at all); otherwise its last pick is sent.</summary>
+        private void ChooseGuestShip(Action then)
+        {
+            if (GameRules.For(PlayMode.Enhanced, Settings.EnhancedOptions).ShipSelect) ChooseShips(ShipPick.Guest, then);
+            else then();
+        }
+
+        private ShipPick _modeShips;
+        private Action? _shipDone;
+        private int _shipStep;
+
+        /// <summary>The kind of SHIP SELECT open (for its title and notes).</summary>
+        public ShipPick ShipPicking { get; private set; }
+
+        private void ChooseShips(ShipPick who, Action then)
+        {
+            ShipPicking = who; _shipDone = then; _shipStep = 0;
+            Push(Screen.ShipSelect);
+            _sel[Screen.ShipSelect] = ShipOf(0);
+        }
+
+        private int ShipOf(int step) => step == 0 ? Settings.Ship1 : (Settings.Ship2 == Settings.Ship1 ? Ships.FirstOtherThan(Settings.Ship1) : Settings.Ship2);
+
+        /// <summary>The ship nobody may pick right now: P1's, while P2 picks in a local 2-player game; -1 otherwise.</summary>
+        private int ShipTakenNow => ShipPicking == ShipPick.TwoPlayers && _shipStep == 1 ? Settings.Ship1 : -1;
+
+        private void PickShip(int id)
+        {
+            if (id == ShipTakenNow) return; // never reached: that item is disabled
+            if (_shipStep == 0)
+            {
+                Change(() => Settings.Ship1 = id); // Normalize moves Ship2 off it if they clash
+                if (ShipPicking == ShipPick.TwoPlayers) { _shipStep = 1; _sel[Screen.ShipSelect] = ShipOf(1); return; }
+            }
+            else Change(() => Settings.Ship2 = id);
+            Pop();
+            var then = _shipDone; _shipDone = null; ShipPicking = ShipPick.None;
             then?.Invoke();
         }
 
@@ -431,6 +492,9 @@ namespace RipOff.Game
                 VectorFont.DrawCentered("PRESS ANY KEY OR BUTTON", cx, cy - 160, 20, o, t >= 1f);
         }
 
+        /// <summary>SHIP SELECT preview size (scale/128; the ships are 128 in play).</summary>
+        public const int ShipPreviewScale = 120;
+
         private void BuildMenu(List<Line> o)
         {
             const float cx = Scene.Width / 2f;
@@ -447,6 +511,8 @@ namespace RipOff.Game
             {
                 string label = (i == Selected ? "> " : "  ") + items[i].Label + (i == Selected ? " <" : "  ");
                 VectorFont.DrawCentered(label, cx, y, Fit(label, 26), o, items[i].Enabled);
+                if (Top == Screen.ShipSelect && i < Ships.Count) // the ship itself, left of its name (NOTES §30)
+                    Scene.DrawShip(i, cx - 350, y + 9, 180, ShipPreviewScale, o, items[i].Enabled && i == Selected);
             }
             string hint = Top is Screen.Options or Screen.EnhancedOptions ? "UP/DOWN CHOOSE   LEFT/RIGHT OR A CHANGE   B/ESC BACK"
                 : Top == Screen.Main ? "UP/DOWN CHOOSE   A/ENTER SELECT   F10 OPTIONS"
@@ -515,6 +581,26 @@ namespace RipOff.Game
                     n.Add("LAST PLAYED: " + Branding.ModeName(Settings.Mode));
                     return (Branding.ModeSelectTitle, n);
                 }
+                case Screen.ShipSelect:
+                {
+                    if (Selected < Ships.Count) n.Add(Ships.Get(Selected).Info);
+                    switch (ShipPicking)
+                    {
+                        case ShipPick.TwoPlayers:
+                            n.Add(_shipStep == 0 ? "PLAYER 2 PICKS NEXT - NO TWO PLAYERS ON THE SAME SHIP" : "PLAYER 1 HAS " + Ships.Get(Settings.Ship1).Name);
+                            break;
+                        case ShipPick.Host:
+                            n.Add("YOU ARE PLAYER 1 - THE OTHER PLAYER GETS A DIFFERENT SHIP");
+                            break;
+                        case ShipPick.Guest:
+                            n.Add("USED IF THE HOST PLAYS ENHANCED WITH SHIP SELECT ON");
+                            n.Add("IF THE HOST HAS THIS SHIP YOU GET ANOTHER ONE");
+                            break;
+                    }
+                    n.Add("SHIP SELECT CAN BE TURNED OFF IN OPTIONS - ENHANCED OPTIONS");
+                    string who = ShipPicking == ShipPick.TwoPlayers ? $"PLAYER {_shipStep + 1} SHIP" : "YOUR SHIP";
+                    return ("SHIP SELECT - " + who, n);
+                }
                 case Screen.Connecting:
                 {
                     var s = Online.Session;
@@ -529,6 +615,7 @@ namespace RipOff.Game
                     n.AddRange(Online.Describe());
                     if (Online.ModeText() is { } mt) n.Add(mt);
                     if (Online.OptionsText() is { } ot) n.Add(ot);
+                    if (Online.ShipsText() is { } st) n.Add(st);
                     if (Online.PeerBuildText() is { } pb) n.Add(pb);
                     if (Online.Error != null) return ("DISCONNECTED", n);
                     return (Online.Mode switch

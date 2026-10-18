@@ -1356,3 +1356,78 @@ Status: done 2026-10-17. Nick playtested warp-in (§28): "warp in is good - let'
 2. Whether warp kills make dying too cheap. A player who expects an enemy to cross the spot can now get a free kill. Nick asked for it; it needs his playtest.
 3. Online random warp-in and warp kills were tested in the loopback lockstep tests only, not between two machines.
 4. The canister rule uses the canisters' start box, not where they are now. A canister dragged away and dropped elsewhere isn't avoided.
+
+## 30. Ship select
+
+Status: done 2026-10-17. Nick: "each player picks a ship before play; two players can't pick the same ship." Remake design, Enhanced only. Arcade is unchanged: `ArcadeDeterminismTests` and `EscalationTests` pass with the same checksums.
+
+### 30.1 Ships
+
+`src/RipOff.Core/Ships.cs`: `Ships.All` is the roster, a `ShipSpec(Id, Name, Info, ShapeSet)` per ship. Ids are what the config and the state carry, so they stay stable and new ships are appended.
+
+| Id | Name | Shape set (`ShapeData.Body/Anim8/Anim9`) |
+|---|---|---|
+| 0 | CLASSIC 1 | 0 (the arcade's P1 ship) |
+| 1 | CLASSIC 2 | 1 (the arcade's P2 ship) |
+
+The names are remake choices: the arcade has no ship names.
+
+### 30.2 Rules and state
+
+- `GameRules.ShipSelect` (Arcade false, Enhanced true) is toggle **SHIP SELECT** (`EnhancedOption.ShipSelect = 64`, in `All`, default ON, no `Requires`).
+- `GameConfig.Ship1/Ship2` carry the picks. `Validate` refuses an unknown ship and two players on one ship, in every mode.
+- `GameConfig.ApplyTo` sets `GameState.Ships[2]`:
+  - the picks when the rules have SHIP SELECT on;
+  - otherwise the arcade pairing 0/1 (`Ships.Default`).
+- The ships change only drawing: `Scene.Build` draws each player with its ship's shape set, and so does the warp-in outline (`Scene.DrawWarp`). With the pairing 0/1 that is what the arcade draws.
+- **State hash:** `0x5A1B0000 | ship1 << 8 | ship2`, added only outside Arcade **and** with SHIP SELECT on (`StateHash`).
+  - Rule from now on: later Enhanced features hash their state only while their own toggle is on. A game with the 2026.10.17.5 options (0x3F, newer toggles off) then has exactly the 2026.10.17.5 hashes.
+  - `Enhanced20261017_5Tests` pins those hashes, recorded on main at 5734079, and also checks that the picked ships don't matter while SHIP SELECT is off.
+- **Options width:** `EnhancedOption` is now 16-bit (`ushort`), since the planned toggles of §31-§33 don't fit in a byte.
+
+### 30.3 Screens (FrontEnd)
+
+`Screen.ShipSelect` opens after **ENHANCED** on MODE SELECT, when the player's ENHANCED OPTIONS have SHIP SELECT on.
+
+- **Local 1 player:** title "SHIP SELECT - YOUR SHIP".
+- **Local 2 players:** "PLAYER 1 SHIP", then "PLAYER 2 SHIP".
+  - For player 2, player 1's ship is listed as "CLASSIC 2 - PLAYER 1", dimmed and inert.
+  - B/Esc on player 2's pick goes back to player 1's; on player 1's it leaves.
+- **Host:** picks its own ship (P1).
+- **Guest:** JOIN BY CODE / JOIN DIRECT IP show the screen before the keyboard, as a wish. It's skipped when the guest's own SHIP SELECT is off; the last pick is then sent. A Steam invite always sends the last pick.
+- Each ship is drawn left of its name (`Scene.DrawShip`, scale 120/128). The highlighted one is bright.
+- **Settings:** `Ship1` (P1, also "your ship" online) and `Ship2` (P2 locally). `Normalize` keeps them known and different by moving Ship2 to the lowest other id.
+- **PLAY AGAIN** keeps the ships.
+
+### 30.4 Online (protocol v5)
+
+- `GameConfig` schema 4 = `[schema, canisters, flags, mode, options lo, options hi, ship1, ship2]`.
+- `Hello` has a trailing ship byte, the sender's wish (`Protocol.NoShip` = 255 = none; older Hellos decode as none).
+- Before it sends Start, the host runs `LockstepSession.ResolveShips(config, guestWish)`:
+  - the host keeps Ship1;
+  - the guest gets its wish if it's known and not the host's ship, else the lowest other ship;
+  - with no wish, the host config's Ship2 is used, moved the same way if it clashes.
+- The resolved ships are part of the start config that both sides hash and verify (StartHash). A ship byte changed in transit is caught ("game config mismatch"). A duplicate is refused by the guest ("both players on ship ...").
+- The connecting screen shows "SHIPS: P1 ... - P2 ... (YOU ARE Pn)", plus "- YOUR PICK IS THE HOST'S SHIP" when the guest was moved.
+- **Protocol 4 → 5**, because the start message changed shape: older builds are refused at Hello with the version-mismatch message.
+
+### 30.5 Checks
+
+- **Arcade:** checksums unchanged. The config's ships change nothing in Arcade, hash included (`ArcadeIgnoresTheShipsCompletely`).
+- **Golden:** the 2026.10.17.5 options reproduce 5734079's full hashes.
+- **Scene:** each player is drawn with its ship's lines, and the warp outline is the picked ship.
+- **Net:**
+  - resolution table;
+  - loopback sessions for 5 host/guest combinations fly the same resolved ships with identical hashes for 400+ frames;
+  - SHIP SELECT off and Arcade fly 0/1 whatever was picked;
+  - tampering is caught.
+- **Game:** pad and keyboard flows, the disabled taken ship, back-stepping, saving, PLAY AGAIN, and two front ends on localhost (host CLASSIC 2, guest wishes CLASSIC 2 → gets CLASSIC 1).
+- **Screenshots** (`/workspace/shots/`), from the real game under Xvfb:
+  - `ship-select-p1b.png`, `ship-select-p2b.png`;
+  - `ship-select-game-swappedb.png`: P1 on CLASSIC 2, P2 on CLASSIC 1;
+  - `ship-select-optionsb.png`.
+
+### 30.6 UNCHECKED
+
+1. Whether the guest should pick before joining (current) or after seeing the host's mode. Picking after would need a round trip before Start.
+2. Online ship select was tested in loopback and localhost front-end tests only, not between two machines.

@@ -74,9 +74,23 @@ ENHANCED OPTIONS (OPTIONS → ENHANCED OPTIONS; Enhanced games only, Arcade igno
 ├─ SLOWER TOWING: ON/OFF     towing enemies at 75 %
 ├─ RANDOM WARP-IN: ON/OFF    warp in at a random spot, away from the canisters and the other player (needs WARP-IN)
 ├─ WARP KILLS: ON/OFF        warping in on top of an enemy destroys it; you score and survive (needs WARP-IN)
+├─ SHIP SELECT: ON/OFF       each player picks a ship before play, never the same one (SHIP SELECT below)
 ├─ ALL ON
 └─ BACK
 ```
+
+```text
+SHIP SELECT (after ENHANCED is picked, with SHIP SELECT on; NOTES §30)
+├─ CLASSIC 1                 the arcade's player 1 ship (drawn next to its name)
+├─ CLASSIC 2                 the arcade's player 2 ship
+└─ BACK                      2 players: back to player 1's pick; otherwise back to the menu
+```
+
+- **Local 2 players:** player 1 picks, then player 2. Player 1's ship is dimmed for player 2 ("CLASSIC 2 - PLAYER 1") and can't be picked.
+- **Hosting:** the host picks its own ship; the guest gets a different one.
+- **Joining:** you pick the ship you'd like before typing the address or code. It's only a wish: it's used if the host plays Enhanced with SHIP SELECT on, and if the host has that ship you get the other one. The connecting screen shows both ships ("SHIPS: P1 CLASSIC 2 - P2 CLASSIC 1 (YOU ARE P2)"). If your own SHIP SELECT is off, joining skips the screen and sends your last pick. A Steam invite also sends your last pick.
+- **Saved:** the last picks are saved in settings.json (`"Ship1"`, `"Ship2"`) and highlighted next time. PLAY AGAIN keeps the ships.
+- **Off, and Arcade:** player 1 flies CLASSIC 1 and player 2 flies CLASSIC 2, as in the arcade.
 
 All Enhanced options default ON. RANDOM WARP-IN and WARP KILLS only matter with WARP-IN on: while it's off they're dimmed and ignored, and they keep their setting. They're saved in settings.json as `"EnhancedOff": [...]` (the ones switched off), so older files and options added later read as ON. Each toggle sets its knobs back to the Arcade values when off; all off plays like Arcade. Online, the guest uses the host's options.
 
@@ -219,7 +233,7 @@ UNCHECKED: whether Steam Input is the cause on Nick's PC. The log and INPUT TEST
 Main menu → **ONLINE** (tree above). Steam starts the first time you pick a Steam item. If it cannot start, the reason is shown and the Steam items are greyed out; direct IP still works. `--no-steam` skips Steam entirely.
 
 - **Pausing online:** the shared game never pauses (a choice; it is flagged in NOTES §23). Esc or Start opens the menu as an overlay. The game keeps running, dimmed, behind it, and your tank gets no input until you close the menu.
-- **Rules:** the host's mode (**ARCADE** / **ENHANCED**), **AUTO FIRE** and **CANISTERS** settings are sent to the guest and checked by both sides before the first frame. The guest adopts the host's mode for that session (its own saved mode is unchanged). The connecting screen shows the mode; Steam lobbies also advertise it (`mode` lobby key). For Enhanced, the host's **ENHANCED OPTIONS** are sent too and adopted by the guest. RANDOM WARP-IN and WARP KILLS are two more bits in the same options byte, so the protocol is still v4. A 2026.10.17.3/.4 guest refuses a newer host that has either of them on ("unknown enhanced options"), while a newer guest joining an older host simply plays with both off. Protocol version 4: builds from before the options (v3: 2026.10.17.1, 2026.10.17.2, `enhanced-preview-1`) and before game modes (v2, `arcade-v1.0`) are refused at connect with a version-mismatch message naming both builds.
+- **Rules:** the host's mode (**ARCADE** / **ENHANCED**), **AUTO FIRE** and **CANISTERS** settings are sent to the guest and checked by both sides before the first frame. The guest adopts the host's mode for that session (its own saved mode is unchanged). The connecting screen shows the mode; Steam lobbies also advertise it (`mode` lobby key). For Enhanced, the host's **ENHANCED OPTIONS** are sent too and adopted by the guest. With SHIP SELECT (2026.10.17.6) the options became 16-bit and both ships travel in the start config (GameConfig schema 4). The guest's wished ship comes in its Hello; the host keeps its own ship and gives the guest its wish, or the other ship if the wish is the host's. Protocol version 5: builds from before it (v4: 2026.10.17.3-.5; v3: 2026.10.17.1, 2026.10.17.2, `enhanced-preview-1`; v2: `arcade-v1.0`) are refused at connect with a version-mismatch message naming both builds.
 - **After a game over:** choose **PLAY AGAIN**; either player can start the next game. There are no coins online either.
 
 How it works (`disasm/NOTES.md` §22):

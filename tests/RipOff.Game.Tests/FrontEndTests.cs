@@ -284,6 +284,8 @@ public class FrontEndTests
         var steam = new FakeSteam { Available = true };
         using var r = new Rig(steam: steam);
         r.Choose("ONLINE"); r.Choose("JOIN BY CODE");
+        Assert.Equal(Screen.ShipSelect, r.F.Top);         // the ship wish first (SHIP SELECT on, NOTES §30)
+        r.Press(Buttons.A);
         Assert.Equal(Screen.Keyboard, r.F.Top);
         var kb = r.F.Keyboard!;
         Assert.Equal(OnScreenKeyboard.Mode.LobbyCode, kb.Kind);
@@ -312,7 +314,7 @@ public class FrontEndTests
     public void KeyboardCancelReturnsToTheOnlineMenu()
     {
         using var r = new Rig();
-        r.Choose("ONLINE"); r.Choose("JOIN DIRECT IP");
+        r.Choose("ONLINE"); r.Choose("JOIN DIRECT IP"); r.Choose("CLASSIC 1");
         Assert.Equal(OnScreenKeyboard.Mode.Address, r.F.Keyboard!.Kind);
         r.Type("10.0.0.");
         r.Key(Keys.M); // a letter typed on the keyboard screen is text, not the mute shortcut
@@ -359,7 +361,7 @@ public class FrontEndTests
         host.Tick();
         string portLine = host.F.Online.Describe()[0];
         int port = int.Parse(portLine.Split(' ').Last());
-        guest.Choose("ONLINE"); guest.Choose("JOIN DIRECT IP");
+        guest.Choose("ONLINE"); guest.Choose("JOIN DIRECT IP"); guest.Choose("CLASSIC 2");
         guest.Type("127.0.0.1:" + port);
         guest.Key(Keys.Enter);
         Assert.Equal(Screen.Connecting, guest.F.Top);

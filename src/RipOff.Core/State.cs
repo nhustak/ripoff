@@ -141,6 +141,9 @@ namespace RipOff.Core
         /// <summary>xorshift32 state for Enhanced randomness (aim error). Seeded at StartGame from the start seeds
         /// (record words B and the pass counter), so both online peers draw the same numbers. 0 in Arcade.</summary>
         public uint EnhancedRng;
+        /// <summary>The ship each player flies (Ships.All id). Arcade and SHIP SELECT off: 0 and 1, the arcade's ships.
+        /// Hashed only outside Arcade with SHIP SELECT on.</summary>
+        public readonly int[] Ships = { RipOff.Core.Ships.Classic1, RipOff.Core.Ships.Classic2 };
         /// <summary>Warp-in passes left per player (0 = not warping). While it counts, the player record stays free.</summary>
         public readonly int[] WarpTimer = new int[2];
         /// <summary>Where each player's current warp-in materializes (chosen when it starts, GameRules.WarpLocation).</summary>

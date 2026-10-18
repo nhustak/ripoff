@@ -42,6 +42,10 @@ namespace RipOff.Core
                 foreach (var c in s.EnemyFireCooldown) Add(c);
                 Add(0x0F7E0000 | (int)s.Options);
                 for (int p = 0; p < 2; p++) { Add(s.WarpTimer[p]); Add(s.WarpX[p]); Add(s.WarpY[p]); Add(s.WarpHeading[p]); }
+                // Later Enhanced features add their state only while their option is on, so with them off the hash
+                // is exactly that of 2026.10.17.5 (Enhanced20261017_5Tests).
+                var rules = s.Rules;
+                if (rules.ShipSelect) Add(0x5A1B0000 | (s.Ships[0] << 8) | s.Ships[1]);
             }
             return h;
         }

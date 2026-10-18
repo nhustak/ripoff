@@ -9,7 +9,7 @@ Background and measurements: [disasm/NOTES.md §27](disasm/NOTES.md) and the ENH
 
 ## Done (in Enhanced)
 
-The first eight knobs shipped in PR #18 (first in the `enhanced-preview-1` pre-release) and were released in **2026.10.17.1**. Warp-in and the options page came in **2026.10.17.3**; random warp-in and warp kills in **2026.10.17.5**.
+The first eight knobs shipped in PR #18 (first in the `enhanced-preview-1` pre-release) and were released in **2026.10.17.1**. Warp-in and the options page came in **2026.10.17.3**; random warp-in and warp kills in **2026.10.17.5**; ship select in **2026.10.17.6**.
 
 | Knob (`GameRules`) | Arcade | Enhanced | Effect | Version |
 |---|---|---|---|---|
@@ -24,7 +24,8 @@ The first eight knobs shipped in PR #18 (first in the `enhanced-preview-1` pre-r
 | `WarpInPasses` / `WarpInSpeed` | 0 (drive in from the edge at speed 5) | 30 passes (0.8 s), speed 0 | Players warp in at their spawn point with a vector effect. They can't be hit, collide or fire until they materialize (NOTES §28) | 2026.10.17.3 |
 | `WarpLocation` | Fixed | Random | Warp in at a random spot picked when the warp starts: at least 160 units from the edges, clear of the canisters, at least 240 from the other player. Enemies aren't avoided (NOTES §29). Toggle RANDOM WARP-IN | 2026.10.17.5 |
 | `WarpKills` | false | true | Materializing on an enemy destroys it: normal score, counts as a kill, a towed canister drops, the player survives. Materialize moment only (NOTES §29). Toggle WARP KILLS | 2026.10.17.5 |
-| ENHANCED OPTIONS page | (not applicable) | WARP-IN, ENEMY AIM ERROR, SLOWER RAMP, SLOWER TOWING (2026.10.17.3), RANDOM WARP-IN, WARP KILLS (2026.10.17.5), all ON by default | Each Enhanced variation can be switched off (off = Arcade values for its knobs). Saved in settings.json; online, the host's options are used (protocol v4) | 2026.10.17.3 |
+| `ShipSelect` | false (P1 = CLASSIC 1, P2 = CLASSIC 2) | true | Each player picks a ship (SHIP SELECT screen) after ENHANCED; two players can't pick the same one. Online the host keeps its pick and the guest gets its wish or the other ship. Ships: CLASSIC 1, CLASSIC 2 (the arcade's two) (NOTES §30). Toggle SHIP SELECT | 2026.10.17.6 |
+| ENHANCED OPTIONS page | (not applicable) | WARP-IN, ENEMY AIM ERROR, SLOWER RAMP, SLOWER TOWING (2026.10.17.3), RANDOM WARP-IN, WARP KILLS (2026.10.17.5), SHIP SELECT (2026.10.17.6), all ON by default | Each Enhanced variation can be switched off (off = Arcade values for its knobs). Saved in settings.json; online, the host's options are used (protocol v4) | 2026.10.17.3 |
 
 The result: games last about 2.3-2.6× longer with the strong and medium test bots, and enemy fire hits about half the time instead of always (NOTES §27.3).
 
@@ -64,7 +65,7 @@ Status: idea / planned / in progress / done. Source: Nick or bot-suggested.
 
 | Idea | Status | Source |
 |---|---|---|
-| Ship select: each player chooses which ship they play, and both players can't pick the same ship (there are currently two ship shapes) | idea | Nick |
+| Ship select: each player chooses which ship they play, and both players can't pick the same ship (there are currently two ship shapes) | done (2026.10.17.6, toggle SHIP SELECT) | Nick |
 | Additional ships beyond the current two | idea | Nick |
 | Ships have different abilities (examples below) | idea | Nick |
 | Ship type: Scout. Fast; one hit kills it (an example of different abilities) | idea | Nick |

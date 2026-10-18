@@ -73,6 +73,9 @@ namespace RipOff.Core
         /// box, TankHitRadius) are destroyed as if rammed, scoring for that player; the player survives. Only used when
         /// WarpInPasses &gt; 0.</summary>
         public bool WarpKills { get; init; }
+        /// <summary>SHIP SELECT (NOTES §30): players use the ships in GameConfig.Ship1/Ship2. Off (and Arcade): the arcade
+        /// pairing, P1 = ship 0 and P2 = ship 1.</summary>
+        public bool ShipSelect { get; init; }
         /// <summary>How long a dead player waits before (re)spawning (hook: only <see cref="RespawnDelayRule.Fixed"/>
         /// exists today, = <see cref="RespawnDelay"/>).</summary>
         public RespawnDelayRule DelayRule { get; init; } = RespawnDelayRule.Fixed;
@@ -110,6 +113,7 @@ namespace RipOff.Core
             // Respawn: warp in at the spawn point instead of driving in from the edge (NOTES §28). 30 passes = 0.79 s.
             WarpInPasses = 30, WarpInSpeed = 0,
             WarpLocation = WarpInLocation.Random, WarpKills = true,
+            ShipSelect = true,
         };
 
         /// <summary>
@@ -140,6 +144,8 @@ namespace RipOff.Core
                 r => r with { WarpLocation = Arcade.WarpLocation }, Requires: EnhancedOption.WarpIn),
             new(EnhancedOption.WarpKills, "WARP KILLS", "WARPING IN ON TOP OF AN ENEMY DESTROYS IT",
                 r => r with { WarpKills = Arcade.WarpKills }, Requires: EnhancedOption.WarpIn),
+            new(EnhancedOption.ShipSelect, "SHIP SELECT", "EACH PLAYER PICKS A SHIP BEFORE PLAY - NO TWO PLAYERS ON THE SAME SHIP",
+                r => r with { ShipSelect = Arcade.ShipSelect }),
         };
 
         private static readonly GameRules?[] EnhancedByOptions = new GameRules?[(int)EnhancedOption.All + 1];
@@ -170,9 +176,9 @@ namespace RipOff.Core
     }
 
     /// <summary>Enhanced variations that can be switched off (bit set = on). Saved in settings.json and sent in the
-    /// online game config (one byte), so new bits must be appended and <see cref="All"/> widened.</summary>
+    /// online game config (two bytes since GameConfig schema 4), so new bits must be appended and <see cref="All"/> widened.</summary>
     [Flags]
-    public enum EnhancedOption : byte
+    public enum EnhancedOption : ushort
     {
         None = 0,
         WarpIn = 1,
@@ -181,7 +187,8 @@ namespace RipOff.Core
         SlowerTowing = 8,
         RandomWarpIn = 16,
         WarpKills = 32,
-        All = WarpIn | EnemyAimError | SlowerRamp | SlowerTowing | RandomWarpIn | WarpKills,
+        ShipSelect = 64,
+        All = WarpIn | EnemyAimError | SlowerRamp | SlowerTowing | RandomWarpIn | WarpKills | ShipSelect,
     }
 
     /// <summary>One row of the ENHANCED OPTIONS page: its bit, label, one-line description, and what "off" does to the rules.</summary>

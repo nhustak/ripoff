@@ -76,6 +76,11 @@ namespace RipOff.Core
         /// <summary>SHIP SELECT (NOTES §30): players use the ships in GameConfig.Ship1/Ship2. Off (and Arcade): the arcade
         /// pairing, P1 = ship 0 and P2 = ship 1.</summary>
         public bool ShipSelect { get; init; }
+        /// <summary>SHIP ABILITIES (NOTES §31): ships fly with their own speed, turn, armor and damage (Ships.Stats).
+        /// Off (and Arcade): every ship flies like the arcade's. Only means something with SHIP SELECT on.</summary>
+        public bool ShipAbilities { get; init; }
+        /// <summary>Passes an armored ship can't be hit after absorbing a hit (it blinks). 0 in Arcade (no armor).</summary>
+        public int ArmorGracePasses { get; init; }
         /// <summary>How long a dead player waits before (re)spawning (hook: only <see cref="RespawnDelayRule.Fixed"/>
         /// exists today, = <see cref="RespawnDelay"/>).</summary>
         public RespawnDelayRule DelayRule { get; init; } = RespawnDelayRule.Fixed;
@@ -114,6 +119,7 @@ namespace RipOff.Core
             WarpInPasses = 30, WarpInSpeed = 0,
             WarpLocation = WarpInLocation.Random, WarpKills = true,
             ShipSelect = true,
+            ShipAbilities = true, ArmorGracePasses = 38,
         };
 
         /// <summary>
@@ -146,6 +152,8 @@ namespace RipOff.Core
                 r => r with { WarpKills = Arcade.WarpKills }, Requires: EnhancedOption.WarpIn),
             new(EnhancedOption.ShipSelect, "SHIP SELECT", "EACH PLAYER PICKS A SHIP BEFORE PLAY - NO TWO PLAYERS ON THE SAME SHIP",
                 r => r with { ShipSelect = Arcade.ShipSelect }),
+            new(EnhancedOption.ShipAbilities, "SHIP ABILITIES", "SHIPS DIFFER: SCOUT FAST, CRUISER SLOW BUT TAKES TWO HITS",
+                r => r with { ShipAbilities = Arcade.ShipAbilities, ArmorGracePasses = Arcade.ArmorGracePasses }, Requires: EnhancedOption.ShipSelect),
         };
 
         private static readonly GameRules?[] EnhancedByOptions = new GameRules?[(int)EnhancedOption.All + 1];
@@ -188,7 +196,8 @@ namespace RipOff.Core
         RandomWarpIn = 16,
         WarpKills = 32,
         ShipSelect = 64,
-        All = WarpIn | EnemyAimError | SlowerRamp | SlowerTowing | RandomWarpIn | WarpKills | ShipSelect,
+        ShipAbilities = 128,
+        All = WarpIn | EnemyAimError | SlowerRamp | SlowerTowing | RandomWarpIn | WarpKills | ShipSelect | ShipAbilities,
     }
 
     /// <summary>One row of the ENHANCED OPTIONS page: its bit, label, one-line description, and what "off" does to the rules.</summary>

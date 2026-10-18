@@ -85,6 +85,8 @@ public class ShipSelectNetTests
     [InlineData(1, 0, 1, 0)] // host on ship 1, guest on ship 0
     [InlineData(1, 1, 1, 0)]
     [InlineData(1, Protocol.NoShip, 1, 0)]
+    [InlineData(Ships.Cruiser, Ships.Scout, Ships.Cruiser, Ships.Scout)]   // SHIP ABILITIES: armor state in lockstep
+    [InlineData(Ships.Scout, Ships.Scout, Ships.Scout, Ships.Classic1)]
     public void BothMachinesFlyTheResolvedShips(int hostShip, int guestWish, int want1, int want2)
     {
         var hh = new List<uint>(); var gh = new List<uint>();

@@ -25,9 +25,9 @@ namespace RipOff.Core
             for (int i = 0; i < 3; i++) DrawTank(s.Enemies[i], s.Enemies[i].Type + 1, o);
             if (s.Mode == GameMode.Playing)
             {
-                // The ship's tank set (SHIP SELECT, NOTES §30); Arcade: set 0 for P1, 1 for P2 as before.
-                DrawTank(s.Players[0], Ships.Get(s.Ships[0]).ShapeSet, o);
-                if (!s.OnePlayer) DrawTank(s.Players[1], Ships.Get(s.Ships[1]).ShapeSet, o);
+                // The ship's shape (SHIP SELECT, NOTES §30); Arcade: set 0 for P1, 1 for P2 as before.
+                DrawPlayer(s, 0, o);
+                if (!s.OnePlayer) DrawPlayer(s, 1, o);
                 for (int p = 0; p < (s.OnePlayer ? 1 : 2); p++) if (s.WarpTimer[p] > 0) DrawWarp(s, p, o);
             }
             foreach (var fl in s.FireLines)
@@ -46,6 +46,28 @@ namespace RipOff.Core
             DrawScores(s, o);
             return o;
         }
+
+        /// <summary>Blink period of an armored ship after an absorbed hit (passes per half cycle).</summary>
+        public const int GraceBlinkPasses = 3;
+
+        /// <summary>A player's ship: its arcade tank set, or its remake hull (+ armor plates while it has more than one hit
+        /// left, NOTES §31). Blinks dim while it can't be hit after absorbing one.</summary>
+        static void DrawPlayer(GameState s, int p, List<Line> o)
+        {
+            var r = s.Players[p];
+            var ship = Ships.Get(s.Ships[p]);
+            int start = o.Count;
+            if (ship.Body == null || EnemyState.IsFree(r.A) || EnemyState.IsExploding(r.A)) DrawTank(r, Math.Max(0, ship.ShapeSet), o);
+            else if (OnFieldDraw(r))
+            {
+                AddShape(ship.Body, r.X, r.Y, r.Heading, r.Scale, o);
+                if (ship.Plates != null && Ships.AbilitiesOn(s.Rules) && s.Hits[p] > 1) AddShape(ship.Plates, r.X, r.Y, r.Heading, r.Scale, o);
+            }
+            if (Ships.AbilitiesOn(s.Rules) && s.HitGrace[p] > 0 && EnemyState.IsAlive(r.A) && (s.HitGrace[p] / GraceBlinkPasses) % 2 == 1)
+                for (int i = start; i < o.Count; i++) o[i] = o[i] with { Bright = false };
+        }
+
+        static bool OnFieldDraw(TankRecord r) => !(r.X < 0 || r.X >= Width || r.Y < 0 || r.Y >= Height);
 
         static void DrawTank(TankRecord r, int set, List<Line> o)
         {
@@ -101,7 +123,8 @@ namespace RipOff.Core
             {
                 int scale = (int)(GameData.PlayerScale * (t - 0.5f) * 2);
                 int start = o.Count;
-                AddShape(ShapeData.Body[Math.Clamp(Ships.Get(s.Ships[p]).ShapeSet, 0, ShapeData.Body.Length - 1)], x, y, s.WarpHeading[p], scale, o);
+                var ship = Ships.Get(s.Ships[p]);
+                AddShape(ship.Body ?? ShapeData.Body[Math.Clamp(ship.ShapeSet, 0, ShapeData.Body.Length - 1)], x, y, s.WarpHeading[p], scale, o);
                 for (int i = start; i < o.Count; i++) o[i] = o[i] with { Bright = false };
             }
         }
@@ -109,10 +132,20 @@ namespace RipOff.Core
         /// <summary>A ship as it looks in play (body + treads), for menus such as SHIP SELECT.</summary>
         public static void DrawShip(int ship, float x, float y, int heading, int scale, List<Line> o, bool bright = true)
         {
-            int set = Math.Clamp(Ships.Get(ship).ShapeSet, 0, ShapeData.Body.Length - 1), start = o.Count;
-            AddShape(ShapeData.Body[set], x, y, heading, scale, o);
-            AddShape(ShapeData.Anim8[set][0], x, y, heading, scale, o);
-            AddShape(ShapeData.Anim9[set][0], x, y, heading, scale, o);
+            var spec = Ships.Get(ship);
+            int start = o.Count;
+            if (spec.Body != null)
+            {
+                AddShape(spec.Body, x, y, heading, scale, o);
+                if (spec.Plates != null) AddShape(spec.Plates, x, y, heading, scale, o);
+            }
+            else
+            {
+                int set = Math.Clamp(spec.ShapeSet, 0, ShapeData.Body.Length - 1);
+                AddShape(ShapeData.Body[set], x, y, heading, scale, o);
+                AddShape(ShapeData.Anim8[set][0], x, y, heading, scale, o);
+                AddShape(ShapeData.Anim9[set][0], x, y, heading, scale, o);
+            }
             if (!bright) for (int i = start; i < o.Count; i++) o[i] = o[i] with { Bright = false };
         }
 
@@ -197,6 +230,36 @@ namespace RipOff.Core
             // UNCHECKED: in a one-player game only P1 is shown (path $04B6 → $0505, NOTES §13).
             Number(s.Score[0], ScoreLeftAlignedX(s.Score[0], s.ScoreThousands[0]), ScoreY, o, s.ScoreThousands[0]);
             if (!s.OnePlayer) Number(s.Score[1], ScoreRightAlignedX(s.Score[1], s.ScoreThousands[1]), ScoreY, o, s.ScoreThousands[1]);
+            DrawArmor(s, o);
+        }
+
+        /// <summary>Armor pip size and gap (field units) and their row under the scores.</summary>
+        public const int PipSize = 10, PipGap = 6, PipY = ScoreY - 12 - PipSize;
+
+        /// <summary>
+        /// Armor pips (SHIP ABILITIES, NOTES §31), for ships with more than one hit only: one square per hit of armor
+        /// under the player's score (P1 left, P2 right). A hit still left is a bright square with a cross; a hit used up
+        /// is a dim outline. While dead, the pips show what the next ship gets (all full). Nothing in Arcade.
+        /// </summary>
+        public static void DrawArmor(GameState s, List<Line> o)
+        {
+            if (!Ships.AbilitiesOn(s.Rules)) return;
+            for (int p = 0; p < (s.OnePlayer ? 1 : 2); p++)
+            {
+                int armor = Ships.Stats(s.Rules, s.Ships[p]).Armor;
+                if (armor <= 1) continue;
+                bool alive = !EnemyState.IsFree(s.Players[p].A) && !EnemyState.IsExploding(s.Players[p].A);
+                int left = alive ? s.Hits[p] : armor;
+                for (int k = 0; k < armor; k++)
+                {
+                    float x0 = p == 0 ? ScoreMargin + k * (PipSize + PipGap) : Width - ScoreMargin - PipSize - k * (PipSize + PipGap);
+                    float y0 = PipY, x1 = x0 + PipSize, y1 = y0 + PipSize;
+                    bool full = k < left;
+                    o.Add(new Line(x0, y0, x1, y0, full)); o.Add(new Line(x1, y0, x1, y1, full));
+                    o.Add(new Line(x1, y1, x0, y1, full)); o.Add(new Line(x0, y1, x0, y0, full));
+                    if (full) { o.Add(new Line(x0, y0, x1, y1, true)); o.Add(new Line(x0, y1, x1, y0, true)); }
+                }
+            }
         }
 
         static void DrawBonus(GameState s, List<Line> o)

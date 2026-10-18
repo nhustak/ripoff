@@ -144,6 +144,12 @@ namespace RipOff.Core
         /// <summary>The ship each player flies (Ships.All id). Arcade and SHIP SELECT off: 0 and 1, the arcade's ships.
         /// Hashed only outside Arcade with SHIP SELECT on.</summary>
         public readonly int[] Ships = { RipOff.Core.Ships.Classic1, RipOff.Core.Ships.Classic2 };
+        /// <summary>SHIP ABILITIES: enemy-fire hits each player's ship can still take (set to its armor when it
+        /// (re)appears), and the passes left of its blink after an absorbed hit. Hashed only with SHIP ABILITIES on.</summary>
+        public readonly int[] Hits = { 1, 1 };
+        public readonly int[] HitGrace = new int[2];
+        /// <summary>Hits absorbed by armor per player (stat, not hashed).</summary>
+        public readonly int[] ArmorSaves = new int[2];
         /// <summary>Warp-in passes left per player (0 = not warping). While it counts, the player record stays free.</summary>
         public readonly int[] WarpTimer = new int[2];
         /// <summary>Where each player's current warp-in materializes (chosen when it starts, GameRules.WarpLocation).</summary>

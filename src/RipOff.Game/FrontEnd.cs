@@ -345,6 +345,15 @@ namespace RipOff.Game
             Settings.Canisters = order[(i + d + order.Length) % order.Length];
         }
 
+        /// <summary>The SHIP SELECT stats line: "SPEED 14  TURN 10  ARMOR 1  DAMAGE 1", or a note that SHIP ABILITIES is
+        /// off (every ship then flies like the arcade's). Online the host's options decide.</summary>
+        public static string ShipStatsText(int ship, GameRules rules)
+        {
+            if (!Ships.AbilitiesOn(rules)) return "SHIP ABILITIES OFF - EVERY SHIP FLIES LIKE THE ARCADE'S";
+            var (speed, turn, armor, damage) = Ships.Stats(rules, ship);
+            return $"SPEED {speed}  TURN {turn}  ARMOR {armor}  DAMAGE {damage}";
+        }
+
         /// <summary>Who picks a ship on SHIP SELECT (NOTES §30) after ENHANCED is chosen with SHIP SELECT on.</summary>
         public enum ShipPick { None, OnePlayer, TwoPlayers, Host, Guest }
 
@@ -510,7 +519,8 @@ namespace RipOff.Game
             for (int i = 0; i < items.Count; i++, y -= step)
             {
                 string label = (i == Selected ? "> " : "  ") + items[i].Label + (i == Selected ? " <" : "  ");
-                VectorFont.DrawCentered(label, cx, y, Fit(label, 26), o, items[i].Enabled);
+                // Long lists (ENHANCED OPTIONS keeps growing): the labels shrink to fit the row spacing.
+                VectorFont.DrawCentered(label, cx, y, Fit(label, Math.Min(26, step * 0.8f)), o, items[i].Enabled);
                 if (Top == Screen.ShipSelect && i < Ships.Count) // the ship itself, left of its name (NOTES §30)
                     Scene.DrawShip(i, cx - 350, y + 9, 180, ShipPreviewScale, o, items[i].Enabled && i == Selected);
             }
@@ -583,7 +593,11 @@ namespace RipOff.Game
                 }
                 case Screen.ShipSelect:
                 {
-                    if (Selected < Ships.Count) n.Add(Ships.Get(Selected).Info);
+                    if (Selected < Ships.Count)
+                    {
+                        n.Add(Ships.Get(Selected).Info);
+                        n.Add(ShipStatsText(Selected, GameRules.For(PlayMode.Enhanced, Settings.EnhancedOptions)));
+                    }
                     switch (ShipPicking)
                     {
                         case ShipPick.TwoPlayers:

@@ -11,7 +11,7 @@ public class ShipSelectTests
     [Fact]
     public void RosterIsTheTwoArcadeShipsWithStableIds()
     {
-        Assert.Equal(2, Ships.Count);
+        Assert.True(Ships.Count >= 2);
         Assert.Equal((0, "CLASSIC 1", 0), (Ships.All[0].Id, Ships.All[0].Name, Ships.All[0].ShapeSet));
         Assert.Equal((1, "CLASSIC 2", 1), (Ships.All[1].Id, Ships.All[1].Name, Ships.All[1].ShapeSet));
         for (int i = 0; i < Ships.Count; i++) Assert.Equal(i, Ships.All[i].Id);
@@ -19,7 +19,7 @@ public class ShipSelectTests
         Assert.Equal(Ships.Classic2, Ships.Default(1));
         Assert.Equal(1, Ships.FirstOtherThan(0));
         Assert.Equal(0, Ships.FirstOtherThan(1));
-        Assert.False(Ships.IsDefined(-1)); Assert.False(Ships.IsDefined(2));
+        Assert.False(Ships.IsDefined(-1)); Assert.False(Ships.IsDefined(Ships.Count));
     }
 
     [Fact]

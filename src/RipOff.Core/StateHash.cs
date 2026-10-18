@@ -49,6 +49,10 @@ namespace RipOff.Core
                 if (rules.TankChancePercent > 0 || rules.HunterChancePercent > 0)
                     for (int i = 0; i < 3; i++) { Add((int)s.EnemyKinds[i]); Add(s.EnemyHits[i]); }
                 if (Ships.AbilitiesOn(rules)) for (int p = 0; p < 2; p++) { Add(s.Hits[p]); Add(s.HitGrace[p]); }
+                if (rules.SavedPopupPasses > 0)
+                    for (int i = 0; i < 3; i++) { Add(0x5AED0000 | s.SavedTimer[i]); Add(s.SavedX[i]); Add(s.SavedY[i]); }
+                if (rules.DelayRule == RespawnDelayRule.ByCause)
+                    for (int p = 0; p < 2; p++) { Add(0x5DE70000 | s.SinceDeath[p]); Add(s.RespawnExtra[p]); }
             }
             return h;
         }

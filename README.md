@@ -78,6 +78,8 @@ ENHANCED OPTIONS (OPTIONS → ENHANCED OPTIONS; Enhanced games only, Arcade igno
 ├─ SHIP ABILITIES: ON/OFF    ships differ in speed, turning, armor and damage (needs SHIP SELECT)
 ├─ TANK ENEMIES: ON/OFF      some enemies are slow armored tanks that take two hits (from the 2nd enemy type)
 ├─ HUNTER ENEMIES: ON/OFF    some waves have a hunter that ignores canisters and goes for you (from the 3rd type)
+├─ SAVED!! POPUP: ON/OFF     shooting an enemy that is towing a canister away shows "SAVED!!"
+├─ SMART RESPAWN: ON/OFF     longer wait after a collision death, and after dying again within 15 s
 ├─ ALL ON
 └─ BACK
 ```
@@ -120,6 +122,14 @@ SHIP SELECT (after ENHANCED is picked, with SHIP SELECT on; NOTES §30)
   - With nobody alive it circles the canisters until someone warps back in.
   - The wave isn't over until it's destroyed.
 - Both give the wave's normal points.
+
+**SAVED!!** (Enhanced, NOTES §33): shoot an enemy while it's towing a canister away and "SAVED!!" pops up over it for a second. Ramming it or warping onto it doesn't show the message.
+
+**Smart respawn** (Enhanced, NOTES §33): after you're destroyed you wait 25 passes (0.66 s) before warping in, as in the arcade, plus:
+- **+1 s** if you died in a collision (rammed an enemy or the other player);
+- **+0.5 s** if your previous death was less than 15 s earlier.
+
+So the wait is 0.66, 1.16, 1.66 or 2.16 s, followed by the warp-in itself.
 
 All Enhanced options default ON. RANDOM WARP-IN and WARP KILLS only matter with WARP-IN on: while it's off they're dimmed and ignored, and they keep their setting. They're saved in settings.json as `"EnhancedOff": [...]` (the ones switched off), so older files and options added later read as ON. Each toggle sets its knobs back to the Arcade values when off; all off plays like Arcade. Online, the guest uses the host's options.
 
@@ -262,7 +272,7 @@ UNCHECKED: whether Steam Input is the cause on Nick's PC. The log and INPUT TEST
 Main menu → **ONLINE** (tree above). Steam starts the first time you pick a Steam item. If it cannot start, the reason is shown and the Steam items are greyed out; direct IP still works. `--no-steam` skips Steam entirely.
 
 - **Pausing online:** the shared game never pauses (a choice; it is flagged in NOTES §23). Esc or Start opens the menu as an overlay. The game keeps running, dimmed, behind it, and your tank gets no input until you close the menu.
-- **Rules:** the host's mode (**ARCADE** / **ENHANCED**), **AUTO FIRE** and **CANISTERS** settings are sent to the guest and checked by both sides before the first frame. The guest adopts the host's mode for that session (its own saved mode is unchanged). The connecting screen shows the mode; Steam lobbies also advertise it (`mode` lobby key). For Enhanced, the host's **ENHANCED OPTIONS** are sent too and adopted by the guest. SHIP ABILITIES (2026.10.17.7) adds an option bit and armor state (protocol v6); TANK / HUNTER ENEMIES (2026.10.17.8) add two more bits and the enemy kinds (protocol v7). With SHIP SELECT (2026.10.17.6) the options became 16-bit and both ships travel in the start config (GameConfig schema 4). The guest's wished ship comes in its Hello; the host keeps its own ship and gives the guest its wish, or the other ship if the wish is the host's. Protocol version 7: builds from before it (v6: 2026.10.17.7; v5: 2026.10.17.6; v4: 2026.10.17.3-.5; v3: 2026.10.17.1, 2026.10.17.2, `enhanced-preview-1`; v2: `arcade-v1.0`) are refused at connect with a version-mismatch message naming both builds.
+- **Rules:** the host's mode (**ARCADE** / **ENHANCED**), **AUTO FIRE** and **CANISTERS** settings are sent to the guest and checked by both sides before the first frame. The guest adopts the host's mode for that session (its own saved mode is unchanged). The connecting screen shows the mode; Steam lobbies also advertise it (`mode` lobby key). For Enhanced, the host's **ENHANCED OPTIONS** are sent too and adopted by the guest. SHIP ABILITIES (2026.10.17.7) adds an option bit and armor state (protocol v6); TANK / HUNTER ENEMIES (2026.10.17.8) add two more bits and the enemy kinds (protocol v7); SAVED!! POPUP / SMART RESPAWN (2026.10.17.9) add two more and their state (protocol v8). With SHIP SELECT (2026.10.17.6) the options became 16-bit and both ships travel in the start config (GameConfig schema 4). The guest's wished ship comes in its Hello; the host keeps its own ship and gives the guest its wish, or the other ship if the wish is the host's. Protocol version 8: builds from before it (v7: 2026.10.17.8; v6: 2026.10.17.7; v5: 2026.10.17.6; v4: 2026.10.17.3-.5; v3: 2026.10.17.1, 2026.10.17.2, `enhanced-preview-1`; v2: `arcade-v1.0`) are refused at connect with a version-mismatch message naming both builds.
 - **After a game over:** choose **PLAY AGAIN**; either player can start the next game. There are no coins online either.
 
 How it works (`disasm/NOTES.md` §22):

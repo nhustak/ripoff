@@ -181,8 +181,9 @@ public class WarpInTests
         // the options of 2026.10.17.2: the three tunings, no warp-in and none of the later toggles
         var off = new GameConfig(canisters, autoFire, PlayMode.Enhanced, EnhancedOption.EnemyAimError | EnhancedOption.SlowerRamp | EnhancedOption.SlowerTowing);
         Assert.Equal(EnhancedBeforeWarpIn[seed], CoreRun(seed, onePlayer, off));
-        // later toggles that change no simulation state (all but the enemy kinds) still reproduce it
-        Assert.Equal(EnhancedBeforeWarpIn[seed], CoreRun(seed, onePlayer, off with { Options = EnhancedOption.All & ~EnhancedOption.WarpIn & ~EnhancedOption.TankEnemies & ~EnhancedOption.HunterEnemies }));
+        // later toggles that add no hashed state (all but the enemy kinds, SAVED!! and SMART RESPAWN) still reproduce it
+        Assert.Equal(EnhancedBeforeWarpIn[seed], CoreRun(seed, onePlayer, off with { Options = EnhancedOption.All & ~EnhancedOption.WarpIn
+            & ~EnhancedOption.TankEnemies & ~EnhancedOption.HunterEnemies & ~EnhancedOption.SavedPopup & ~EnhancedOption.SmartRespawn }));
         Assert.NotEqual(EnhancedBeforeWarpIn[seed], CoreRun(seed, onePlayer, off with { Options = EnhancedOption.All }));
     }
 

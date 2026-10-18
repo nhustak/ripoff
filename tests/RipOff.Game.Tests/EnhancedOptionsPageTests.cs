@@ -8,9 +8,9 @@ namespace RipOff.Game.Tests;
 /// <summary>ENHANCED OPTIONS page (Options → ENHANCED OPTIONS): pad and keyboard, saved, used by Enhanced games only.</summary>
 public class EnhancedOptionsPageTests
 {
-    static readonly string[] AllOn = { "WARP-IN: ON", "ENEMY AIM ERROR: ON", "SLOWER RAMP: ON", "SLOWER TOWING: ON", "RANDOM WARP-IN: ON", "WARP KILLS: ON", "SHIP SELECT: ON", "SHIP ABILITIES: ON", "TANK ENEMIES: ON", "HUNTER ENEMIES: ON", "ALL ON", "BACK" };
+    static readonly string[] AllOn = { "WARP-IN: ON", "ENEMY AIM ERROR: ON", "SLOWER RAMP: ON", "SLOWER TOWING: ON", "RANDOM WARP-IN: ON", "WARP KILLS: ON", "SHIP SELECT: ON", "SHIP ABILITIES: ON", "TANK ENEMIES: ON", "HUNTER ENEMIES: ON", "SAVED!! POPUP: ON", "SMART RESPAWN: ON", "ALL ON", "BACK" };
     const EnhancedOption New = EnhancedOption.RandomWarpIn | EnhancedOption.WarpKills | EnhancedOption.ShipSelect | EnhancedOption.ShipAbilities
-        | EnhancedOption.TankEnemies | EnhancedOption.HunterEnemies;
+        | EnhancedOption.TankEnemies | EnhancedOption.HunterEnemies | EnhancedOption.SavedPopup | EnhancedOption.SmartRespawn;
 
     [Fact]
     public void PadTogglesEachRowSavesAndBackReturnsToOptions()
@@ -27,7 +27,7 @@ public class EnhancedOptionsPageTests
         r.Press(Buttons.DPadDown); r.Press(Buttons.A);
         r.Press(Buttons.DPadDown); r.Press(Buttons.A);
         Assert.Equal(EnhancedOption.WarpIn | New, s.EnhancedOptions);
-        Assert.Equal(new[] { "WARP-IN: ON", "ENEMY AIM ERROR: OFF", "SLOWER RAMP: OFF", "SLOWER TOWING: OFF", "RANDOM WARP-IN: ON", "WARP KILLS: ON", "SHIP SELECT: ON", "SHIP ABILITIES: ON", "TANK ENEMIES: ON", "HUNTER ENEMIES: ON", "ALL ON", "BACK" }, r.F.CurrentLabels);
+        Assert.Equal(new[] { "WARP-IN: ON", "ENEMY AIM ERROR: OFF", "SLOWER RAMP: OFF", "SLOWER TOWING: OFF", "RANDOM WARP-IN: ON", "WARP KILLS: ON", "SHIP SELECT: ON", "SHIP ABILITIES: ON", "TANK ENEMIES: ON", "HUNTER ENEMIES: ON", "SAVED!! POPUP: ON", "SMART RESPAWN: ON", "ALL ON", "BACK" }, r.F.CurrentLabels);
         Assert.Equal(new[] { "EnemyAimError", "SlowerRamp", "SlowerTowing" }, s.EnhancedOff);
         Assert.True(r.Saves >= saves + 5);
         r.Choose("ALL ON"); Assert.Equal(EnhancedOption.All, s.EnhancedOptions);

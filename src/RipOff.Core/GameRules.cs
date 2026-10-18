@@ -93,9 +93,18 @@ namespace RipOff.Core
         /// <see cref="HunterFromType"/> on (or any type after the first level). 0 = none (Arcade).</summary>
         public int HunterChancePercent { get; init; }
         public int HunterFromType { get; init; }
-        /// <summary>How long a dead player waits before (re)spawning (hook: only <see cref="RespawnDelayRule.Fixed"/>
-        /// exists today, = <see cref="RespawnDelay"/>).</summary>
+        /// <summary>How long a dead player waits before (re)spawning: <see cref="RespawnDelayRule.Fixed"/> =
+        /// <see cref="RespawnDelay"/> (Arcade); <see cref="RespawnDelayRule.ByCause"/> = SMART RESPAWN (NOTES §33).</summary>
         public RespawnDelayRule DelayRule { get; init; } = RespawnDelayRule.Fixed;
+        /// <summary>SMART RESPAWN: extra passes after a collision death (a ram, word C = 1).</summary>
+        public int RamRespawnExtra { get; init; }
+        /// <summary>SMART RESPAWN: extra passes when this death came less than <see cref="QuickDeathWindowPasses"/>
+        /// after the player's previous death.</summary>
+        public int QuickDeathRespawnExtra { get; init; }
+        public int QuickDeathWindowPasses { get; init; }
+        /// <summary>SAVED!! (NOTES §33): passes a "SAVED!!" message shows where a player's shot destroyed an enemy that
+        /// was towing a canister. 0 = never (Arcade).</summary>
+        public int SavedPopupPasses { get; init; }
 
         /// <summary>Aim spread at <paramref name="level"/>.</summary>
         public int AimErrorAt(int level) => EnemyAimErrorDeg <= 0 ? 0 : Math.Max(EnemyAimErrorMin, EnemyAimErrorDeg - EnemyAimErrorPerLevel * Math.Max(0, level - 1));
@@ -134,6 +143,9 @@ namespace RipOff.Core
             ShipAbilities = true, ArmorGracePasses = 38,
             TankChancePercent = 25, TankFromType = 2, TankSpeedPercent = 70, TankHits = 2,
             HunterChancePercent = 20, HunterFromType = 3,
+            SavedPopupPasses = 38,      // 1 s
+            // Smart respawn: base 25 passes, +38 (1 s) after a ram, +19 (0.5 s) if the previous death was < 15 s ago.
+            DelayRule = RespawnDelayRule.ByCause, RamRespawnExtra = 38, QuickDeathRespawnExtra = 19, QuickDeathWindowPasses = 570,
         };
 
         /// <summary>
@@ -173,6 +185,11 @@ namespace RipOff.Core
                     TankSpeedPercent = Arcade.TankSpeedPercent, TankHits = Arcade.TankHits }),
             new(EnhancedOption.HunterEnemies, "HUNTER ENEMIES", "SOME WAVES HAVE A HUNTER THAT IGNORES CANISTERS AND GOES FOR YOU",
                 r => r with { HunterChancePercent = Arcade.HunterChancePercent, HunterFromType = Arcade.HunterFromType }),
+            new(EnhancedOption.SavedPopup, "SAVED!! POPUP", "SHOOTING AN ENEMY THAT IS TOWING A CANISTER SHOWS SAVED!!",
+                r => r with { SavedPopupPasses = Arcade.SavedPopupPasses }),
+            new(EnhancedOption.SmartRespawn, "SMART RESPAWN", "LONGER WAIT AFTER A COLLISION OR A QUICK SECOND DEATH",
+                r => r with { DelayRule = Arcade.DelayRule, RamRespawnExtra = Arcade.RamRespawnExtra,
+                    QuickDeathRespawnExtra = Arcade.QuickDeathRespawnExtra, QuickDeathWindowPasses = Arcade.QuickDeathWindowPasses }),
         };
 
         private static readonly GameRules?[] EnhancedByOptions = new GameRules?[(int)EnhancedOption.All + 1];
@@ -218,8 +235,10 @@ namespace RipOff.Core
         ShipAbilities = 128,
         TankEnemies = 256,
         HunterEnemies = 512,
+        SavedPopup = 1024,
+        SmartRespawn = 2048,
         All = WarpIn | EnemyAimError | SlowerRamp | SlowerTowing | RandomWarpIn | WarpKills | ShipSelect | ShipAbilities
-            | TankEnemies | HunterEnemies,
+            | TankEnemies | HunterEnemies | SavedPopup | SmartRespawn,
     }
 
     /// <summary>One row of the ENHANCED OPTIONS page: its bit, label, one-line description, and what "off" does to the rules.</summary>
@@ -238,7 +257,7 @@ namespace RipOff.Core
     /// <summary>Warp-in location strategy (Simulation.WarpInPoint). Random draws from the Enhanced RNG.</summary>
     public enum WarpInLocation : byte { Fixed = 0, Random = 1 }
 
-    /// <summary>Respawn delay strategy (Simulation.RespawnDelayFor). Later: e.g. by cause of death (the player record's
-    /// word C: 1 = ram, 2 = enemy fire) and time since the previous death.</summary>
-    public enum RespawnDelayRule : byte { Fixed = 0 }
+    /// <summary>Respawn delay strategy (Simulation.RespawnDelayFor). ByCause: by cause of death (the player record's
+    /// word C: 1 = ram, 2 = enemy fire) and time since the previous death (SMART RESPAWN, NOTES §33).</summary>
+    public enum RespawnDelayRule : byte { Fixed = 0, ByCause = 1 }
 }

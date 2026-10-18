@@ -1576,3 +1576,73 @@ Per game: 25-67 tanks and 6-18 hunters. The bot never thrusts, so the hunter com
 2. Normal points for both (no bonus for the tank's second hit). A design choice for Nick.
 3. A hunter that's hard to kill holds the wave open; there is no timeout.
 4. Tanks and hunters in the real renderer were seen only through the headless `Scene.Build` captures, not on screen.
+
+## 33. SAVED!! popup and SMART RESPAWN
+
+Status: done 2026-10-17. From ENHANCEMENTS.md: 'Show a quick little "SAVED!!" message when you shoot an enemy that is carting off a canister' and 'Warp-in delay depends on how you were killed and on the time since your last death (for example, a collision death takes longer to warp in from)'. Remake design, Enhanced only. Arcade is unchanged: same checksums, `SavedPopupPasses` 0 and `DelayRule` Fixed. Each feature has its own toggle, SAVED!! POPUP (`EnhancedOption.SavedPopup = 1024`) and SMART RESPAWN (`SmartRespawn = 2048`), both default ON. Protocol 7 → 8.
+
+### 33.1 SAVED!! (`Simulation.ShotsPass`, `Scene.DrawSaved`)
+
+- **Trigger:** a player's shot kills an enemy whose word A has the tow bit (`BitTow`, state `$01E`: it's carting a canister away).
+  - The shot kill sets `SavedTimer[slot]` = `SavedPopupPasses` = **38** (1 s) and `SavedX/Y` = the enemy's position, and counts `Saves[player]` (stat).
+  - An enemy only sitting at a canister (`$014`, not yet towing) doesn't count: it isn't carting it off yet.
+  - **Rams and warp kills** of a towing enemy don't show it. The ENHANCEMENTS text says "shoot".
+  - It's cosmetic: no points, and the canister drops where the explosion ends, as before.
+- **Timers:** one per enemy slot, counted down at the start of each `ShotsPass`.
+- **Drawing:** "SAVED!!" in stroke letters (the menu font's S, A, V, E, D + "!", 4×6 grid × 4 units, advance 24).
+  - Centred 40 units above the spot, rising 24 units over its life, kept on screen.
+  - Bright, then dim for the last quarter.
+  - Drawn after shots, before scores.
+- **Hash:** the three timers and positions, while on.
+- **Measured** (`SavedAndRespawnTests.ShootingATowingEnemyShowsSavedAndOnlyThen`, 40 scripted 2P games, 16 canisters):
+  - 178 popups for 178 towing enemies shot; 21 rammed towing enemies, none popped.
+  - Waves tool (1P hunt bot, 20 games): 277 saves, about 14 per game.
+
+### 33.2 SMART RESPAWN (`GameRules.DelayRule = ByCause`, `Simulation.RespawnDelayFor`)
+
+- **Delay** = `RespawnDelay` (the arcade's 25 passes), plus:
+  - `RamRespawnExtra` **+38** (1 s) when the death was a collision: the player record's word C = 1, from ramming an enemy or the other player (lst:2393-2494 path, `PlayerPass`). Enemy fire sets C = 2 (`FireTest`).
+  - `QuickDeathRespawnExtra` **+19** (0.5 s) when the previous death was less than `QuickDeathWindowPasses` **570** passes (15 s) earlier.
+  - So the delay is 25 / 44 / 63 / 82 passes, followed by the warp-in (30 passes).
+- **Death time:** a death is timed at the pass the player's explosion ends, its first free pass. Word 3 is 0 while alive and becomes 1 on that pass, and that's when the extra is latched (`LatchRespawnExtra`).
+  - `SinceDeath[p]` counts passes from there (saturating at `0x7FFF`).
+  - It starts saturated at game start, so the first death never counts as quick, and the first spawn isn't delayed (word 3 starts at 25 → 26).
+- **Delay accounting:** a player waits exactly `delay` free passes, counting the explosion-end pass, before its warp starts (the same counting as the arcade's 25; checked in the test).
+- **Hash:** `SinceDeath` and `RespawnExtra` while on. `LastRespawnDelay` is a stat (not hashed).
+- **Measured** (Waves tool `stats 20 30`, 1P hunt bot, 8 canisters):
+
+| Options | median / mean length | waves | level | deaths/min | kills |
+|---|---|---|---|---|---|
+| 2026.10.17.8 (OPTS=1023) | 336 / 339 s | 64.3 | 5.1 | 3.33 | 158.0 |
+| + SMART RESPAWN (OPTS=3071) | 274 / 273 s | 51.1 | 4.0 | 3.00 | 118.8 |
+| All (OPTS=4095) | 274 / 273 s | 51.1 | 4.0 | 3.00 | 118.8 |
+
+- Delays in the All runs: 25 ×66, 44 ×76, 63 ×53, 82 ×70.
+- The bot dies often and rams a lot, so most of its deaths get an extra. Longer waits give enemies more time to tow canisters off, so one-player games get **about 20 % shorter**.
+- SAVED!! changes nothing in play: OPTS=3071 and 4095 give identical stats.
+
+### 33.3 Checks and screenshots
+
+- Golden: `Enhanced20261017_8Tests` (0x3FF, recorded at d79384b, classic ships and CRUISER + SCOUT).
+- `SavedAndRespawnTests` (8 tests):
+  - toggles and tuning;
+  - popup only on shot kills of towing enemies, at their position, counting down by one per pass;
+  - off: no popup, not hashed;
+  - scene draws 26 segments, kept on screen, dim at the end, nothing when off;
+  - delays 63 (ram), 44 (shot, quick), 82 (ram + quick), 25 (shot after 15 s);
+  - quick window;
+  - first spawn not delayed; off: always 25; played games only see 25 / 44 / 63 / 82;
+  - hashed only when on; Arcade Fixed.
+- **Online:** loopback guest-adopts-options case `WarpIn | SavedPopup | SmartRespawn`.
+- **Screenshots:**
+  - Staged headless through `Scene.Build`:
+    - `saved-1-before-shot.png`, `saved-2-popup.png`, `saved-3-rising.png`, `saved-4-fading.png`, `saved-sequence.png` (a seed-1 scripted 2P game, frame 899);
+    - `respawn-1-both-exploding.png` … `respawn-4-both-back.png`, `respawn-sequence.png`. P1 is rammed and P2 shot on the same pass: P2 warps first (delay 25), P1 later (63).
+  - Real game: `saved-respawn-options.png`.
+
+### 33.4 UNCHECKED and design choices
+
+1. Direction of the time-since-last-death rule: a quick second death waits **longer** (a penalty, like the collision example). The opposite (a quick re-death warps back faster to soften spawn deaths) is equally defensible. Nick's call. A negative `QuickDeathRespawnExtra` (e.g. −12) would flip it. UNCHECKED: no test covers negative values.
+2. SMART RESPAWN makes one-player games about 20 % shorter with the bot (33.2). Not playtested by a human.
+3. SAVED!! for rams and warp kills is excluded (the text says "shoot"). `AtCanister` (`$014`, not yet towing) is excluded too.
+4. Only seen in headless `Scene.Build` captures, not on a real screen.

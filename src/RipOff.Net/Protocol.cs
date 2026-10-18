@@ -9,10 +9,11 @@ namespace RipOff.Net
     public static class Protocol
     {
         /// <summary>Protocol version; peers with a different value are rejected (Hello).</summary>
-        public const ushort Version = 7; // 2: auto-fire accepted (M4); 3: play mode (Arcade/Enhanced) in the game config; 4: Enhanced options byte;
+        public const ushort Version = 8; // 2: auto-fire accepted (M4); 3: play mode (Arcade/Enhanced) in the game config; 4: Enhanced options byte;
                                          // 5: options 16-bit + ships in the game config (schema 4), ship wish in Hello;
                                          // 6: SHIP ABILITIES option bit (armor state in the sim);
-                                         // 7: TANK / HUNTER ENEMIES option bits (enemy kinds in the sim)
+                                         // 7: TANK / HUNTER ENEMIES option bits (enemy kinds in the sim);
+                                         // 8: SAVED!! POPUP + SMART RESPAWN option bits (their state in the sim).
 
         public const byte MsgHello = 1, MsgReject = 2, MsgStart = 3, MsgInput = 4, MsgBye = 5, MsgStartAck = 6;
 

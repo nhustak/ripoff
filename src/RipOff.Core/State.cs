@@ -156,6 +156,21 @@ namespace RipOff.Core
         public readonly int[] EnemyHits = { 1, 1, 1 };
         /// <summary>Stats (not hashed): tanks and hunters spawned, and shots a tank's armor absorbed.</summary>
         public int TanksSpawned, HuntersSpawned, TankArmorHits;
+        /// <summary>SAVED!! (NOTES §33): passes left of the message per enemy slot and where it shows (field units: the
+        /// enemy's position when it was shot). Hashed only while SAVED!! POPUP is on.</summary>
+        public readonly int[] SavedTimer = new int[3];
+        public readonly int[] SavedX = new int[3];
+        public readonly int[] SavedY = new int[3];
+        /// <summary>Towing enemies shot per player (stat, not hashed).</summary>
+        public readonly int[] Saves = new int[2];
+        /// <summary>SMART RESPAWN (NOTES §33): passes since the player's previous death (saturates at
+        /// <see cref="SinceDeathCap"/>; starts there), and the extra respawn delay latched at this death.
+        /// Hashed only while SMART RESPAWN is on.</summary>
+        public readonly int[] SinceDeath = { SinceDeathCap, SinceDeathCap };
+        public readonly int[] RespawnExtra = new int[2];
+        public const int SinceDeathCap = 0x7FFF;
+        /// <summary>Respawn delay (passes) used for each player's latest respawn (stat, not hashed).</summary>
+        public readonly int[] LastRespawnDelay = new int[2];
         /// <summary>Warp-in passes left per player (0 = not warping). While it counts, the player record stays free.</summary>
         public readonly int[] WarpTimer = new int[2];
         /// <summary>Where each player's current warp-in materializes (chosen when it starts, GameRules.WarpLocation).</summary>

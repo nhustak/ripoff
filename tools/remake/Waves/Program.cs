@@ -213,10 +213,13 @@ static class Stats
                 sim.StartGame(true, new GameConfig(8, false, mode, opts));
                 var q = new Queue<FrameInput>(); q.Enqueue(default); q.Enqueue(default);
                 double[] lv = { -1, -1, -1, -1, -1 }; int waves = 0, deaths = 0, kills = 0, prevWc = 0; bool wasAlive = false; int f = 0; bool over = false;
-                int prevKills = 0;
+                int prevKills = 0; var delays = new List<int>(); bool wasWarp = false;
                 for (f = 1; f <= cap; f++)
                 {
                     sim.Step(q.Dequeue());
+                    bool warp = st.WarpTimer[0] > 0;
+                    if (warp && !wasWarp && f > 1) delays.Add(st.LastRespawnDelay[0]);
+                    wasWarp = warp;
                     if (st.Mode != GameMode.Playing) { over = true; break; }
                     var w = W.Ram(st);
                     q.Enqueue(f > 58 ? new FrameInput { P1 = W.Hunt(w, f) } : default);
@@ -232,7 +235,8 @@ static class Stats
                 double len = f / 38.0, ev = st.EnemyFireEvents, hits = st.EnemyFireHits;
                 var row = new[] { len, over ? 1 : 0, waves, st.EnemyType, st.Level, lv[2], lv[3], lv[4], deaths, ev, hits, ev > 0 ? 100 * hits / ev : 0, deaths / (len / 60), kills };
                 rows.Add(row);
-                if (mode == PlayMode.Enhanced) Console.WriteLine($"# kinds {seed}: tanks {st.TanksSpawned} hunters {st.HuntersSpawned} tank-armor hits {st.TankArmorHits}");
+                if (mode == PlayMode.Enhanced) Console.WriteLine($"# kinds {seed}: tanks {st.TanksSpawned} hunters {st.HuntersSpawned} tank-armor hits {st.TankArmorHits} saves {st.Saves[0]}");
+                if (mode == PlayMode.Enhanced) Console.WriteLine($"# respawn {seed}: delays {string.Join(",", delays.GroupBy(d => d).OrderBy(g => g.Key).Select(g => $"{g.Key}x{g.Count()}"))}");
                 Console.WriteLine($"{mode} {seed} {len:F0} {(over ? "over" : "CAP")} {waves} T{st.EnemyType} L{st.Level} {T(lv[2])} {T(lv[3])} {T(lv[4])} {deaths} {ev} {hits} {row[11]:F0} {row[12]:F2} {kills}");
             }
             double M(int c) => rows.Average(r => r[c]);

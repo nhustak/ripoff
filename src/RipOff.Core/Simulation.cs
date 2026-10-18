@@ -90,6 +90,12 @@ namespace RipOff.Core
             for (int p = 0; p < 2; p++) { s.Hits[p] = 1; s.HitGrace[p] = 0; s.ArmorSaves[p] = 0; }
             for (int i = 0; i < 3; i++) { s.EnemyKinds[i] = EnemyKind.Normal; s.EnemyHits[i] = 1; }
             s.TanksSpawned = s.HuntersSpawned = s.TankArmorHits = 0;
+            for (int i = 0; i < 3; i++) s.SavedTimer[i] = s.SavedX[i] = s.SavedY[i] = 0;
+            for (int p = 0; p < 2; p++)
+            {
+                s.Saves[p] = 0; s.SinceDeath[p] = GameState.SinceDeathCap; s.RespawnExtra[p] = 0;
+                s.LastRespawnDelay[p] = Rules.RespawnDelay;
+            }
             s.SeedEnhancedRng();
             int n = GameData.CanistersForDip[s.CanisterDip];
             for (int i = 0; i < GameData.CanisterSlots; i++)
@@ -410,6 +416,8 @@ namespace RipOff.Core
             {
                 if (p == 1 && s.OnePlayer) break;
                 var r = s.Players[p];
+                bool smart = Rules.DelayRule == RespawnDelayRule.ByCause;
+                if (smart && s.SinceDeath[p] < GameState.SinceDeathCap) s.SinceDeath[p]++;
                 if (!EnemyState.IsFree(r.A)) continue;
                 if (s.WarpTimer[p] > 0)
                 {
@@ -420,7 +428,11 @@ namespace RipOff.Core
                     continue;
                 }
                 r.Word3 += 1;
+                // SMART RESPAWN (NOTES §33): the first free pass after a death (word 3 is 0 while alive) latches the
+                // extra delay from the cause (word C: 1 = ram, 2 = enemy fire) and the time since the previous death.
+                if (smart && r.Word3 == 1) LatchRespawnExtra(p, r);
                 if (r.Word3 < RespawnDelayFor(p)) continue;
+                s.LastRespawnDelay[p] = RespawnDelayFor(p);
                 r.Word3 = 0;
                 if (Rules.WarpInPasses > 0)
                 {
@@ -454,12 +466,25 @@ namespace RipOff.Core
         }
 
         /// <summary>Respawn delay strategy hook (GameRules.DelayRule). Fixed = RespawnDelay, the arcade's 25 passes.
-        /// A cause-of-death rule would read the player record's word C here (1 = ram, 2 = enemy fire; it keeps that
-        /// value until the respawn), and a time-since-last-death rule would need a new per-player pass stamp in the state.</summary>
+        /// ByCause (SMART RESPAWN) = RespawnDelay + the extra latched at the death (<see cref="LatchRespawnExtra"/>).</summary>
         private int RespawnDelayFor(int p) => Rules.DelayRule switch
         {
+            RespawnDelayRule.ByCause => Rules.RespawnDelay + State.RespawnExtra[p],
             _ => Rules.RespawnDelay,
         };
+
+        /// <summary>SMART RESPAWN: +RamRespawnExtra after a collision (word C = 1: rammed an enemy or the other player),
+        /// +QuickDeathRespawnExtra when the previous death was less than QuickDeathWindowPasses ago. A "death" is the
+        /// pass the player's explosion ends (its first free pass); the game start counts as no previous death.</summary>
+        private void LatchRespawnExtra(int p, TankRecord r)
+        {
+            var s = State;
+            int extra = 0;
+            if (r.C == 1) extra += Rules.RamRespawnExtra;
+            if (s.SinceDeath[p] < Rules.QuickDeathWindowPasses) extra += Rules.QuickDeathRespawnExtra;
+            s.RespawnExtra[p] = extra;
+            s.SinceDeath[p] = 0;
+        }
 
         /// <summary>Warp-in location strategy hook (GameRules.WarpLocation). Fixed = GameData.WarpInPoints. A random rule
         /// must draw from <see cref="GameState.NextEnhancedRandom"/>, so online peers pick the same point.</summary>
@@ -1006,6 +1031,8 @@ namespace RipOff.Core
         private void ShotsPass()
         {
             var s = State;
+            if (Rules.SavedPopupPasses > 0)
+                for (int i = 0; i < 3; i++) if (s.SavedTimer[i] > 0) s.SavedTimer[i]--;
             for (int k = 0; k < s.Shots.Length; k++)
             {
                 ref var sh = ref s.Shots[k];
@@ -1032,10 +1059,17 @@ namespace RipOff.Core
                         }
                         s.EnemyHits[i] = 1;
                     }
+                    bool towing = (e.A & EnemyState.BitTow) != 0;
                     e.A &= 0xF; e.Scale = GameData.ExplosionShot; e.C = 0; // lst:3526-3549
                     s.Sound.Explosions++;
                     sh.Live = false;
                     s.Score[k < GameData.ShotSlotsPerPlayer ? 0 : 1] += PointsTens(s.EnemyType, s.Level); // lst:3550-3573
+                    if (towing && Rules.SavedPopupPasses > 0)
+                    {
+                        // SAVED!! (NOTES §33): this shot stopped a canister theft.
+                        s.SavedTimer[i] = Rules.SavedPopupPasses; s.SavedX[i] = e.X; s.SavedY[i] = e.Y;
+                        s.Saves[k < GameData.ShotSlotsPerPlayer ? 0 : 1]++;
+                    }
                     s.KillsThisWave += 1;
                     break;
                 }

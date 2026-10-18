@@ -177,6 +177,7 @@ public class GameConfigTests
     [InlineData((ushort)(EnhancedOption.WarpIn | EnhancedOption.SlowerTowing))]           // fixed warp, aim error and slower ramp off
     [InlineData((ushort)EnhancedOption.All)]                                               // random warp-in + warp kills + ship select
     [InlineData((ushort)(EnhancedOption.WarpIn | EnhancedOption.WarpKills))]               // warp kills at the fixed points
+    [InlineData((ushort)(EnhancedOption.WarpIn | EnhancedOption.SavedPopup | EnhancedOption.SmartRespawn))] // SAVED!! + smart respawn alone
     public void GuestAdoptsTheHostsEnhancedOptionsAndBothWarpInIdentically(ushort o)
     {
         var net = new LoopbackNetwork(12, 30, 20, 0.03);
@@ -212,7 +213,7 @@ public class GameConfigTests
     {
         // v5: options became 16-bit and the ships were added (GameConfig schema 4, NOTES §30); v4 builds are refused at
         // Hello.
-        Assert.Equal(7, Protocol.Version); // 6: SHIP ABILITIES bit (2026.10.17.7); 7: TANK / HUNTER ENEMIES bits
+        Assert.Equal(8, Protocol.Version); // 6: SHIP ABILITIES bit (2026.10.17.7); 7: TANK / HUNTER ENEMIES bits; 8: SAVED!! / SMART RESPAWN bits
         // Start = [type, delay, len, schema, canisters, flags, mode, options lo, options hi, ship1, ship2, ...]
         var cfg = LockstepSession.DefaultConfig(3, game: new GameConfig(8, Mode: PlayMode.Enhanced));
         var (host, guest) = Run(cfg, p => p[7] = (byte)EnhancedOption.WarpIn);

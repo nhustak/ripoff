@@ -43,8 +43,44 @@ namespace RipOff.Core
                 // UNCHECKED: how the arcade draws a shot is not decoded; drawn here as a 2-unit line.
                 o.Add(new Line(sh.X - 1, sh.Y, sh.X + 1, sh.Y, true));
             }
+            if (s.Rules.SavedPopupPasses > 0) for (int i = 0; i < 3; i++) DrawSaved(s, i, o);
             DrawScores(s, o);
             return o;
+        }
+
+        /// <summary>SAVED!! message (remake UI, NOTES §33): stroke letters on a 4×6 grid (the menu font's S, A, V, E, D,
+        /// plus "!"), y up.</summary>
+        static readonly Dictionary<char, (float X1, float Y1, float X2, float Y2)[]> SavedGlyphs = new()
+        {
+            ['S'] = new[] { (4f, 6f, 0f, 6f), (0f, 6f, 0f, 3f), (0f, 3f, 4f, 3f), (4f, 3f, 4f, 0f), (4f, 0f, 0f, 0f) },
+            ['A'] = new[] { (0f, 0f, 0f, 4f), (0f, 4f, 2f, 6f), (2f, 6f, 4f, 4f), (4f, 4f, 4f, 0f), (0f, 3f, 4f, 3f) },
+            ['V'] = new[] { (0f, 6f, 2f, 0f), (2f, 0f, 4f, 6f) },
+            ['E'] = new[] { (4f, 6f, 0f, 6f), (0f, 6f, 0f, 0f), (0f, 0f, 4f, 0f), (0f, 3f, 3f, 3f) },
+            ['D'] = new[] { (0f, 0f, 0f, 6f), (0f, 6f, 2f, 6f), (2f, 6f, 4f, 4f), (4f, 4f, 4f, 2f), (4f, 2f, 2f, 0f), (2f, 0f, 0f, 0f) },
+            ['!'] = new[] { (2f, 6f, 2f, 2f), (2f, 0.5f, 2f, 0f) },
+        };
+        public const string SavedText = "SAVED!!";
+        /// <summary>Letter cell (field units per grid step), advance in steps, and how far the message rises over its life.</summary>
+        public const float SavedCell = 4f, SavedAdvance = 6f, SavedRise = 24f, SavedAbove = 40f;
+        public static float SavedWidth => (SavedText.Length * SavedAdvance - 2) * SavedCell;
+
+        /// <summary>SAVED!! where a towing enemy was shot: centred over that spot (kept on screen), rising as it fades;
+        /// dim for its last quarter.</summary>
+        public static void DrawSaved(GameState s, int i, List<Line> o)
+        {
+            int t = s.SavedTimer[i];
+            if (t <= 0) return;
+            int life = Math.Max(1, s.Rules.SavedPopupPasses);
+            float w = SavedWidth, h = 6 * SavedCell;
+            float x = Math.Clamp(s.SavedX[i] - w / 2, 8, Width - 8 - w);
+            float y = Math.Clamp(s.SavedY[i] + SavedAbove + SavedRise * (life - t) / life, 8, Height - 60 - h);
+            bool bright = t * 4 > life;
+            foreach (char ch in SavedText)
+            {
+                foreach (var g in SavedGlyphs[ch])
+                    o.Add(new Line(x + g.X1 * SavedCell, y + g.Y1 * SavedCell, x + g.X2 * SavedCell, y + g.Y2 * SavedCell, bright));
+                x += SavedAdvance * SavedCell;
+            }
         }
 
         /// <summary>TANK armor plates (remake art, enemy shape coordinates): side plates outside the treads and a front

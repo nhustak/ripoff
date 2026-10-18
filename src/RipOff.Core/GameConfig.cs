@@ -19,7 +19,7 @@ namespace RipOff.Core
     /// <param name="Ship2">P2's ship; never the same as <paramref name="Ship1"/>. Online the host resolves it from the
     /// guest's wish (LockstepSession).</param>
     public readonly record struct GameConfig(int Canisters, bool AutoFire = false, PlayMode Mode = PlayMode.Arcade,
-        EnhancedOption Options = EnhancedOption.All, int Ship1 = Ships.Classic1, int Ship2 = Ships.Classic2)
+        EnhancedOption Options = EnhancedOption.Defaults, int Ship1 = Ships.Classic1, int Ship2 = Ships.Classic2)
     {
         /// <summary>Layout version of <see cref="Encode"/>; bump when fields are added.</summary>
         public const byte SchemaVersion = 4; // 2: play mode byte; 3: Enhanced options byte; 4: options 16-bit + ships

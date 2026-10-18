@@ -680,10 +680,11 @@ namespace RipOff.Game
             return ("", n);
         }
 
-        /// <summary>"ALL ON", "ALL OFF" or "OFF: WARP-IN, SLOWER TOWING".</summary>
+        /// <summary>"ALL ON", "DEFAULT" (<see cref="EnhancedOption.Defaults"/>), "ALL OFF" or "OFF: WARP-IN, SLOWER TOWING".</summary>
         public static string EnhancedSummary(EnhancedOption o)
         {
             if ((o & EnhancedOption.All) == EnhancedOption.All) return "ALL ON";
+            if ((o & EnhancedOption.All) == EnhancedOption.Defaults) return "DEFAULT";
             var off = new List<string>();
             foreach (var v in GameRules.Variations) if ((o & v.Option) == 0) off.Add(v.Label);
             return off.Count == GameRules.Variations.Length ? "ALL OFF" : "OFF: " + string.Join(", ", off);

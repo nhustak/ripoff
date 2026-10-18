@@ -50,24 +50,40 @@ namespace RipOff.Game
         [JsonConverter(typeof(JsonStringEnumConverter<PlayMode>))]
         public PlayMode Mode { get; set; } = PlayMode.Arcade;
 
-        /// <summary>Enhanced variations switched OFF on the ENHANCED OPTIONS page, by name (EnhancedOption, e.g.
-        /// "WarpIn"). Stored as the "off" list so that a missing list (older files) and variations added later
-        /// default ON. Unknown names are ignored.</summary>
+        /// <summary>Default-ON Enhanced variations switched OFF on the ENHANCED OPTIONS page, by name (EnhancedOption,
+        /// e.g. "WarpIn"). Stored as the "off" list so that a missing list (older files) and variations added later
+        /// default ON. Unknown names, and names of default-off variations, are ignored.</summary>
         public List<string> EnhancedOff { get; set; } = new();
+        /// <summary>Default-OFF variations (<see cref="GameRules.DefaultOff"/>, e.g. "SmartRespawn") switched ON, by
+        /// name. Files from before 2026.10.17.10 have no such list, so SMART RESPAWN reads OFF for them even though
+        /// 2026.10.17.9 defaulted it ON: that file can't tell "never touched" from "turned on" (NOTES §33.5).</summary>
+        public List<string> EnhancedOn { get; set; } = new();
+
+        static bool StartsOff(EnhancedOption v) => (GameRules.DefaultOff & v) != 0;
 
         [JsonIgnore]
         public EnhancedOption EnhancedOptions
         {
             get
             {
-                var o = EnhancedOption.All;
-                foreach (var v in GameRules.Variations) if (EnhancedOff?.Contains(v.Option.ToString()) == true) o &= ~v.Option;
+                var o = EnhancedOption.Defaults;
+                foreach (var v in GameRules.Variations)
+                {
+                    string name = v.Option.ToString();
+                    if (StartsOff(v.Option)) { if (EnhancedOn?.Contains(name) == true) o |= v.Option; }
+                    else if (EnhancedOff?.Contains(name) == true) o &= ~v.Option;
+                }
                 return o;
             }
             set
             {
-                EnhancedOff = new List<string>();
-                foreach (var v in GameRules.Variations) if ((value & v.Option) == 0) EnhancedOff.Add(v.Option.ToString());
+                EnhancedOff = new List<string>(); EnhancedOn = new List<string>();
+                foreach (var v in GameRules.Variations)
+                {
+                    bool on = (value & v.Option) != 0;
+                    if (StartsOff(v.Option)) { if (on) EnhancedOn.Add(v.Option.ToString()); }
+                    else if (!on) EnhancedOff.Add(v.Option.ToString());
+                }
             }
         }
 
@@ -83,7 +99,7 @@ namespace RipOff.Game
             Version = 2;
             if (Array.IndexOf(GameData.CanistersForDip, Canisters) < 0) Canisters = GameConfig.Default.Canisters;
             if (!GameRules.IsDefined(Mode)) Mode = PlayMode.Arcade;
-            EnhancedOptions = EnhancedOptions; // drops unknown or duplicate names from EnhancedOff
+            EnhancedOptions = EnhancedOptions; // drops unknown or duplicate names from EnhancedOff / EnhancedOn
             if (!Ships.IsDefined(Ship1)) Ship1 = Ships.Classic1;
             if (!Ships.IsDefined(Ship2) || Ship2 == Ship1) Ship2 = Ships.FirstOtherThan(Ship1);
             Volume = double.IsFinite(Volume) ? Math.Round(Math.Clamp(Volume, 0, 1) / VolumeStep) * VolumeStep : 1.0;
@@ -91,7 +107,7 @@ namespace RipOff.Game
             return this;
         }
 
-        public Settings Clone() { var c = (Settings)MemberwiseClone(); c.EnhancedOff = new List<string>(EnhancedOff ?? new List<string>()); return c; }
+        public Settings Clone() { var c = (Settings)MemberwiseClone(); c.EnhancedOff = new List<string>(EnhancedOff ?? new List<string>()); c.EnhancedOn = new List<string>(EnhancedOn ?? new List<string>()); return c; }
     }
 
     /// <summary>

@@ -212,13 +212,13 @@ public class GameConfigTests
     {
         // v5: options became 16-bit and the ships were added (GameConfig schema 4, NOTES §30); v4 builds are refused at
         // Hello.
-        Assert.Equal(6, Protocol.Version); // 6: SHIP ABILITIES bit (2026.10.17.7)
+        Assert.Equal(7, Protocol.Version); // 6: SHIP ABILITIES bit (2026.10.17.7); 7: TANK / HUNTER ENEMIES bits
         // Start = [type, delay, len, schema, canisters, flags, mode, options lo, options hi, ship1, ship2, ...]
         var cfg = LockstepSession.DefaultConfig(3, game: new GameConfig(8, Mode: PlayMode.Enhanced));
         var (host, guest) = Run(cfg, p => p[7] = (byte)EnhancedOption.WarpIn);
         Assert.Equal(SessionPhase.Failed, host.Phase);
         Assert.Contains("game config mismatch", host.Status);
-        (host, guest) = Run(cfg, p => p[7] = (byte)(EnhancedOption.All & ~EnhancedOption.WarpKills)); // a new bit flipped
+        (host, guest) = Run(cfg, p => p[7] = (byte)((int)(EnhancedOption.All & ~EnhancedOption.WarpKills) & 0xFF)); // a new bit flipped
         Assert.Equal(SessionPhase.Failed, host.Phase);
         Assert.Contains("game config mismatch", host.Status);
         (host, guest) = Run(cfg, p => p[8] = 0x80);

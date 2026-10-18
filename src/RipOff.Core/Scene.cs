@@ -22,7 +22,7 @@ namespace RipOff.Core
             if (s.Mode == GameMode.Playing && s.BonusFlag) { DrawBonus(s, o); return o; }
 
             DrawCanisters(s, o);
-            for (int i = 0; i < 3; i++) DrawTank(s.Enemies[i], s.Enemies[i].Type + 1, o);
+            for (int i = 0; i < 3; i++) { DrawTank(s.Enemies[i], s.Enemies[i].Type + 1, o); DrawKind(s, i, o); }
             if (s.Mode == GameMode.Playing)
             {
                 // The ship's shape (SHIP SELECT, NOTES §30); Arcade: set 0 for P1, 1 for P2 as before.
@@ -45,6 +45,33 @@ namespace RipOff.Core
             }
             DrawScores(s, o);
             return o;
+        }
+
+        /// <summary>TANK armor plates (remake art, enemy shape coordinates): side plates outside the treads and a front
+        /// bar. Drawn while the tank still has more than one hit left, so a damaged tank visibly loses them.</summary>
+        public static readonly Shapes.Seg[] TankPlates =
+        {
+            new(-26, -30, -26, 14, false), new(-26, -30, -20, -36, false), new(-26, 14, -20, 18, false),
+            new(26, -30, 26, 14, false), new(26, -30, 20, -36, false), new(26, 14, 20, 18, false),
+            new(-12, -46, 12, -46, false),
+        };
+
+        /// <summary>HUNTER marker (remake art): a chevron over the nose and two fins, always drawn.</summary>
+        public static readonly Shapes.Seg[] HunterMark =
+        {
+            new(-14, -46, 0, -58, false), new(0, -58, 14, -46, false),
+            new(-22, 8, -30, 20, false), new(22, 8, 30, 20, false),
+        };
+
+        /// <summary>TANK / HUNTER overlay on a live enemy (NOTES §32). Nothing for normal enemies (Arcade).</summary>
+        static void DrawKind(GameState s, int i, List<Line> o)
+        {
+            var kind = s.EnemyKinds[i];
+            if (kind == EnemyKind.Normal) return;
+            var e = s.Enemies[i];
+            if (!EnemyState.IsAlive(e.A) || !OnFieldDraw(e)) return;
+            if (kind == EnemyKind.Tank && s.EnemyHits[i] > 1) AddShape(TankPlates, e.X, e.Y, e.Heading, e.Scale, o);
+            if (kind == EnemyKind.Hunter) AddShape(HunterMark, e.X, e.Y, e.Heading, e.Scale, o);
         }
 
         /// <summary>Blink period of an armored ship after an absorbed hit (passes per half cycle).</summary>

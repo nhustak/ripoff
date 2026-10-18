@@ -208,7 +208,9 @@ static class Stats
                 var sim = new Simulation(); var st = sim.State;
                 for (int i = 0; i < 5; i++) { int v = Next(); st.Record(i).B = v == 0 ? 0xF20 : v; }
                 st.PassCounter = Next() & 0xFF;
-                sim.StartGame(true, new GameConfig(8, false, mode));
+                // OPTS env: Enhanced options as a number (default All), e.g. OPTS=255 for the 2026.10.17.7 options.
+                var opts = Environment.GetEnvironmentVariable("OPTS") is { Length: > 0 } os ? (EnhancedOption)Convert.ToInt32(os, os.StartsWith("0x") ? 16 : 10) : EnhancedOption.All;
+                sim.StartGame(true, new GameConfig(8, false, mode, opts));
                 var q = new Queue<FrameInput>(); q.Enqueue(default); q.Enqueue(default);
                 double[] lv = { -1, -1, -1, -1, -1 }; int waves = 0, deaths = 0, kills = 0, prevWc = 0; bool wasAlive = false; int f = 0; bool over = false;
                 int prevKills = 0;
@@ -230,6 +232,7 @@ static class Stats
                 double len = f / 38.0, ev = st.EnemyFireEvents, hits = st.EnemyFireHits;
                 var row = new[] { len, over ? 1 : 0, waves, st.EnemyType, st.Level, lv[2], lv[3], lv[4], deaths, ev, hits, ev > 0 ? 100 * hits / ev : 0, deaths / (len / 60), kills };
                 rows.Add(row);
+                if (mode == PlayMode.Enhanced) Console.WriteLine($"# kinds {seed}: tanks {st.TanksSpawned} hunters {st.HuntersSpawned} tank-armor hits {st.TankArmorHits}");
                 Console.WriteLine($"{mode} {seed} {len:F0} {(over ? "over" : "CAP")} {waves} T{st.EnemyType} L{st.Level} {T(lv[2])} {T(lv[3])} {T(lv[4])} {deaths} {ev} {hits} {row[11]:F0} {row[12]:F2} {kills}");
             }
             double M(int c) => rows.Average(r => r[c]);

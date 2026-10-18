@@ -57,8 +57,11 @@ public class EnhancedRulesTests
         StepToSpawn(sim);
         var live = sim.State.Enemies.Where(e => !EnemyState.IsFree(e.A)).ToList();
         Assert.Equal(enemies, live.Count);
-        Assert.All(live, e => Assert.Equal(speed, e.Word3));
-        Assert.All(live, e => Assert.Equal(Simulation.EnemyTurnStep(speed), e.TurnStep));
+        // TANK ENEMIES (NOTES §32): a tank runs at TankSpeedPercent of the wave's speed
+        int Want(TankRecord e) => sim.State.EnemyKinds[Array.IndexOf(sim.State.Enemies, e)] == EnemyKind.Tank
+            ? Math.Max(2, speed * sim.Rules.TankSpeedPercent / 100) : speed;
+        Assert.All(live, e => Assert.Equal(Want(e), e.Word3));
+        Assert.All(live, e => Assert.Equal(Simulation.EnemyTurnStep(Want(e)), e.TurnStep));
     }
 
     [Fact]

@@ -81,6 +81,18 @@ namespace RipOff.Core
         public bool ShipAbilities { get; init; }
         /// <summary>Passes an armored ship can't be hit after absorbing a hit (it blinks). 0 in Arcade (no armor).</summary>
         public int ArmorGracePasses { get; init; }
+        /// <summary>TANK ENEMIES (NOTES §32): chance in percent that each enemy of a wave is a tank, from enemy type
+        /// <see cref="TankFromType"/> on (or any type after the first level). 0 = none (Arcade).</summary>
+        public int TankChancePercent { get; init; }
+        public int TankFromType { get; init; }
+        /// <summary>A tank's top speed in percent of the wave's (min 2).</summary>
+        public int TankSpeedPercent { get; init; } = 100;
+        /// <summary>Hits (shot damage) a tank takes to destroy.</summary>
+        public int TankHits { get; init; } = 1;
+        /// <summary>HUNTER ENEMIES (NOTES §32): chance in percent that a wave has one hunter, from enemy type
+        /// <see cref="HunterFromType"/> on (or any type after the first level). 0 = none (Arcade).</summary>
+        public int HunterChancePercent { get; init; }
+        public int HunterFromType { get; init; }
         /// <summary>How long a dead player waits before (re)spawning (hook: only <see cref="RespawnDelayRule.Fixed"/>
         /// exists today, = <see cref="RespawnDelay"/>).</summary>
         public RespawnDelayRule DelayRule { get; init; } = RespawnDelayRule.Fixed;
@@ -120,6 +132,8 @@ namespace RipOff.Core
             WarpLocation = WarpInLocation.Random, WarpKills = true,
             ShipSelect = true,
             ShipAbilities = true, ArmorGracePasses = 38,
+            TankChancePercent = 25, TankFromType = 2, TankSpeedPercent = 70, TankHits = 2,
+            HunterChancePercent = 20, HunterFromType = 3,
         };
 
         /// <summary>
@@ -154,6 +168,11 @@ namespace RipOff.Core
                 r => r with { ShipSelect = Arcade.ShipSelect }),
             new(EnhancedOption.ShipAbilities, "SHIP ABILITIES", "SHIPS DIFFER: SCOUT FAST, CRUISER SLOW BUT TAKES TWO HITS",
                 r => r with { ShipAbilities = Arcade.ShipAbilities, ArmorGracePasses = Arcade.ArmorGracePasses }, Requires: EnhancedOption.ShipSelect),
+            new(EnhancedOption.TankEnemies, "TANK ENEMIES", "SOME ENEMIES ARE SLOW ARMORED TANKS THAT TAKE TWO HITS",
+                r => r with { TankChancePercent = Arcade.TankChancePercent, TankFromType = Arcade.TankFromType,
+                    TankSpeedPercent = Arcade.TankSpeedPercent, TankHits = Arcade.TankHits }),
+            new(EnhancedOption.HunterEnemies, "HUNTER ENEMIES", "SOME WAVES HAVE A HUNTER THAT IGNORES CANISTERS AND GOES FOR YOU",
+                r => r with { HunterChancePercent = Arcade.HunterChancePercent, HunterFromType = Arcade.HunterFromType }),
         };
 
         private static readonly GameRules?[] EnhancedByOptions = new GameRules?[(int)EnhancedOption.All + 1];
@@ -197,7 +216,10 @@ namespace RipOff.Core
         WarpKills = 32,
         ShipSelect = 64,
         ShipAbilities = 128,
-        All = WarpIn | EnemyAimError | SlowerRamp | SlowerTowing | RandomWarpIn | WarpKills | ShipSelect | ShipAbilities,
+        TankEnemies = 256,
+        HunterEnemies = 512,
+        All = WarpIn | EnemyAimError | SlowerRamp | SlowerTowing | RandomWarpIn | WarpKills | ShipSelect | ShipAbilities
+            | TankEnemies | HunterEnemies,
     }
 
     /// <summary>One row of the ENHANCED OPTIONS page: its bit, label, one-line description, and what "off" does to the rules.</summary>
@@ -208,6 +230,10 @@ namespace RipOff.Core
         /// <summary>False when <see cref="Requires"/> is off in <paramref name="options"/>: the setting is kept but ignored.</summary>
         public bool Applies(EnhancedOption options) => (options & Requires) == Requires;
     }
+
+    /// <summary>What an enemy is (NOTES §32): the arcade's kind, a TANK (slower, more hits) or a HUNTER (chases the
+    /// players, never takes a canister). Always Normal in Arcade.</summary>
+    public enum EnemyKind : byte { Normal = 0, Tank = 1, Hunter = 2 }
 
     /// <summary>Warp-in location strategy (Simulation.WarpInPoint). Random draws from the Enhanced RNG.</summary>
     public enum WarpInLocation : byte { Fixed = 0, Random = 1 }

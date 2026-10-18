@@ -88,6 +88,8 @@ namespace RipOff.Core
             s.EnemyFireEvents = s.EnemyFireHits = 0;
             for (int p = 0; p < 2; p++) s.WarpTimer[p] = s.WarpX[p] = s.WarpY[p] = s.WarpHeading[p] = 0;
             for (int p = 0; p < 2; p++) { s.Hits[p] = 1; s.HitGrace[p] = 0; s.ArmorSaves[p] = 0; }
+            for (int i = 0; i < 3; i++) { s.EnemyKinds[i] = EnemyKind.Normal; s.EnemyHits[i] = 1; }
+            s.TanksSpawned = s.HuntersSpawned = s.TankArmorHits = 0;
             s.SeedEnhancedRng();
             int n = GameData.CanistersForDip[s.CanisterDip];
             for (int i = 0; i < GameData.CanisterSlots; i++)
@@ -304,6 +306,96 @@ namespace RipOff.Core
                 s.Enemies[2].A = EnemyState.Free;
                 s.KillsThisWave += 1;
             }
+            ChooseEnemyKinds();
+        }
+
+        /// <summary>Kind at or after enemy type <paramref name="fromType"/> of the first level, or any type later.</summary>
+        private bool KindUnlocked(int fromType) => State.Level > 1 || State.EnemyType >= fromType;
+
+        /// <summary>
+        /// TANK / HUNTER ENEMIES (NOTES §32): pick each enemy's kind for a new wave. Every enemy of the wave (not the
+        /// one-player handicap's free slot) is a TANK with TankChancePercent; then, with HunterChancePercent, one of them
+        /// (uniform) becomes a HUNTER instead. Draws from the Enhanced RNG only while the toggle is on, so with both off
+        /// the RNG and every hash stay as before. Points are the wave's normal ones.
+        /// </summary>
+        private void ChooseEnemyKinds()
+        {
+            var s = State;
+            for (int i = 0; i < 3; i++) { s.EnemyKinds[i] = EnemyKind.Normal; s.EnemyHits[i] = 1; }
+            bool tanks = Rules.TankChancePercent > 0 && KindUnlocked(Rules.TankFromType);
+            bool hunters = Rules.HunterChancePercent > 0 && KindUnlocked(Rules.HunterFromType);
+            if (!tanks && !hunters) return;
+            int live = 0;
+            for (int i = 0; i < 3; i++)
+            {
+                var e = s.Enemies[i];
+                if (EnemyState.IsFree(e.A)) continue;
+                live++;
+                if (tanks && s.NextEnhancedRandom() % 100 < (uint)Rules.TankChancePercent) MakeTank(i);
+            }
+            if (hunters && live > 0 && s.NextEnhancedRandom() % 100 < (uint)Rules.HunterChancePercent)
+            {
+                int pick = (int)(s.NextEnhancedRandom() % (uint)live);
+                for (int i = 0; i < 3; i++)
+                {
+                    if (EnemyState.IsFree(s.Enemies[i].A)) continue;
+                    if (pick-- > 0) continue;
+                    if (s.EnemyKinds[i] == EnemyKind.Tank) { s.TanksSpawned--; Unmake(i); }
+                    s.EnemyKinds[i] = EnemyKind.Hunter; s.HuntersSpawned++;
+                    break;
+                }
+            }
+        }
+
+        private void MakeTank(int i)
+        {
+            var s = State; var e = s.Enemies[i];
+            s.EnemyKinds[i] = EnemyKind.Tank; s.EnemyHits[i] = Rules.TankHits; s.TanksSpawned++;
+            int v = Math.Max(2, e.Word3 * Rules.TankSpeedPercent / 100);
+            e.Speed = e.Word3 = v;
+            e.TurnStep = EnemyTurnStep(v);
+        }
+
+        /// <summary>Back to the wave's normal speed and one hit (a tank roll that became the hunter).</summary>
+        private void Unmake(int i)
+        {
+            var s = State; var e = s.Enemies[i];
+            int v = SpawnSpeed(s.EnemyType, s.Level);
+            e.Speed = e.Word3 = v; e.TurnStep = EnemyTurnStep(v);
+            s.EnemyKinds[i] = EnemyKind.Normal; s.EnemyHits[i] = 1;
+        }
+
+        /// <summary>
+        /// HUNTER (NOTES §32): while a player is alive it chases (word A bit 2 clear, the arcade's chase state $018);
+        /// with nobody alive it falls back to approaching the canisters, but never picks one up. A hunter that only now
+        /// starts chasing needs ChaseReactionPasses before it fires, like any chaser.
+        /// </summary>
+        private void HunterMode(int i, TankRecord e)
+        {
+            var s = State;
+            bool anyone = EnemyState.IsAlive(s.Players[0].A) || (!s.OnePlayer && EnemyState.IsAlive(s.Players[1].A));
+            if (anyone)
+            {
+                if ((e.A & EnemyState.BitAim) != 0)
+                {
+                    if (Rules.ChaseReactionPasses > 0) s.EnemyFireCooldown[i] = Math.Max(s.EnemyFireCooldown[i], Rules.ChaseReactionPasses);
+                    e.A = EnemyState.Chase; e.F = 0;
+                }
+            }
+            else if (e.A == EnemyState.Chase) { e.A = EnemyState.Approach; e.F = 0; }
+        }
+
+        /// <summary>The live player nearest a hunter (Chebyshev; ties → P1). Falls back to the arcade's choice.</summary>
+        private TankRecord HunterTarget(TankRecord e)
+        {
+            var s = State;
+            var p1 = s.Players[0]; var p2 = s.Players[1];
+            bool a1 = EnemyState.IsAlive(p1.A), a2 = !s.OnePlayer && EnemyState.IsAlive(p2.A);
+            if (a1 && !a2) return p1;
+            if (a2 && !a1) return p2;
+            if (!a1) return ChooseChaseTarget(e);
+            int d1 = Math.Max(Math.Abs(e.X - p1.X), Math.Abs(e.Y - p1.Y)), d2 = Math.Max(Math.Abs(e.X - p2.X), Math.Abs(e.Y - p2.Y));
+            return d1 <= d2 ? p1 : p2;
         }
 
         /// <summary>Player respawn (lst:862-932, §19.2, GR §7 "Player respawn").
@@ -485,6 +577,8 @@ namespace RipOff.Core
             if (EnemyState.IsExploding(e.A)) { ExplosionTick(e, true); return; } // AI skipped (lst:1509-1516)
 
             e.Scale = GameData.EnemyScale; // word 4 := $50 (lst:1526-1527)
+            bool hunter = s.EnemyKinds[i] == EnemyKind.Hunter; // always false in Arcade
+            if (hunter) HunterMode(i, e);
             int fAtPassStart = e.F;
             if (s.EnemyFireCooldown[i] > 0) s.EnemyFireCooldown[i]--; // Enhanced only (always 0 in Arcade)
 
@@ -543,7 +637,7 @@ namespace RipOff.Core
                         // Chase: C/D := chosen player's position (lst:1686-1774, GR §6 "Chase mode").
                         // UNCHECKED (NOTES §20.6 item 1): literal code reading, refreshed every chase pass except when
                         // separation steers instead. It matches C/D in every frame of the 9 replays (NOTES §20.5).
-                        var t = ChooseChaseTarget(e);
+                        var t = hunter ? HunterTarget(e) : ChooseChaseTarget(e);
                         e.C = t.X; e.D = t.Y;
                     }
                     bearing = Trig.Bearing(e.C - e.X, e.D - e.Y); // lst:1776-1785
@@ -574,7 +668,7 @@ namespace RipOff.Core
                 return;
             }
 
-            PickupCheck(e, i);
+            if (!hunter) PickupCheck(e, i); // a hunter never takes a canister
 
             // Hops (lst:1906-2068, GR §6 "Approach"): bits 3 and 2 set, bit 1 clear, within $48 of C/D.
             if ((e.A & 0x0E) == 0x0C && Box(e.X - e.C, e.Y - e.D, GameData.HopArrivalRadius))
@@ -924,6 +1018,20 @@ namespace RipOff.Core
                     var e = s.Enemies[i];
                     if (!Box(e.X - x, e.Y - y, GameData.ShotHitRadius)) continue; // lst:3481-3525
                     if (!EnemyState.IsAlive(e.A)) continue;
+                    if (s.EnemyHits[i] > 1)
+                    {
+                        // TANK (NOTES §32): the armor takes the shot; the shooter's ship damage counts (CRUISER: 2).
+                        int damage = Ships.Stats(Rules, s.Ships[k < GameData.ShotSlotsPerPlayer ? 0 : 1]).Damage;
+                        if (damage < s.EnemyHits[i])
+                        {
+                            s.EnemyHits[i] -= damage;
+                            s.TankArmorHits++;
+                            s.Sound.Explosions++;
+                            sh.Live = false;
+                            break;
+                        }
+                        s.EnemyHits[i] = 1;
+                    }
                     e.A &= 0xF; e.Scale = GameData.ExplosionShot; e.C = 0; // lst:3526-3549
                     s.Sound.Explosions++;
                     sh.Live = false;

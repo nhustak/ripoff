@@ -1497,3 +1497,82 @@ Status: done 2026-10-17. Nick: "give ships different stats. Armor = survive more
 1. Balance: whether SCOUT 14/10 and CRUISER 7/6 feel right, and whether 1 s of grace is enough to escape. Needs Nick's playtest.
 2. Whether rams should cost armor instead of killing. Current choice: always fatal.
 3. The new hulls are remake art. The hit box is the arcade's for every ship.
+
+## 32. TANK and HUNTER enemies
+
+Status: done 2026-10-17. From ENHANCEMENTS.md: "Tank: a slower enemy that takes two hits to kill"; "Hunter: pursues the players instead of going for a canister ... an enemy that targets only the players." Remake design, Enhanced only. Arcade is unchanged: same checksums, and `EnemyKinds` is always Normal there.
+
+### 32.1 Kinds and mix (`Simulation.ChooseEnemyKinds`, end of `SpawnWave`)
+
+`GameState.EnemyKinds[3]` (`EnemyKind` Normal / Tank / Hunter) and `EnemyHits[3]` are chosen when a wave spawns, after the one-player handicap has freed slot 2.
+
+- **Unlock:** a kind is available from enemy type `TankFromType` = **2** / `HunterFromType` = **3** of level 1, and on every type from level 2 on (`KindUnlocked`). The first wave type stays the arcade's, so a new player meets the basics first.
+- **Tanks:** each live enemy is a TANK with `TankChancePercent` = **25 %**, one `NextEnhancedRandom() % 100` per enemy.
+- **Hunters:** then, with `HunterChancePercent` = **20 %** per wave, one live enemy (uniform: one more draw) becomes the HUNTER. It replaces a tank roll if it lands on one, so there is **at most one hunter per wave**.
+- **RNG:** draws happen only while a kind is on and unlocked. With both toggles off the RNG sequence, and so every hash, is that of 2026.10.17.7 (`Enhanced20261017_7Tests`, recorded at 8e27c4f, with the arcade ships and with CRUISER + SCOUT).
+- **Measured** over 600 spawns per type (`EnemyKindsTests.MixMatchesTheTuning`):
+  - type 2: 20-30 % tanks, no hunters;
+  - type 3: hunters in 15-25 % of waves, at most 1 per wave.
+
+### 32.2 TANK
+
+- **Speed:** `Word3` (top speed) and `Speed` = max(2, wave speed × `TankSpeedPercent` **70** / 100), turn step recomputed with `EnemyTurnStep`. Speed recovery after a hop works toward that lower top speed.
+- **Hits:** `EnemyHits` = `TankHits` = **2**. In `ShotsPass`, a shot on a tank with hits > damage (the shooter ship's `Ships.Stats(...).Damage`: 1, or 2 for a CRUISER with SHIP ABILITIES):
+  - takes damage off its hits;
+  - is used up;
+  - plays the explosion sound;
+  - counts `TankArmorHits` (stat, not hashed);
+  - gives **no points**.
+  - The killing shot scores the wave's normal `PointsTens`.
+- **Rams and warp kills** destroy it outright: the ram path is unchanged.
+- **Drawing:** `Scene.TankPlates` (side plates outside the treads + a front bar) while hits > 1. A damaged tank looks like the plain enemy of its type.
+
+### 32.3 HUNTER
+
+- **Mode** (`HunterMode`, at the start of its `EnemyPass`):
+  - while any player is alive, word A is the arcade's chase state `$018`;
+  - when it only now switches to chasing, the Enhanced chase reaction (`ChaseReactionPasses` 19) delays its first shot, as for any new chaser;
+  - with nobody alive it goes back to `Approach` ($01C) and hops around its target canister.
+- **No canisters:** `PickupCheck` is skipped for it, so it never reaches `AtCanister` or `Tow` and never steals. It must be destroyed to end the wave.
+- **Target** (`HunterTarget`): the nearest live player (Chebyshev; ties → P1). The arcade's chooser keeps its quirks (P1 by |dx| only, dead players not excluded) for normal chasers.
+- **Fire:** the arcade's chase fire (`FireTest`) with every Enhanced rule (aim error, miss reload, armor).
+- **Drawing:** `Scene.HunterMark`, a chevron over the nose and two rear fins.
+
+### 32.4 Hash, options, online
+
+- `EnhancedOption.TankEnemies = 256`, `HunterEnemies = 512` (in `All`, default ON).
+- `StateHash` adds `EnemyKinds` and `EnemyHits` for all three enemies while either kind's chance is > 0.
+- **Protocol 6 → 7.**
+
+### 32.5 Effect (Waves tool, `stats 20 30`, hunt bot, 1 player, 8 canisters)
+
+| Options | median / mean length | waves | level | deaths/min | fire events | kills |
+|---|---|---|---|---|---|---|
+| 2026.10.17.7 (OPTS=255) | 273 / 293 s | 57.4 | 4.7 | 3.03 | 15.2 | 137.7 |
+| All (tanks + hunters) | 336 / 339 s | 64.3 | 5.1 | 3.33 | 21.3 | 158.0 |
+
+Per game: 25-67 tanks and 6-18 hunters. The bot never thrusts, so the hunter comes to it. Hunters raise enemy fire (+40 %) and deaths/min (+10 %). Games get longer because hunters never steal and tanks tow more slowly. `tools/remake/Waves` now takes `OPTS` (Enhanced options as a number).
+
+### 32.6 Checks and screenshots
+
+- Unlocks, no RNG draws on the first type, mix census, tank speed.
+- Two shots to kill (no points for the first), one with a CRUISER, rams kill outright.
+- In 30 scripted 2P games of 4000 passes (type 3):
+  - hunters never tow or sit at a canister;
+  - they're in chase state on more than half their passes, and never while nobody is alive;
+  - at least one gets killed.
+- Hunters target the nearest live player.
+- Kinds are hashed only when on; Arcade never rolls a kind; the scene draws plates and marks.
+- **Online:** the loopback guest-adopts-options test with `All` (1500 frames) now carries both bits, with identical hashes on both peers. UNCHECKED: whether a tank or hunter actually spawns within those 1500 frames.
+- **Screenshots** (staged headless through `Scene.Build`; a type-3 wave can't be reached by script in the real game quickly):
+  - `enemies-tank-hunter-1-wave.png`;
+  - `enemies-tank-hunter-2-hunter-chasing.png` (+ `-2-zoom`);
+  - `enemies-tank-3a-before-shot.png`, `enemies-tank-3b-after-one-shot.png`, `enemies-tank-shot-sequence.png`.
+- **Real game:** `enemies-options.png`.
+
+### 32.7 UNCHECKED
+
+1. Balance: 25 % tanks / 20 % hunter waves, and the unlock types. Needs Nick's playtest.
+2. Normal points for both (no bonus for the tank's second hit). A design choice for Nick.
+3. A hunter that's hard to kill holds the wave open; there is no timeout.
+4. Tanks and hunters in the real renderer were seen only through the headless `Scene.Build` captures, not on screen.

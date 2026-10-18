@@ -150,6 +150,12 @@ namespace RipOff.Core
         public readonly int[] HitGrace = new int[2];
         /// <summary>Hits absorbed by armor per player (stat, not hashed).</summary>
         public readonly int[] ArmorSaves = new int[2];
+        /// <summary>TANK / HUNTER ENEMIES (NOTES §32): each enemy's kind and the hits it can still take, set at wave
+        /// spawn. Normal / 1 unless those toggles are on; hashed only while one of them is on.</summary>
+        public readonly EnemyKind[] EnemyKinds = new EnemyKind[3];
+        public readonly int[] EnemyHits = { 1, 1, 1 };
+        /// <summary>Stats (not hashed): tanks and hunters spawned, and shots a tank's armor absorbed.</summary>
+        public int TanksSpawned, HuntersSpawned, TankArmorHits;
         /// <summary>Warp-in passes left per player (0 = not warping). While it counts, the player record stays free.</summary>
         public readonly int[] WarpTimer = new int[2];
         /// <summary>Where each player's current warp-in materializes (chosen when it starts, GameRules.WarpLocation).</summary>

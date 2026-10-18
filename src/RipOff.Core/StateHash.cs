@@ -46,6 +46,8 @@ namespace RipOff.Core
                 // is exactly that of 2026.10.17.5 (Enhanced20261017_5Tests).
                 var rules = s.Rules;
                 if (rules.ShipSelect) Add(0x5A1B0000 | (s.Ships[0] << 8) | s.Ships[1]);
+                if (rules.TankChancePercent > 0 || rules.HunterChancePercent > 0)
+                    for (int i = 0; i < 3; i++) { Add((int)s.EnemyKinds[i]); Add(s.EnemyHits[i]); }
                 if (Ships.AbilitiesOn(rules)) for (int p = 0; p < 2; p++) { Add(s.Hits[p]); Add(s.HitGrace[p]); }
             }
             return h;

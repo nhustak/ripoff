@@ -75,17 +75,18 @@ public class GameConfigTests
         Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0 })); // schema 4 cut short
         Assert.Throws<FormatException>(() => GameConfig.Decode(new byte[] { 4, 8, 0x80, 0, 15, 0, 0, 1 })); // reserved flag bit
         Assert.NotNull(GameConfig.Decode(new byte[] { 4, 8, 0, 7, 15, 0, 0, 1 }).Validate());   // unknown play mode: refused, with a reason
-        Assert.Contains("enhanced options", GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x80, 0, 0, 1 }).Validate()); // unknown option bit
-        Assert.Contains("enhanced options", GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0x01, 0, 1 }).Validate()); // unknown high bit
+        Assert.Contains("enhanced options", GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0x80, 0, 1 }).Validate()); // unknown high bit
         Assert.Null(GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0, 0, 1 }).Validate()); // SHIP SELECT is bit 0x40
-        Assert.Equal(EnhancedOption.All, GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0, 0, 1 }).Options);
+        Assert.Null(GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0xFF, 0, 0, 1 }).Validate()); // SHIP ABILITIES is bit 0x80
+        var all = (int)EnhancedOption.All;
+        Assert.Equal(EnhancedOption.All, GameConfig.Decode(new byte[] { 4, 8, 0, 1, (byte)all, (byte)(all >> 8), 0, 1 }).Options);
         // ships: known and different (NOTES §30)
         var swapped = new GameConfig(8, false, PlayMode.Enhanced, EnhancedOption.All, Ships.Classic2, Ships.Classic1);
         Assert.Null(swapped.Validate());
         Assert.Equal(swapped, GameConfig.Decode(swapped.Encode()));
-        Assert.Equal(new byte[] { 4, 8, 0, 1, 0x7F, 0, 1, 0 }, swapped.Encode());
+        Assert.Equal(new byte[] { 4, 8, 0, 1, (byte)all, (byte)(all >> 8), 1, 0 }, swapped.Encode());
         Assert.Contains("both players", GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0, 1, 1 }).Validate());
-        Assert.Contains("unknown ship", GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0, 0, 9 }).Validate());
+        Assert.Contains("unknown ship", GameConfig.Decode(new byte[] { 4, 8, 0, 1, 0x7F, 0, 0, 99 }).Validate());
         Assert.Contains("unknown ship", GameConfig.Decode(new byte[] { 4, 8, 0, 0, 0x7F, 0, 200, 0 }).Validate()); // checked in Arcade too
         Assert.NotNull(new GameConfig(8, false, (PlayMode)7).Validate());
     }
@@ -211,7 +212,7 @@ public class GameConfigTests
     {
         // v5: options became 16-bit and the ships were added (GameConfig schema 4, NOTES §30); v4 builds are refused at
         // Hello.
-        Assert.Equal(5, Protocol.Version);
+        Assert.Equal(6, Protocol.Version); // 6: SHIP ABILITIES bit (2026.10.17.7)
         // Start = [type, delay, len, schema, canisters, flags, mode, options lo, options hi, ship1, ship2, ...]
         var cfg = LockstepSession.DefaultConfig(3, game: new GameConfig(8, Mode: PlayMode.Enhanced));
         var (host, guest) = Run(cfg, p => p[7] = (byte)EnhancedOption.WarpIn);

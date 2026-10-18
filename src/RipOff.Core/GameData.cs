@@ -59,6 +59,8 @@ namespace RipOff.Core
         public static readonly int[] WallHeadingY = { 84, 276, 264, 96 };
 
         public const int PlayerScale = 100;   // lst:2105 ($08EC-$08EE)
+        public const int PlayerMaxSpeed = 10;    // thrust cap, lst:2219-2255
+        public const int PlayerMaxTurnStep = 8;  // turn step cap, lst:2141-2218
         public const int EnemyScale = 0x50;   // lst:1526-1527
         public const int ExplosionShot = 0x200;   // lst:3526-3549 (word 4 := 2·$100)
         public const int ExplosionRam = 0x300;    // lst:2393-2421, lst:4065-4073

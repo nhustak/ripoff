@@ -18,15 +18,15 @@ public class ShipSelectScreenTests
         r.Choose("START 2 PLAYERS"); r.Choose(Branding.ModeEnhanced);
         Assert.Equal(Screen.ShipSelect, r.F.Top);
         Assert.Equal("SHIP SELECT - PLAYER 1 SHIP", r.F.Title);
-        Assert.Equal(new[] { "CLASSIC 1", "CLASSIC 2", "BACK" }, r.F.CurrentLabels);
+        Assert.Equal(new[] { "CLASSIC 1", "CLASSIC 2", "SCOUT", "CRUISER", "BACK" }, r.F.CurrentLabels);
         Assert.Equal(0, r.F.Selected);                                      // last pick (default CLASSIC 1)
         Assert.Contains("THE ARCADE'S PLAYER 1 SHIP", r.F.Notes);
         Assert.Contains("PLAYER 2 PICKS NEXT - NO TWO PLAYERS ON THE SAME SHIP", r.F.Notes);
         r.Choose("CLASSIC 2");
         Assert.Equal(Screen.ShipSelect, r.F.Top);
         Assert.Equal("SHIP SELECT - PLAYER 2 SHIP", r.F.Title);
-        Assert.Equal(new[] { "CLASSIC 1", "CLASSIC 2 - PLAYER 1", "BACK" }, r.F.CurrentLabels);
-        Assert.Equal(new[] { true, false, true }, r.F.CurrentEnabled);
+        Assert.Equal(new[] { "CLASSIC 1", "CLASSIC 2 - PLAYER 1", "SCOUT", "CRUISER", "BACK" }, r.F.CurrentLabels);
+        Assert.Equal(new[] { true, false, true, true, true }, r.F.CurrentEnabled);
         Assert.Equal(0, r.F.Selected);                                      // P2 moved off P1's ship
         Assert.Contains("PLAYER 1 HAS CLASSIC 2", r.F.Notes);
         r.Press(Buttons.DPadDown); r.Press(Buttons.A);                      // the taken ship: nothing happens
@@ -44,6 +44,27 @@ public class ShipSelectScreenTests
         r.Press(Buttons.Start); r.Choose("QUIT TO MAIN MENU");
         r.Choose("START 2 PLAYERS"); r.Choose(Branding.ModeEnhanced);
         Assert.Equal(1, r.F.Selected);
+    }
+
+    [Fact]
+    public void StatsAreShownForTheHighlightedShip()
+    {
+        var s = new Settings();
+        using var r = new Rig(s);
+        r.Choose("START 1 PLAYER"); r.Choose(Branding.ModeEnhanced);
+        Assert.Contains("SPEED 10  TURN 8  ARMOR 1  DAMAGE 1", r.F.Notes);
+        r.Press(Buttons.DPadDown); r.Press(Buttons.DPadDown);
+        Assert.Contains("FAST AND NIMBLE - ONE HIT DESTROYS IT", r.F.Notes);
+        Assert.Contains("SPEED 14  TURN 10  ARMOR 1  DAMAGE 1", r.F.Notes);
+        r.Press(Buttons.DPadDown);
+        Assert.Contains("SPEED 7  TURN 6  ARMOR 2  DAMAGE 2", r.F.Notes);
+        r.Press(Buttons.A);
+        Assert.Equal(Ships.Cruiser, r.F.LocalSim!.State.Ships[0]);
+        Assert.Equal(2, Ships.Stats(r.F.LocalSim.Rules, Ships.Cruiser).Armor);
+        r.Press(Buttons.Start); r.Choose("QUIT TO MAIN MENU");
+        s.EnhancedOptions = EnhancedOption.All & ~EnhancedOption.ShipAbilities;
+        r.Choose("START 1 PLAYER"); r.Choose(Branding.ModeEnhanced);
+        Assert.Contains("SHIP ABILITIES OFF - EVERY SHIP FLIES LIKE THE ARCADE'S", r.F.Notes);
     }
 
     [Fact]

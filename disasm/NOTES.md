@@ -1431,3 +1431,69 @@ The names are remake choices: the arcade has no ship names.
 
 1. Whether the guest should pick before joining (current) or after seeing the host's mode. Picking after would need a round trip before Start.
 2. Online ship select was tested in loopback and localhost front-end tests only, not between two machines.
+
+## 31. Ship abilities: SCOUT and CRUISER
+
+Status: done 2026-10-17. Nick: "give ships different stats. Armor = survive more than one hit (original is one-hit kill). Add Scout (fast, fragile) and Cruiser (slow, armored / strong)." Remake design, Enhanced only. Arcade is unchanged: same checksums.
+
+### 31.1 Stats (`Ships.All`, `Ships.Stats`)
+
+| Ship | Id | Speed cap | Turn-step cap | Armor | Damage | Shape |
+|---|---|---|---|---|---|---|
+| CLASSIC 1 | 0 | 10 | 8 | 1 | 1 | arcade set 0 |
+| CLASSIC 2 | 1 | 10 | 8 | 1 | 1 | arcade set 1 |
+| SCOUT | 2 | 14 | 10 | 1 | 1 | `Ships.ScoutBody` (remake dart, ±16 × 52) |
+| CRUISER | 3 | 7 | 6 | 2 | 2 | `Ships.CruiserBody` + `CruiserPlates` (remake, ±26 × 60) |
+
+- **Speed and turn** replace the arcade caps in `PlayerPass`: `GameData.PlayerMaxSpeed` = 10 (lst:2219-2255) and `PlayerMaxTurnStep` = 8 (lst:2141-2218). The rates stay the arcade's: +1 speed every 4th pass, +1 turn step every even pass.
+  - So the SCOUT needs 56 passes (1.5 s) of thrust to reach 14. The CRUISER reaches its 7 in 28 passes.
+- **Scout shots:** shot speed = min(speed, 10) + 15 with abilities on. A SCOUT's shot is never faster than the arcade's fastest (25 per pass), so it can't step over an enemy's 40-wide hit box (`ShotHitRadius` 20).
+- **Hit box:** `TankHitRadius` 24, the same for every ship. The hull sizes are only art.
+- **Damage:** how many hits one shot takes off an enemy. No enemy takes more than one hit until TANK enemies (§32), so in 2026.10.17.7 it has no effect yet.
+- **Gating:** `Ships.AbilitiesOn(rules)` = `ShipAbilities && ShipSelect`. The variation `Requires` SHIP SELECT: with the arcade pairing the ships have the arcade's stats anyway, and no armor state is kept or hashed. Off: every ship flies like the arcade's.
+
+### 31.2 Armor
+
+- `GameState.Hits[p]` is set to the ship's armor whenever the ship (re)appears (`Simulation.Arm`, after `Materialize` on warp-in or drive-in).
+- **Enemy-fire hit** (`FireTest`) on a ship with `Hits > 1`:
+  - `Hits -= 1`, `ArmorSaves[p] += 1` (stat, not hashed);
+  - `HitGrace[p] = ArmorGracePasses` (**38** passes = 1 s);
+  - the firing enemy's `EnemyFireCooldown` is set to at least 38;
+  - one explosion sound;
+  - no `AllEnemiesAim`, since nobody died.
+- **During the grace:** `FireTest` skips that player entirely (no shot is fired, nothing is counted). `HitGrace` counts down in `PlayerPass`.
+- **Rams are fatal for every ship**, armor or not. It's a trade (the enemy dies too), and armor against rams would let a CRUISER bulldoze waves.
+- **Stated per Nick:** the arcade's one-hit kill stays for CLASSIC and SCOUT.
+- **Drawing:**
+  - The CRUISER's plates are drawn while `Hits > 1`, so the hull visibly loses them when hit.
+  - During the grace the ship blinks: dim on alternate 3-pass halves (`Scene.GraceBlinkPasses`).
+  - **Armor pips:** for ships with armor > 1 only, under the score (P1 left, P2 right, 10-unit squares 6 apart, `Scene.PipY`). A hit left is a bright square with a cross; a used one is a dim outline. While dead the pips show full, which is what the next ship gets.
+
+### 31.3 Hash, options, online
+
+- `EnhancedOption.ShipAbilities = 128` (in `All`, default ON).
+- `StateHash` adds `Hits` and `HitGrace` per player only with `AbilitiesOn`.
+- `Enhanced20261017_6Tests` pins the full hashes of the 2026.10.17.6 options (0x7F), recorded on main at d1023cc.
+- **Protocol 5 → 6:** a new option bit and new simulation state. A v5 build would refuse the bit as unknown anyway; v6 makes it a clear version mismatch.
+
+### 31.4 Checks
+
+- Speeds and turn steps reached under held thrust and turn (14/10 SCOUT, 7/6 CRUISER, 10/8 CLASSIC; all 10/8 with abilities off).
+- SCOUT shots ≤ 25 per pass.
+- In 16 scripted 2P games with a CRUISER:
+  - every absorbed hit came at Hits 2, leaving Hits 1 and a 37-pass grace after the pass;
+  - every enemy-fire death came at Hits 1;
+  - every new ship started at 2.
+  - A ram on the same pass as an absorbed hit still kills, by design.
+- Scene: hull, plates, pips (2 full → 1 full + 1 dim) and the blink.
+- Arcade ignores the ships completely.
+- Online: CRUISER vs SCOUT stays in lockstep for 400+ frames.
+- **Screenshots:**
+  - Real game: `abilities-select-p1.png`, `abilities-select-p2.png` (stats line, CRUISER taken), `abilities-game.png` (CRUISER warping in, pips; SCOUT), `abilities-options.png`.
+  - Staged headless through `Scene.Build` from a scripted game: `abilities-cruiser-1-before.png`, `-2-hit.png`, `-3-blink.png` (+ `-zoom` crops and `abilities-cruiser-sequence.png`).
+
+### 31.5 UNCHECKED
+
+1. Balance: whether SCOUT 14/10 and CRUISER 7/6 feel right, and whether 1 s of grace is enough to escape. Needs Nick's playtest.
+2. Whether rams should cost armor instead of killing. Current choice: always fatal.
+3. The new hulls are remake art. The hit box is the arcade's for every ship.

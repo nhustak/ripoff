@@ -9,7 +9,7 @@ Background and measurements: [disasm/NOTES.md §27](disasm/NOTES.md) and the ENH
 
 ## Done (in Enhanced)
 
-The first eight knobs shipped in PR #18 (first in the `enhanced-preview-1` pre-release) and were released in **2026.10.17.1**. Warp-in and the options page came in **2026.10.17.3**; random warp-in and warp kills in **2026.10.17.5**; ship select in **2026.10.17.6**.
+The first eight knobs shipped in PR #18 (first in the `enhanced-preview-1` pre-release) and were released in **2026.10.17.1**. Warp-in and the options page came in **2026.10.17.3**; random warp-in and warp kills in **2026.10.17.5**; ship select in **2026.10.17.6**; ship abilities, SCOUT and CRUISER in **2026.10.17.7**.
 
 | Knob (`GameRules`) | Arcade | Enhanced | Effect | Version |
 |---|---|---|---|---|
@@ -25,7 +25,8 @@ The first eight knobs shipped in PR #18 (first in the `enhanced-preview-1` pre-r
 | `WarpLocation` | Fixed | Random | Warp in at a random spot picked when the warp starts: at least 160 units from the edges, clear of the canisters, at least 240 from the other player. Enemies aren't avoided (NOTES §29). Toggle RANDOM WARP-IN | 2026.10.17.5 |
 | `WarpKills` | false | true | Materializing on an enemy destroys it: normal score, counts as a kill, a towed canister drops, the player survives. Materialize moment only (NOTES §29). Toggle WARP KILLS | 2026.10.17.5 |
 | `ShipSelect` | false (P1 = CLASSIC 1, P2 = CLASSIC 2) | true | Each player picks a ship (SHIP SELECT screen) after ENHANCED; two players can't pick the same one. Online the host keeps its pick and the guest gets its wish or the other ship. Ships: CLASSIC 1, CLASSIC 2 (the arcade's two) (NOTES §30). Toggle SHIP SELECT | 2026.10.17.6 |
-| ENHANCED OPTIONS page | (not applicable) | WARP-IN, ENEMY AIM ERROR, SLOWER RAMP, SLOWER TOWING (2026.10.17.3), RANDOM WARP-IN, WARP KILLS (2026.10.17.5), SHIP SELECT (2026.10.17.6), all ON by default | Each Enhanced variation can be switched off (off = Arcade values for its knobs). Saved in settings.json; online, the host's options are used (protocol v4) | 2026.10.17.3 |
+| `ShipAbilities` / `ArmorGracePasses` | false / 0 | true / 38 passes (1 s) | Ships fly with their own stats (`Ships.All`): CLASSIC 1/2 speed 10, turn 8, armor 1, damage 1 (= arcade); SCOUT 14, 10, 1, 1; CRUISER 7, 6, 2, 2. Armor 2 absorbs one enemy-fire hit: the ship blinks for 38 passes and can't be hit. Rams stay fatal. Armor pips under the score (NOTES §31). Toggle SHIP ABILITIES (needs SHIP SELECT) | 2026.10.17.7 |
+| ENHANCED OPTIONS page | (not applicable) | WARP-IN, ENEMY AIM ERROR, SLOWER RAMP, SLOWER TOWING (2026.10.17.3), RANDOM WARP-IN, WARP KILLS (2026.10.17.5), SHIP SELECT (2026.10.17.6), SHIP ABILITIES (2026.10.17.7), all ON by default | Each Enhanced variation can be switched off (off = Arcade values for its knobs). Saved in settings.json; online, the host's options are used (protocol v4) | 2026.10.17.3 |
 
 The result: games last about 2.3-2.6× longer with the strong and medium test bots, and enemy fire hits about half the time instead of always (NOTES §27.3).
 
@@ -66,10 +67,10 @@ Status: idea / planned / in progress / done. Source: Nick or bot-suggested.
 | Idea | Status | Source |
 |---|---|---|
 | Ship select: each player chooses which ship they play, and both players can't pick the same ship (there are currently two ship shapes) | done (2026.10.17.6, toggle SHIP SELECT) | Nick |
-| Additional ships beyond the current two | idea | Nick |
-| Ships have different abilities (examples below) | idea | Nick |
-| Ship type: Scout. Fast; one hit kills it (an example of different abilities) | idea | Nick |
-| Ship type: Cruiser. Not as fast; it takes two hits to kill (an example of different abilities, with armor) | idea | Nick |
+| Additional ships beyond the current two | done (2026.10.17.7: SCOUT, CRUISER) | Nick |
+| Ships have different abilities (examples below) | done (2026.10.17.7, toggle SHIP ABILITIES: speed, turn, armor, damage) | Nick |
+| Ship type: Scout. Fast; one hit kills it (an example of different abilities) | done (2026.10.17.7) | Nick |
+| Ship type: Cruiser. Not as fast; it takes two hits to kill (an example of different abilities, with armor) | done (2026.10.17.7) | Nick |
 
 Ability examples from Nick for "Ships have different abilities":
 - Speed

@@ -87,6 +87,7 @@ namespace RipOff.Core
             s.EnemyFireCooldown[0] = s.EnemyFireCooldown[1] = s.EnemyFireCooldown[2] = 0;
             s.EnemyFireEvents = s.EnemyFireHits = 0;
             for (int p = 0; p < 2; p++) s.WarpTimer[p] = s.WarpX[p] = s.WarpY[p] = s.WarpHeading[p] = 0;
+            for (int p = 0; p < 2; p++) { s.Hits[p] = 1; s.HitGrace[p] = 0; s.ArmorSaves[p] = 0; }
             s.SeedEnhancedRng();
             int n = GameData.CanistersForDip[s.CanisterDip];
             for (int i = 0; i < GameData.CanisterSlots; i++)
@@ -322,6 +323,7 @@ namespace RipOff.Core
                 {
                     if (--s.WarpTimer[p] > 0) continue;
                     Materialize(r, s.WarpX[p], s.WarpY[p], s.WarpHeading[p], Rules.WarpInSpeed);
+                    Arm(p);
                     if (Rules.WarpKills) WarpKill(p, r);
                     continue;
                 }
@@ -337,7 +339,16 @@ namespace RipOff.Core
                 }
                 var st = GameData.PlayerStarts[p]; // lst:899-906, lst:924-932
                 Materialize(r, st.X, st.Y, st.Heading, Rules.RespawnSpeed); // lst:890-893
+                Arm(p);
             }
+        }
+
+        /// <summary>SHIP ABILITIES: a (re)appearing ship gets its full armor and no blink. Nothing in Arcade.</summary>
+        private void Arm(int p)
+        {
+            if (!Ships.AbilitiesOn(Rules)) return;
+            State.Hits[p] = Ships.Stats(Rules, State.Ships[p]).Armor;
+            State.HitGrace[p] = 0;
         }
 
         /// <summary>The respawn itself (lst:887-932): word A := $01C, turn step 0, speed, position, heading, scale.</summary>
@@ -645,6 +656,8 @@ namespace RipOff.Core
             var victim = (p1.X == e.C && p1.Y == e.D) ? p1 : s.Players[1]; // lst:4038-4057
             if (!EnemyState.IsAlive(victim.A)) return;                     // lst:4058-4064
             if (s.EnemyFireCooldown[i] > 0) return;                        // Enhanced: reloading / reacting
+            int vp = ReferenceEquals(victim, p1) ? 0 : 1;
+            if (Ships.AbilitiesOn(Rules) && s.HitGrace[vp] > 0) return;         // SHIP ABILITIES: blinking after a hit
             s.EnemyFireEvents++;
             if (Rules.EnemyAimErrorDeg > 0 && !AimHits(e))
             {
@@ -653,6 +666,17 @@ namespace RipOff.Core
                 return;
             }
             s.EnemyFireHits++;
+            if (Ships.AbilitiesOn(Rules) && s.Hits[vp] > 1)
+            {
+                // Armor (NOTES §31): the hit is absorbed. The ship blinks and can't be hit for ArmorGracePasses; this
+                // enemy reloads for as long. No AllEnemiesAim: nobody died.
+                s.Hits[vp]--;
+                s.ArmorSaves[vp]++;
+                s.HitGrace[vp] = Rules.ArmorGracePasses;
+                s.EnemyFireCooldown[i] = Math.Max(s.EnemyFireCooldown[i], Rules.ArmorGracePasses);
+                s.Sound.Explosions++;
+                return;
+            }
             victim.A &= 0xF;
             victim.Scale = GameData.ExplosionRam;
             victim.C = 2;
@@ -773,12 +797,15 @@ namespace RipOff.Core
             if (EnemyState.IsExploding(r.A)) { ExplosionTick(r, false); return; }
 
             r.Scale = GameData.PlayerScale; // lst:2105
+            // SHIP ABILITIES (NOTES §31): the ship's own caps; the arcade's 10 and 8 otherwise.
+            var (maxSpeed, maxTurn, _, _) = Ships.Stats(Rules, s.Ships[p]);
+            if (Ships.AbilitiesOn(Rules) && s.HitGrace[p] > 0) s.HitGrace[p]--;
 
             // Rotation (lst:2141-2218, GR §3): turn step +1 on even passes up to 8; left adds, right subtracts.
             if (!inp.Left && !inp.Right) r.TurnStep = 0;
             else
             {
-                if ((s.PassCounter & 1) == 0) r.TurnStep = Math.Min(r.TurnStep + 1, 8);
+                if ((s.PassCounter & 1) == 0) r.TurnStep = Math.Min(r.TurnStep + 1, maxTurn);
                 int h = r.Heading;
                 if (inp.Left) h += r.TurnStep;
                 if (inp.Right) h -= r.TurnStep;
@@ -790,7 +817,7 @@ namespace RipOff.Core
             // corrects GR §3 "per pass"); +1 up to 10, released −1 down to 0.
             if ((s.PassCounter & 3) == 0)
             {
-                if (inp.Thrust) r.Speed = Math.Min(r.Speed + 1, 10);
+                if (inp.Thrust) r.Speed = Math.Min(r.Speed + 1, maxSpeed);
                 else r.Speed = Math.Max(r.Speed - 1, 0);
             }
 
@@ -868,7 +895,10 @@ namespace RipOff.Core
             {
                 if (s.Shots[k].Live) continue;
                 s.TorpedoTimer = GameData.TorpedoPasses;              // lst:2606-2609
-                var (vx, vy, _) = Trig.Displacement(r.Heading, r.Speed + GameData.ShotSpeedBonus);
+                // SHIP ABILITIES: a SCOUT's shots don't go faster than the arcade's fastest (speed 10 + 15), so they
+                // can't skip over an enemy's hit box (ShotHitRadius 20 → 40 wide).
+                int shipSpeed = Ships.AbilitiesOn(Rules) ? Math.Min(r.Speed, GameData.PlayerMaxSpeed) : r.Speed;
+                var (vx, vy, _) = Trig.Displacement(r.Heading, shipSpeed + GameData.ShotSpeedBonus);
                 s.Shots[k] = new Shot { Live = true, X = r.X, Y = r.Y, Vx = vx, Vy = vy };
                 s.ShotsFired[p]++;
                 return true;

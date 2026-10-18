@@ -78,7 +78,7 @@ public class ArcadeDeterminismTests
         Assert.Equal(GameData.RespawnDelay, a.RespawnDelay);
         Assert.Equal(GameData.RespawnSpeed, a.RespawnSpeed);
         Assert.Same(a, GameRules.For(PlayMode.Arcade));
-        Assert.Same(GameRules.Enhanced, GameRules.For(PlayMode.Enhanced));
+        Assert.Same(GameRules.Enhanced, GameRules.For(PlayMode.Enhanced, EnhancedOption.All));
     }
 
     [Fact]

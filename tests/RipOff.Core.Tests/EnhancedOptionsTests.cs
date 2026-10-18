@@ -13,7 +13,12 @@ public class EnhancedOptionsTests
     public void AllOnIsEnhancedAndAllOffIsArcadeKnobForKnob()
     {
         Assert.Same(GameRules.Enhanced, GameRules.For(PlayMode.Enhanced, EnhancedOption.All));
-        Assert.Same(GameRules.Enhanced, GameRules.For(PlayMode.Enhanced));
+        // the default Enhanced options: everything but SMART RESPAWN (off by default since 2026.10.17.10)
+        Assert.Equal(EnhancedOption.All & ~EnhancedOption.SmartRespawn, EnhancedOption.Defaults);
+        Assert.Equal(EnhancedOption.SmartRespawn, GameRules.DefaultOff);
+        Assert.Same(GameRules.EnhancedWith(EnhancedOption.Defaults), GameRules.For(PlayMode.Enhanced));
+        Assert.Equal(RespawnDelayRule.Fixed, GameRules.For(PlayMode.Enhanced).DelayRule);
+        Assert.Equal(EnhancedOption.Defaults, new GameConfig(8, false, PlayMode.Enhanced).Options);
         Assert.Equal(GameRules.Arcade with { Mode = PlayMode.Enhanced }, GameRules.For(PlayMode.Enhanced, EnhancedOption.None));
         foreach (EnhancedOption o in Enum.GetValues<EnhancedOption>()) Assert.Same(GameRules.Arcade, GameRules.For(PlayMode.Arcade, o));
     }

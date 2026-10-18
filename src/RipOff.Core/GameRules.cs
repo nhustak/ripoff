@@ -208,7 +208,13 @@ namespace RipOff.Core
 
         public static bool IsDefined(PlayMode m) => m is PlayMode.Arcade or PlayMode.Enhanced;
 
-        public static GameRules For(PlayMode m) => For(m, EnhancedOption.All);
+        /// <summary>Variations that start OFF (fresh settings, and settings files that never turned them on): SMART
+        /// RESPAWN since 2026.10.17.10 (Nick: the death-cycle delay is too frustrating, especially solo; kept for a later
+        /// rethink, NOTES §33.5). <see cref="EnhancedOption.Defaults"/> = All minus these.</summary>
+        public const EnhancedOption DefaultOff = EnhancedOption.SmartRespawn;
+
+        /// <summary>Rules for a mode with the default Enhanced options (<see cref="EnhancedOption.Defaults"/>).</summary>
+        public static GameRules For(PlayMode m) => For(m, EnhancedOption.Defaults);
 
         /// <summary>Rules for a mode and its Enhanced options. Arcade ignores the options.</summary>
         public static GameRules For(PlayMode m, EnhancedOption options) => m switch
@@ -239,6 +245,8 @@ namespace RipOff.Core
         SmartRespawn = 2048,
         All = WarpIn | EnemyAimError | SlowerRamp | SlowerTowing | RandomWarpIn | WarpKills | ShipSelect | ShipAbilities
             | TankEnemies | HunterEnemies | SavedPopup | SmartRespawn,
+        /// <summary>The out-of-the-box Enhanced options: everything but <see cref="GameRules.DefaultOff"/>.</summary>
+        Defaults = All & ~SmartRespawn,
     }
 
     /// <summary>One row of the ENHANCED OPTIONS page: its bit, label, one-line description, and what "off" does to the rules.</summary>

@@ -57,7 +57,7 @@ MAIN MENU
 │  ├─ DISPLAY: WINDOWED/FULLSCREEN
 │  ├─ STICK DEAD ZONE: 10-60%     (default 35%, steps of 5)
 │  ├─ STEAM AT LAUNCH: OFF/ON     (default OFF; applies on the next start; see Controller troubleshooting)
-│  ├─ ENHANCED OPTIONS: ALL ON    → ENHANCED OPTIONS page (below)
+│  ├─ ENHANCED OPTIONS: DEFAULT   → ENHANCED OPTIONS page (below); DEFAULT = all on but SMART RESPAWN
 │  ├─ INPUT TEST                  all 4 pad slots live (hold B or press Esc to leave)
 │  └─ BACK
 └─ EXIT                      the only way out, with EXIT TO DESKTOP below
@@ -79,7 +79,7 @@ ENHANCED OPTIONS (OPTIONS → ENHANCED OPTIONS; Enhanced games only, Arcade igno
 ├─ TANK ENEMIES: ON/OFF      some enemies are slow armored tanks that take two hits (from the 2nd enemy type)
 ├─ HUNTER ENEMIES: ON/OFF    some waves have a hunter that ignores canisters and goes for you (from the 3rd type)
 ├─ SAVED!! POPUP: ON/OFF     shooting an enemy that is towing a canister away shows "SAVED!!"
-├─ SMART RESPAWN: ON/OFF     longer wait after a collision death, and after dying again within 15 s
+├─ SMART RESPAWN: OFF/ON     (default OFF) longer wait after a collision death, and after dying again within 15 s
 ├─ ALL ON
 └─ BACK
 ```
@@ -125,13 +125,13 @@ SHIP SELECT (after ENHANCED is picked, with SHIP SELECT on; NOTES §30)
 
 **SAVED!!** (Enhanced, NOTES §33): shoot an enemy while it's towing a canister away and "SAVED!!" pops up over it for a second. Ramming it or warping onto it doesn't show the message.
 
-**Smart respawn** (Enhanced, NOTES §33): after you're destroyed you wait 25 passes (0.66 s) before warping in, as in the arcade, plus:
+**Smart respawn** (Enhanced, **off by default** since 2026.10.17.10, NOTES §33): with it on, after you're destroyed you wait 25 passes (0.66 s) before warping in, as in the arcade, plus:
 - **+1 s** if you died in a collision (rammed an enemy or the other player);
 - **+0.5 s** if your previous death was less than 15 s earlier.
 
 So the wait is 0.66, 1.16, 1.66 or 2.16 s, followed by the warp-in itself.
 
-All Enhanced options default ON. RANDOM WARP-IN and WARP KILLS only matter with WARP-IN on: while it's off they're dimmed and ignored, and they keep their setting. They're saved in settings.json as `"EnhancedOff": [...]` (the ones switched off), so older files and options added later read as ON. Each toggle sets its knobs back to the Arcade values when off; all off plays like Arcade. Online, the guest uses the host's options.
+All Enhanced options default ON except SMART RESPAWN, which defaults OFF (the longer death-cycle waits felt too frustrating, especially solo; it may be reconsidered). RANDOM WARP-IN and WARP KILLS only matter with WARP-IN on: while it's off they're dimmed and ignored, and they keep their setting. They're saved in settings.json as `"EnhancedOff": [...]` (default-ON options switched off) and `"EnhancedOn": [...]` (default-OFF options switched on). Older files and options added later read as their defaults. A file from 2026.10.17.9 or earlier reads SMART RESPAWN as OFF even if it was on in .9, because that file can't tell "turned on" from "never touched". Each toggle sets its knobs back to the Arcade values when off; all off plays like Arcade. Online, the guest uses the host's options.
 
 The last mode picked is highlighted next time and saved in settings.json (`"Mode": "Arcade"` / `"Enhanced"`).
 

@@ -1646,3 +1646,24 @@ Status: done 2026-10-17. From ENHANCEMENTS.md: 'Show a quick little "SAVED!!" me
 2. SMART RESPAWN makes one-player games about 20 % shorter with the bot (33.2). Not playtested by a human.
 3. SAVED!! for rams and warp kills is excluded (the text says "shoot"). `AtCanister` (`$014`, not yet towing) is excluded too.
 4. Only seen in headless `Scene.Build` captures, not on a real screen.
+
+### 33.5 SMART RESPAWN default OFF (2026.10.17.10)
+
+Nick: "the smart respawn / death-cycle delay would be very frustrating, especially solo". The feature and its toggle stay; it now **starts OFF**, to be reconsidered later. Arcade is untouched, and the simulation and hashes are the same for the same options, so protocol 8 is unchanged and .9 and .10 builds can play together. The host's options apply, as before.
+
+**Code:**
+- `EnhancedOption.Defaults` = `All & ~SmartRespawn`; `GameRules.DefaultOff` = `SmartRespawn`.
+- `GameRules.For(mode)` and `GameConfig`'s default `Options` use `Defaults`. `GameRules.Enhanced` is still the all-on table, and `For(Enhanced, All)` returns it.
+- The options summary reads `DEFAULT` for `Defaults`. ALL ON still turns everything on, SMART RESPAWN included.
+
+**Settings** (`Settings.EnhancedOptions`):
+- **Storage before .10:** settings.json stored only `EnhancedOff`, the options switched off, so missing names read ON.
+- **Ambiguity:** in a .9 file, SMART RESPAWN not being in `EnhancedOff` means either "never touched" or "deliberately turned on". The two can't be told apart.
+- **New format:** default-OFF options are now stored as a separate `EnhancedOn` list. Default-ON options stay in `EnhancedOff`.
+- **Old files:** they have no `EnhancedOn`, so SMART RESPAWN reads **OFF** for every file from .9 and earlier. All other choices are kept.
+  - A .9 user who deliberately turned it on gets it OFF once; the window was minutes (.9 published 2026-10-17 22:12 EDT).
+  - "SmartRespawn" in an old `EnhancedOff` is dropped by `Normalize`, since OFF is already the default.
+- **From .10 on:** turning it on saves `"EnhancedOn": ["SmartRespawn"]`, and that is kept.
+- **Junk in `EnhancedOn`:** default-ON or unknown names there are ignored.
+- **Test:** `EnhancedOptionsPageTests.SmartRespawnStartsOffAndOnlyAnExplicitOnKeepsIt`.
+- **Screenshot:** `smart-respawn-default-off-options.png` (real game, from a settings file without `EnhancedOn`).
